@@ -44,19 +44,22 @@ describe('digestRequest', () => {
   });
 
   it('uses correct response hash for known inputs', async () => {
-    // Same algorithm, manually computed.
-    const ha1 = md5('rokudev:rokudev:pw');
-    const ha2 = md5('GET:/x');
-    // We don't know cnonce; just verify the response field shape.
     const r = await digestRequest({
       method: 'GET', url: `http://127.0.0.1:${port}/x`,
       username: 'rokudev', password: 'pw',
     });
     expect(r.statusCode).toBe(200);
-    const m = lastAuth!.match(/response="([^"]+)"/);
-    expect(m).toBeTruthy();
-    expect(m![1]).toHaveLength(32); // MD5 hex
-    void ha1; void ha2;
+    // Extract the actual cnonce from the captured Authorization header so we can
+    // compute the expected response value.
+    const cnonceMatch = lastAuth!.match(/cnonce="([^"]+)"/);
+    expect(cnonceMatch).toBeTruthy();
+    const cnonce = cnonceMatch![1]!;
+    const ha1 = md5('rokudev:rokudev:pw');
+    const ha2 = md5('GET:/x');
+    const expectedResponse = md5(`${ha1}:abc123:00000001:${cnonce}:auth:${ha2}`);
+    const responseMatch = lastAuth!.match(/response="([^"]+)"/);
+    expect(responseMatch).toBeTruthy();
+    expect(responseMatch![1]).toBe(expectedResponse);
   });
 
   it('does not leak the password into the auth header', async () => {
@@ -65,5 +68,43 @@ describe('digestRequest', () => {
       username: 'rokudev', password: 'verysecret',
     });
     expect(lastAuth).not.toContain('verysecret');
+  });
+
+  it('forwards body identically on the authenticated second request', async () => {
+    const body = Buffer.from('the body bytes');
+    // Mock server captures the second-roundtrip body.
+    let capturedBody: Buffer | undefined;
+    const handler = (req: any, res: any) => {
+      if (!req.headers.authorization) {
+        res.writeHead(401, { 'WWW-Authenticate': 'Digest realm="rokudev", nonce="b", qop="auth", opaque="op"' });
+        res.end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        capturedBody = Buffer.concat(chunks);
+        res.writeHead(200);
+        res.end('OK');
+      });
+    };
+    // Stand up a temporary second server for this test (avoids cross-test state leak).
+    const tmpServer = createServer(handler);
+    await new Promise<void>((r) => tmpServer.listen(0, '127.0.0.1', r));
+    const tmpPort = (tmpServer.address() as AddressInfo).port;
+    try {
+      const r = await digestRequest({
+        method: 'POST',
+        url: `http://127.0.0.1:${tmpPort}/x`,
+        username: 'rokudev', password: 'pw',
+        body,
+        headers: { 'content-type': 'application/octet-stream' },
+      });
+      expect(r.statusCode).toBe(200);
+      expect(capturedBody).toBeDefined();
+      expect(Buffer.compare(capturedBody!, body)).toBe(0);
+    } finally {
+      await new Promise<void>((r) => tmpServer.close(() => r()));
+    }
   });
 });
