@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fail, warn, FAILURE_CODES } from './index.js';
+import { fail, warn, FAILURE_CODES, STAGES } from './index.js';
 
 describe('errors', () => {
   it('fail() sets stage from code map', () => {
@@ -26,9 +26,9 @@ describe('errors', () => {
   });
 
   it('every FAILURE_CODES value is a known stage', () => {
+    const knownStages: ReadonlySet<string> = new Set(STAGES);
     for (const stage of Object.values(FAILURE_CODES)) {
-      expect(['validate', 'render', 'write', 'package', 'sideload',
-              'device', 'debug', 'merge', 'freeform', 'registry', 'lint', 'bootstrap']).toContain(stage);
+      expect(knownStages.has(stage)).toBe(true);
     }
   });
 });
