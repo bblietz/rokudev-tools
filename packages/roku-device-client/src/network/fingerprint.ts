@@ -21,6 +21,9 @@ export type FingerprintIo = {
 export const realFingerprintIo: FingerprintIo = {
   async readDefaultGatewayIpV4() {
     try {
+      // BSD/macOS syntax. On Linux, `-f inet` is invalid and netstat fails;
+      // the catch below returns undefined, which is permissive (classifies as
+      // 'unknown'). Linux support requires a separate code path (e.g. `ip route show default`).
       const { stdout } = await execFileP('netstat', ['-rn', '-f', 'inet']);
       // Match the line beginning with "default" or "0.0.0.0".
       const m = stdout.match(/^(?:default|0\.0\.0\.0\/0|0\.0\.0\.0)\s+(\d+\.\d+\.\d+\.\d+)/m);

@@ -42,6 +42,15 @@ describe('classifyNetwork', () => {
     const t = classifyNetwork({ vpn_iface_present: false }, { home: homeNet });
     expect(t).toBe('unknown');
   });
+
+  it('matches MAC case-insensitively', () => {
+    const upperHomeNet = { gateway_mac: 'AA:BB:CC:00:00:01', gateway_subnet_v4: '192.168.1.0/24' };
+    const t = classifyNetwork(
+      { gateway_mac: 'aa:bb:cc:00:00:01', gateway_subnet_v4: '192.168.1.0/24', vpn_iface_present: false },
+      { home: upperHomeNet },
+    );
+    expect(t).toBe('home');
+  });
 });
 
 describe('isReachable', () => {
@@ -66,5 +75,21 @@ describe('isReachable', () => {
 
   it('corp cannot reach home (asymmetric)', () => {
     expect(isReachable('corp', 'home', { home: homeNet, corp: corpNet })).toBe(false);
+  });
+
+  it('blocks reaching an unknown-tagged target from a known network (untagged device policy)', () => {
+    // Documented current policy: when the target's network is not in the registry
+    // (or it is 'unknown'), reach is denied unless current is 'unknown'. Callers
+    // can override with force:true at the device-resolution layer.
+    expect(isReachable('corp', 'unknown', { home: homeNet, corp: corpNet })).toBe(false);
+  });
+
+  it('home_via_vpn cannot reach home in default registry config (requires explicit reachable_from on home)', () => {
+    // Documented current policy: home_via_vpn means "physically at home with VPN
+    // to corp". Reaching the home network would intuitively be allowed, but the
+    // implementation requires the user to set reachable_from explicitly on the
+    // home network entry. This test pins current behavior; revisit if the spec
+    // changes the implicit reachability rule.
+    expect(isReachable('home_via_vpn', 'home', { home: homeNet, corp: corpNet })).toBe(false);
   });
 });

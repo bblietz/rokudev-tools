@@ -16,7 +16,7 @@ export function classifyNetwork(fp: Fingerprint, networks: Registry['networks'])
   if (matches.length === 0) return 'unknown';
   // home_via_vpn = vpn iface up + matched the corp network.
   if (fp.vpn_iface_present && matches.includes('corp')) return 'home_via_vpn';
-  // Pick a known tag; prefer 'home' over 'corp' for tie-break (alphabetic).
+  // Pick a known tag; prefer 'home' over 'corp' (explicit priority order).
   for (const tag of ['home', 'corp'] as const) {
     if (matches.includes(tag)) return tag;
   }
