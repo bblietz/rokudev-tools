@@ -35,7 +35,7 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 describe('DevPortalInspect.screenshot', () => {
   it('roundtrips inspect + asset GET', async () => {
-    const r = await new DevPortalInspect('127.0.0.1', 'pw', port).screenshot('jpg');
+    const r = await new DevPortalInspect('127.0.0.1', 'pw', port).screenshot();
     expect(r.mime).toBe('image/jpeg');
     expect(r.bytes).toBe(4);
   });

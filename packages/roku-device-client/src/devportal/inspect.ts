@@ -8,7 +8,7 @@ import { parseXml } from '../ecp/parse-xml.js';
 export class DevPortalInspect {
   constructor(private host: string, private password: string, private port = 80) {}
 
-  async screenshot(format: 'jpg' | 'png' = 'jpg'): Promise<{ mime: string; bytes: number; base64: string; duration_ms: number }> {
+  async screenshot(): Promise<{ mime: string; bytes: number; base64: string; duration_ms: number }> {
     const start = Date.now();
     const boundary = buildBoundary();
     const body = buildMultipart(
@@ -39,7 +39,6 @@ export class DevPortalInspect {
     });
     if (r2.statusCode !== 200) throw fail('SCREENSHOT_FAILED', `asset GET returned ${r2.statusCode}`);
     const mime = path.endsWith('.png') ? 'image/png' : 'image/jpeg';
-    void format;
     return { mime, bytes: r2.bodyBytes.length, base64: r2.bodyBytes.toString('base64'),
              duration_ms: Date.now() - start };
   }

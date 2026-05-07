@@ -79,4 +79,26 @@ describe('EcpClient', () => {
     expect(i.mime).toBe('image/png');
     expect(i.bytes).toBe(4);
   });
+
+  it('throws DEVICE_UNREACHABLE on non-200 from any query method', async () => {
+    // Use the existing mock server's 404 fallback path.
+    // The mock returns 404 for any unrecognized URL, but our EcpClient methods
+    // hit fixed URLs. Stand up a tiny secondary server that returns 500 for everything,
+    // and use that for this test.
+    const { createServer } = await import('node:http');
+    const tmpServer = createServer((_req, res) => { res.statusCode = 500; res.end(); });
+    await new Promise<void>((r) => tmpServer.listen(0, '127.0.0.1', r));
+    const tmpPort = (tmpServer.address() as { port: number }).port;
+    try {
+      const c500 = new EcpClient('127.0.0.1', tmpPort);
+      await expect(c500.deviceInfo()).rejects.toMatchObject({ code: 'DEVICE_UNREACHABLE' });
+      await expect(c500.apps()).rejects.toMatchObject({ code: 'DEVICE_UNREACHABLE' });
+      await expect(c500.activeApp()).rejects.toMatchObject({ code: 'DEVICE_UNREACHABLE' });
+      await expect(c500.mediaPlayer()).rejects.toMatchObject({ code: 'DEVICE_UNREACHABLE' });
+      await expect(c500.r2d2Bitrate()).rejects.toMatchObject({ code: 'DEVICE_UNREACHABLE' });
+      await expect(c500.icon('dev')).rejects.toMatchObject({ code: 'DEVICE_UNREACHABLE' });
+    } finally {
+      await new Promise<void>((r) => tmpServer.close(() => r()));
+    }
+  });
 });

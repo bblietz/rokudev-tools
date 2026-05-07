@@ -40,6 +40,7 @@ export class EcpClient {
 
   async apps(): Promise<Array<{ id: string; name: string; version: string; type: string }>> {
     const r = await get(this.host, this.port, '/query/apps');
+    if (r.statusCode !== 200) throw fail('DEVICE_UNREACHABLE', `ECP returned ${r.statusCode}`);
     const parsed = parseXml(r.body.toString('utf8')) as { apps?: { app?: any[] | any } };
     const list = parsed.apps?.app ?? [];
     const arr = Array.isArray(list) ? list : [list];
@@ -53,6 +54,7 @@ export class EcpClient {
 
   async activeApp(): Promise<{ id?: string; name?: string }> {
     const r = await get(this.host, this.port, '/query/active-app');
+    if (r.statusCode !== 200) throw fail('DEVICE_UNREACHABLE', `ECP returned ${r.statusCode}`);
     const parsed = parseXml(r.body.toString('utf8')) as { 'active-app'?: { app?: any } };
     const a = parsed['active-app']?.app;
     if (!a) return {};
@@ -62,6 +64,7 @@ export class EcpClient {
 
   async mediaPlayer(): Promise<Record<string, string>> {
     const r = await get(this.host, this.port, '/query/media-player');
+    if (r.statusCode !== 200) throw fail('DEVICE_UNREACHABLE', `ECP returned ${r.statusCode}`);
     const parsed = parseXml(r.body.toString('utf8')) as { player?: Record<string, unknown> };
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(parsed.player ?? {})) {
@@ -72,6 +75,7 @@ export class EcpClient {
 
   async r2d2Bitrate(): Promise<Array<Record<string, string>>> {
     const r = await get(this.host, this.port, '/query/r2d2_bitrate');
+    if (r.statusCode !== 200) throw fail('DEVICE_UNREACHABLE', `ECP returned ${r.statusCode}`);
     const parsed = parseXml(r.body.toString('utf8')) as { 'r2d2-bitrates'?: { 'bitrate-stream'?: any | any[] } };
     const list = parsed['r2d2-bitrates']?.['bitrate-stream'] ?? [];
     const arr = Array.isArray(list) ? list : [list];
