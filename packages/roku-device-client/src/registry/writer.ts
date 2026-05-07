@@ -1,4 +1,4 @@
-import { writeFile, rename, mkdir, chmod, readFile } from 'node:fs/promises';
+import { writeFile, rename, mkdir, readFile } from 'node:fs/promises';
 import * as lockfile from 'proper-lockfile';
 import { devicesPath, devicesLockPath, configDir } from './paths.js';
 import { parseRegistry, serializeRegistry } from './parse.js';
@@ -21,7 +21,11 @@ export class RegistryWriter {
   async transact<T>(mutate: (r: Registry) => T): Promise<T> {
     await mkdir(configDir(), { recursive: true, mode: 0o700 });
     // Touch the lockfile so proper-lockfile can lock it.
-    try { await writeFile(devicesLockPath(), '', { flag: 'wx', mode: 0o600 }); } catch {}
+    try {
+      await writeFile(devicesLockPath(), '', { flag: 'wx', mode: 0o600 });
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    }
     let release: (() => Promise<void>) | undefined;
     try {
       release = await lockfile.lock(devicesLockPath(), LOCK_OPTS);
@@ -40,17 +44,22 @@ export class RegistryWriter {
       }
       const result = mutate(current);
       const validated = RegistrySchema.parse(current);
-      const tmp = `${devicesPath()}.tmp.${process.pid}`;
+      const tmp = `${devicesPath()}.tmp.${process.pid}.${Math.random().toString(36).slice(2, 10)}`;
       const text = serializeRegistry(validated);
+      // writeFile creates tmp at 0o600; rename preserves mode on POSIX.
       await writeFile(tmp, text, { mode: 0o600 });
       await rename(tmp, devicesPath());
-      await chmod(devicesPath(), 0o600);
       return result;
     } finally {
       if (release) await release();
     }
   }
 
+  /**
+   * Insert or upsert a device. If a device with this name already exists, the
+   * provided fields are merged on top of the existing entry (existing fields
+   * not in `entry` are preserved).
+   */
   async addDevice(name: string, entry: DeviceEntry): Promise<void> {
     const safeName = DeviceNameSchema.safeParse(name);
     if (!safeName.success) {
@@ -75,6 +84,11 @@ export class RegistryWriter {
     });
   }
 
+  /**
+   * Remove a device. Idempotent: calling on a non-existent device is a no-op
+   * (no error). If the removed device was the active device, `active` is also
+   * cleared.
+   */
   async removeDevice(name: string): Promise<void> {
     await this.transact((r) => {
       delete r.devices[name];

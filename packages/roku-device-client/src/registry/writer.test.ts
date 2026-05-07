@@ -72,5 +72,6 @@ describe('RegistryWriter', () => {
       expect(r.devices[`d${i}`]?.host).toBe(`10.0.0.${i}`);
     }
     expect(r.devices.a?.host).toBe('1.1.1.1');
+    expect(Object.keys(r.devices).length).toBe(11);
   });
 });
