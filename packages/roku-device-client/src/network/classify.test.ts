@@ -3,12 +3,19 @@ import { classifyNetwork, isReachable } from './classify.js';
 
 describe('classifyNetwork', () => {
   const homeNet = { gateway_mac: 'aa:bb:cc:00:00:01', gateway_subnet_v4: '192.168.1.0/24' };
-  const corpNet = { gateway_mac: 'aa:bb:cc:00:00:02', dns_search_suffix: 'corp.example.com',
-                    reachable_from: ['corp', 'home_via_vpn'] };
+  const corpNet = {
+    gateway_mac: 'aa:bb:cc:00:00:02',
+    dns_search_suffix: 'corp.example.com',
+    reachable_from: ['corp', 'home_via_vpn'],
+  };
 
   it('classifies home when MAC + subnet match', () => {
     const t = classifyNetwork(
-      { gateway_mac: 'aa:bb:cc:00:00:01', gateway_subnet_v4: '192.168.1.0/24', vpn_iface_present: false },
+      {
+        gateway_mac: 'aa:bb:cc:00:00:01',
+        gateway_subnet_v4: '192.168.1.0/24',
+        vpn_iface_present: false,
+      },
       { home: homeNet, corp: corpNet },
     );
     expect(t).toBe('home');
@@ -16,7 +23,11 @@ describe('classifyNetwork', () => {
 
   it('classifies corp via DNS suffix', () => {
     const t = classifyNetwork(
-      { gateway_mac: 'aa:bb:cc:00:00:02', dns_search_suffix: 'corp.example.com', vpn_iface_present: false },
+      {
+        gateway_mac: 'aa:bb:cc:00:00:02',
+        dns_search_suffix: 'corp.example.com',
+        vpn_iface_present: false,
+      },
       { home: homeNet, corp: corpNet },
     );
     expect(t).toBe('corp');
@@ -24,7 +35,11 @@ describe('classifyNetwork', () => {
 
   it('classifies home_via_vpn when corp matches and VPN iface up', () => {
     const t = classifyNetwork(
-      { gateway_mac: 'aa:bb:cc:00:00:02', dns_search_suffix: 'corp.example.com', vpn_iface_present: true },
+      {
+        gateway_mac: 'aa:bb:cc:00:00:02',
+        dns_search_suffix: 'corp.example.com',
+        vpn_iface_present: true,
+      },
       { home: homeNet, corp: corpNet },
     );
     expect(t).toBe('home_via_vpn');
@@ -32,7 +47,11 @@ describe('classifyNetwork', () => {
 
   it('returns unknown when MAC matches but neither subnet nor DNS does', () => {
     const t = classifyNetwork(
-      { gateway_mac: 'aa:bb:cc:00:00:01', gateway_subnet_v4: '10.0.0.0/24', vpn_iface_present: false },
+      {
+        gateway_mac: 'aa:bb:cc:00:00:01',
+        gateway_subnet_v4: '10.0.0.0/24',
+        vpn_iface_present: false,
+      },
       { home: homeNet, corp: corpNet },
     );
     expect(t).toBe('unknown');
@@ -46,7 +65,11 @@ describe('classifyNetwork', () => {
   it('matches MAC case-insensitively', () => {
     const upperHomeNet = { gateway_mac: 'AA:BB:CC:00:00:01', gateway_subnet_v4: '192.168.1.0/24' };
     const t = classifyNetwork(
-      { gateway_mac: 'aa:bb:cc:00:00:01', gateway_subnet_v4: '192.168.1.0/24', vpn_iface_present: false },
+      {
+        gateway_mac: 'aa:bb:cc:00:00:01',
+        gateway_subnet_v4: '192.168.1.0/24',
+        vpn_iface_present: false,
+      },
       { home: upperHomeNet },
     );
     expect(t).toBe('home');

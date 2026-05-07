@@ -13,14 +13,16 @@ export function buildMultipart(parts: MultipartPart[], boundary: string): Buffer
   for (const p of parts) {
     chunks.push(Buffer.from(`--${boundary}\r\n`));
     if (p.kind === 'field') {
-      chunks.push(Buffer.from(
-        `Content-Disposition: form-data; name="${p.name}"\r\n\r\n${p.value}\r\n`,
-      ));
+      chunks.push(
+        Buffer.from(`Content-Disposition: form-data; name="${p.name}"\r\n\r\n${p.value}\r\n`),
+      );
     } else {
-      chunks.push(Buffer.from(
-        `Content-Disposition: form-data; name="${p.name}"; filename="${p.filename}"\r\n` +
-        `Content-Type: ${p.contentType}\r\n\r\n`,
-      ));
+      chunks.push(
+        Buffer.from(
+          `Content-Disposition: form-data; name="${p.name}"; filename="${p.filename}"\r\n` +
+            `Content-Type: ${p.contentType}\r\n\r\n`,
+        ),
+      );
       chunks.push(p.body);
       chunks.push(Buffer.from('\r\n'));
     }

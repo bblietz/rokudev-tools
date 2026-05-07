@@ -16,19 +16,34 @@ export type SideloadResult = {
 };
 
 export class DevPortal {
-  constructor(private host: string, private password: string, private port = 80) {}
+  constructor(
+    private host: string,
+    private password: string,
+    private port = 80,
+  ) {}
 
   async sideload(zipPath: string): Promise<SideloadResult> {
     const start = Date.now();
     let zipBytes: Buffer;
-    try { zipBytes = await readFile(zipPath); }
-    catch { throw fail('ZIP_NOT_FOUND', `zip not found: ${zipPath}`); }
+    try {
+      zipBytes = await readFile(zipPath);
+    } catch {
+      throw fail('ZIP_NOT_FOUND', `zip not found: ${zipPath}`);
+    }
     const boundary = buildBoundary();
-    const body = buildMultipart([
-      { kind: 'field', name: 'mysubmit', value: 'Install' },
-      { kind: 'file', name: 'archive', filename: basename(zipPath),
-        contentType: 'application/zip', body: zipBytes },
-    ], boundary);
+    const body = buildMultipart(
+      [
+        { kind: 'field', name: 'mysubmit', value: 'Install' },
+        {
+          kind: 'file',
+          name: 'archive',
+          filename: basename(zipPath),
+          contentType: 'application/zip',
+          body: zipBytes,
+        },
+      ],
+      boundary,
+    );
     const r = await digestRequest({
       method: 'POST',
       url: `http://${this.host}:${this.port}/plugin_install`,
@@ -61,15 +76,19 @@ export class DevPortal {
     const start = Date.now();
     const boundary = buildBoundary();
     const body = buildMultipart(
-      [{ kind: 'field', name: 'mysubmit', value: 'Delete' },
-       { kind: 'field', name: 'archive', value: '' }],
+      [
+        { kind: 'field', name: 'mysubmit', value: 'Delete' },
+        { kind: 'field', name: 'archive', value: '' },
+      ],
       boundary,
     );
     const r = await digestRequest({
       method: 'POST',
       url: `http://${this.host}:${this.port}/plugin_install`,
-      username: 'rokudev', password: this.password,
-      body, headers: {
+      username: 'rokudev',
+      password: this.password,
+      body,
+      headers: {
         'content-type': `multipart/form-data; boundary=${boundary}`,
         'content-length': String(body.length),
       },

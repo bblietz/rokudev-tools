@@ -10,7 +10,16 @@ describe('package exports', () => {
   });
   it('exports the public surface', () => {
     const exports = pkg.exports as Record<string, unknown>;
-    for (const k of ['.', './errors', './registry', './ecp', './devportal', './telnet', './discovery', './network']) {
+    for (const k of [
+      '.',
+      './errors',
+      './registry',
+      './ecp',
+      './devportal',
+      './telnet',
+      './discovery',
+      './network',
+    ]) {
       expect(exports).toHaveProperty(k);
     }
   });

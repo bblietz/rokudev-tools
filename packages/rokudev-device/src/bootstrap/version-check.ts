@@ -15,7 +15,9 @@ async function readOwnPackageJson(myDir: string): Promise<{ version: string }> {
   // while package.json lives at the package root.
   for (const dir of [myDir, resolve(myDir, '..')]) {
     try {
-      return JSON.parse(await readFile(resolve(dir, 'package.json'), 'utf8')) as { version: string };
+      return JSON.parse(await readFile(resolve(dir, 'package.json'), 'utf8')) as {
+        version: string;
+      };
     } catch {
       // continue
     }
@@ -34,7 +36,8 @@ export async function checkSiblings(myImportMetaUrl: string): Promise<VersionSta
   let siblingVersion: string | undefined;
   try {
     const siblingPath = require.resolve('@rokudev/device-client/package.json');
-    siblingVersion = (JSON.parse(await readFile(siblingPath, 'utf8')) as { version: string }).version;
+    siblingVersion = (JSON.parse(await readFile(siblingPath, 'utf8')) as { version: string })
+      .version;
   } catch {
     // sibling not findable; nothing to check (e.g. running from source).
     return { ok: true };
@@ -43,17 +46,29 @@ export async function checkSiblings(myImportMetaUrl: string): Promise<VersionSta
   if (sibMajor !== mineMajor) {
     return {
       ok: false,
-      failure: fail('CROSS_PACKAGE_VERSION_MISMATCH',
+      failure: fail(
+        'CROSS_PACKAGE_VERSION_MISMATCH',
         `rokudev-device@${mine} requires @rokudev/device-client@${mineMajor}.x; found ${siblingVersion}`,
-        { package: '@rokudev/device-client', installed_version: siblingVersion, expected_version: `${mineMajor}.x` }),
+        {
+          package: '@rokudev/device-client',
+          installed_version: siblingVersion,
+          expected_version: `${mineMajor}.x`,
+        },
+      ),
     };
   }
   if (siblingVersion !== mine) {
     return {
       ok: true,
-      warning: warn('CROSS_PACKAGE_VERSION_MISMATCH',
+      warning: warn(
+        'CROSS_PACKAGE_VERSION_MISMATCH',
         `minor-version drift: rokudev-device ${mine} vs @rokudev/device-client ${siblingVersion}`,
-        { package: '@rokudev/device-client', installed_version: siblingVersion, expected_version: mine }),
+        {
+          package: '@rokudev/device-client',
+          installed_version: siblingVersion,
+          expected_version: mine,
+        },
+      ),
     };
   }
   return { ok: true };

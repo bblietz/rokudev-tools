@@ -10,7 +10,8 @@ let port: number;
 beforeAll(async () => {
   server = createServer((req: IncomingMessage, res) => {
     requests.push({ method: req.method!, url: req.url! });
-    res.statusCode = 200; res.end();
+    res.statusCode = 200;
+    res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   port = (server.address() as AddressInfo).port;
@@ -21,7 +22,9 @@ describe('EcpControl', () => {
   const c = () => new EcpControl('127.0.0.1', port);
 
   it('rejects disallowed standard key', async () => {
-    await expect(c().keypress('NotAKey' as any)).rejects.toMatchObject({ code: 'ECP_KEY_DISALLOWED' });
+    await expect(c().keypress('NotAKey' as any)).rejects.toMatchObject({
+      code: 'ECP_KEY_DISALLOWED',
+    });
   });
 
   it('rejects Lit_ with disallowed char', async () => {
@@ -52,11 +55,15 @@ describe('EcpControl', () => {
   });
 
   it('launch rejects disallowed param keys', async () => {
-    await expect(c().launch('dev', { evil: 'x' })).rejects.toMatchObject({ code: 'ECP_PARAM_DISALLOWED' });
+    await expect(c().launch('dev', { evil: 'x' })).rejects.toMatchObject({
+      code: 'ECP_PARAM_DISALLOWED',
+    });
   });
 
   it('input rejects disallowed keys', async () => {
-    await expect(c().input({ random: 'x' })).rejects.toMatchObject({ code: 'ECP_PARAM_DISALLOWED' });
+    await expect(c().input({ random: 'x' })).rejects.toMatchObject({
+      code: 'ECP_PARAM_DISALLOWED',
+    });
   });
 
   it('toHome sends Home twice', async () => {

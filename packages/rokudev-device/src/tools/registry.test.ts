@@ -57,8 +57,12 @@ async function call(name: string, args: Record<string, unknown> = {}): Promise<u
 describe('registry tool registration', () => {
   it('registers all six tools with required shape', () => {
     const names = [
-      'device_list', 'device_add', 'device_set_password',
-      'device_set_active', 'device_remove', 'device_test',
+      'device_list',
+      'device_add',
+      'device_set_password',
+      'device_set_active',
+      'device_remove',
+      'device_test',
     ];
     for (const name of names) {
       expect(tools.has(name), `${name} not registered`).toBe(true);
@@ -89,7 +93,11 @@ describe('registry tool registration', () => {
 
 describe('device_list', () => {
   it('returns empty device list when registry does not exist', async () => {
-    const result = await call('device_list') as { ok: boolean; devices: unknown[]; active?: string };
+    const result = (await call('device_list')) as {
+      ok: boolean;
+      devices: unknown[];
+      active?: string;
+    };
     expect(result.ok).toBe(true);
     expect(result.devices).toEqual([]);
     expect(result.active).toBeUndefined();
@@ -97,7 +105,11 @@ describe('device_list', () => {
 
   it('returns one entry after device_add', async () => {
     await call('device_add', { name: 'home-tv', host: '1.1.1.1', model: 'Roku TV' });
-    const result = await call('device_list') as { ok: boolean; devices: unknown[]; active?: string };
+    const result = (await call('device_list')) as {
+      ok: boolean;
+      devices: unknown[];
+      active?: string;
+    };
     expect(result.ok).toBe(true);
     expect(result.devices).toHaveLength(1);
     const first = result.devices[0] as Record<string, unknown>;
@@ -112,7 +124,10 @@ describe('device_list', () => {
 
 describe('device_add', () => {
   it('adds device and persists to devices.toml', async () => {
-    const result = await call('device_add', { name: 'home-tv', host: '1.1.1.1' }) as { ok: boolean; name: string };
+    const result = (await call('device_add', { name: 'home-tv', host: '1.1.1.1' })) as {
+      ok: boolean;
+      name: string;
+    };
     expect(result.ok).toBe(true);
     expect(result.name).toBe('home-tv');
 
@@ -125,7 +140,10 @@ describe('device_add', () => {
     await call('device_add', { name: 'home-tv', host: '1.1.1.1' });
     await call('device_add', { name: 'home-tv', host: '2.2.2.2' });
 
-    const result = await call('device_list') as { ok: boolean; devices: Array<Record<string, unknown>> };
+    const result = (await call('device_list')) as {
+      ok: boolean;
+      devices: Array<Record<string, unknown>>;
+    };
     expect(result.devices).toHaveLength(1);
     expect(result.devices[0]?.['host']).toBe('2.2.2.2');
   });
@@ -146,7 +164,10 @@ describe('device_add', () => {
 describe('device_set_password', () => {
   it('sets password on existing device', async () => {
     await call('device_add', { name: 'home-tv', host: '1.1.1.1' });
-    const result = await call('device_set_password', { device: 'home-tv', dev_password: 'secret' }) as { ok: boolean; device: string };
+    const result = (await call('device_set_password', {
+      device: 'home-tv',
+      dev_password: 'secret',
+    })) as { ok: boolean; device: string };
     expect(result.ok).toBe(true);
     expect(result.device).toBe('home-tv');
 
@@ -155,8 +176,9 @@ describe('device_set_password', () => {
   });
 
   it('throws DEVICE_NOT_FOUND when device absent', async () => {
-    await expect(call('device_set_password', { device: 'missing-tv', dev_password: 'pw' }))
-      .rejects.toMatchObject({ code: 'DEVICE_NOT_FOUND' });
+    await expect(
+      call('device_set_password', { device: 'missing-tv', dev_password: 'pw' }),
+    ).rejects.toMatchObject({ code: 'DEVICE_NOT_FOUND' });
   });
 });
 
@@ -167,17 +189,21 @@ describe('device_set_password', () => {
 describe('device_set_active', () => {
   it('marks device as active', async () => {
     await call('device_add', { name: 'home-tv', host: '1.1.1.1' });
-    const result = await call('device_set_active', { device: 'home-tv' }) as { ok: boolean; active: string };
+    const result = (await call('device_set_active', { device: 'home-tv' })) as {
+      ok: boolean;
+      active: string;
+    };
     expect(result.ok).toBe(true);
     expect(result.active).toBe('home-tv');
 
-    const listResult = await call('device_list') as { ok: boolean; active?: string };
+    const listResult = (await call('device_list')) as { ok: boolean; active?: string };
     expect(listResult.active).toBe('home-tv');
   });
 
   it('throws DEVICE_NOT_FOUND when device absent', async () => {
-    await expect(call('device_set_active', { device: 'missing-tv' }))
-      .rejects.toMatchObject({ code: 'DEVICE_NOT_FOUND' });
+    await expect(call('device_set_active', { device: 'missing-tv' })).rejects.toMatchObject({
+      code: 'DEVICE_NOT_FOUND',
+    });
   });
 });
 
@@ -188,16 +214,22 @@ describe('device_set_active', () => {
 describe('device_remove', () => {
   it('removes an existing device', async () => {
     await call('device_add', { name: 'home-tv', host: '1.1.1.1' });
-    const result = await call('device_remove', { device: 'home-tv' }) as { ok: boolean; device: string };
+    const result = (await call('device_remove', { device: 'home-tv' })) as {
+      ok: boolean;
+      device: string;
+    };
     expect(result.ok).toBe(true);
     expect(result.device).toBe('home-tv');
 
-    const listResult = await call('device_list') as { ok: boolean; devices: unknown[] };
+    const listResult = (await call('device_list')) as { ok: boolean; devices: unknown[] };
     expect(listResult.devices).toHaveLength(0);
   });
 
   it('is idempotent: removing non-existent device does not throw', async () => {
-    const result = await call('device_remove', { device: 'ghost-tv' }) as { ok: boolean; device: string };
+    const result = (await call('device_remove', { device: 'ghost-tv' })) as {
+      ok: boolean;
+      device: string;
+    };
     expect(result.ok).toBe(true);
     expect(result.device).toBe('ghost-tv');
   });
@@ -207,7 +239,7 @@ describe('device_remove', () => {
     await call('device_set_active', { device: 'home-tv' });
     await call('device_remove', { device: 'home-tv' });
 
-    const listResult = await call('device_list') as { ok: boolean; active?: string };
+    const listResult = (await call('device_list')) as { ok: boolean; active?: string };
     expect(listResult.active).toBeUndefined();
   });
 });
@@ -223,8 +255,11 @@ describe('device_test', () => {
       'serial-number': 'X00ABC',
     });
 
-    const result = await call('device_test', { host: '5.5.5.5' }) as {
-      ok: boolean; host: string; model: string; serial: string;
+    const result = (await call('device_test', { host: '5.5.5.5' })) as {
+      ok: boolean;
+      host: string;
+      model: string;
+      serial: string;
     };
     expect(result.ok).toBe(true);
     expect(result.host).toBe('5.5.5.5');
@@ -233,7 +268,6 @@ describe('device_test', () => {
   });
 
   it('throws DEVICE_NOT_RESOLVED when no host provided and registry is empty', async () => {
-    await expect(call('device_test', {}))
-      .rejects.toMatchObject({ code: 'DEVICE_NOT_RESOLVED' });
+    await expect(call('device_test', {})).rejects.toMatchObject({ code: 'DEVICE_NOT_RESOLVED' });
   });
 });

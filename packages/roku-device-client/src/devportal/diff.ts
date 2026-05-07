@@ -6,31 +6,50 @@ import { digestRequest } from '../_internal/digest.js';
 import { fail } from '../errors/index.js';
 
 export type DiffResult = {
-  ok: true; added: string[]; removed: string[]; changed: string[]; same: string[]; duration_ms: number;
+  ok: true;
+  added: string[];
+  removed: string[];
+  changed: string[];
+  same: string[];
+  duration_ms: number;
 };
 
-export async function diffInstalled(host: string, password: string, projectDir: string, port = 80): Promise<DiffResult> {
+export async function diffInstalled(
+  host: string,
+  password: string,
+  projectDir: string,
+  port = 80,
+): Promise<DiffResult> {
   const start = Date.now();
   // Fetch the device's dev.zip
   const r = await digestRequest({
     method: 'GET',
     url: `http://${host}:${port}/pkgs/dev.zip`,
-    username: 'rokudev', password,
+    username: 'rokudev',
+    password,
   });
   if (r.statusCode === 404) throw fail('DEV_PKG_UNAVAILABLE', 'no dev.zip on device');
-  if (r.statusCode !== 200) throw fail('DEVICE_UNREACHABLE', `dev.zip GET returned ${r.statusCode}`);
+  if (r.statusCode !== 200)
+    throw fail('DEVICE_UNREACHABLE', `dev.zip GET returned ${r.statusCode}`);
   const remote = await zipToHashMap(r.bodyBytes);
   const local = await dirToHashMap(projectDir);
-  const added: string[] = [], removed: string[] = [], changed: string[] = [], same: string[] = [];
+  const added: string[] = [],
+    removed: string[] = [],
+    changed: string[] = [],
+    same: string[] = [];
   const all = new Set([...remote.keys(), ...local.keys()]);
   for (const path of all) {
-    const a = local.get(path), b = remote.get(path);
+    const a = local.get(path),
+      b = remote.get(path);
     if (a && !b) added.push(path);
     else if (!a && b) removed.push(path);
     else if (a !== b) changed.push(path);
     else same.push(path);
   }
-  added.sort(); removed.sort(); changed.sort(); same.sort();
+  added.sort();
+  removed.sort();
+  changed.sort();
+  same.sort();
   return { ok: true, added, removed, changed, same, duration_ms: Date.now() - start };
 }
 
@@ -40,7 +59,10 @@ async function zipToHashMap(bytes: Buffer): Promise<Map<string, string>> {
       if (err || !zf) return reject(err);
       const m = new Map<string, string>();
       zf.on('entry', (e) => {
-        if (/\/$/.test(e.fileName)) { zf.readEntry(); return; }
+        if (/\/$/.test(e.fileName)) {
+          zf.readEntry();
+          return;
+        }
         zf.openReadStream(e, (err, rs) => {
           if (err || !rs) return reject(err);
           const chunks: Buffer[] = [];
@@ -62,8 +84,10 @@ async function dirToHashMap(dir: string): Promise<Map<string, string>> {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true });
   for (const e of entries) {
     if (!e.isFile()) continue;
-    const parent = (e as unknown as { parentPath?: string; path?: string }).parentPath
-                ?? (e as unknown as { path?: string }).path ?? dir;
+    const parent =
+      (e as unknown as { parentPath?: string; path?: string }).parentPath ??
+      (e as unknown as { path?: string }).path ??
+      dir;
     const full = join(parent, e.name);
     const rel = relative(dir, full).split(sep).join('/');
     const data = await readFile(full);

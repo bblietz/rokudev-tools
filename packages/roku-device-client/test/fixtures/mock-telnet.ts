@@ -1,6 +1,8 @@
 import { createServer, type Server } from 'node:net';
 
-export async function startMockTelnet(emit: string[]): Promise<{ server: Server; port: number; closeAll: () => Promise<void> }> {
+export async function startMockTelnet(
+  emit: string[],
+): Promise<{ server: Server; port: number; closeAll: () => Promise<void> }> {
   const server = createServer((sock) => {
     for (const line of emit) sock.write(`${line}\n`);
   });

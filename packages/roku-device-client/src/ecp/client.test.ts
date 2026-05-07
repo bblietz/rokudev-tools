@@ -12,10 +12,14 @@ beforeAll(async () => {
     res.setHeader('content-type', 'application/xml');
     switch (req.url) {
       case '/query/device-info':
-        res.end(`<device-info><serial-number>X001</serial-number><model-name>Roku TV</model-name></device-info>`);
+        res.end(
+          `<device-info><serial-number>X001</serial-number><model-name>Roku TV</model-name></device-info>`,
+        );
         return;
       case '/query/apps':
-        res.end(`<apps><app id="dev" type="appl" version="1.0">My Dev Channel</app><app id="12">Netflix</app></apps>`);
+        res.end(
+          `<apps><app id="dev" type="appl" version="1.0">My Dev Channel</app><app id="12">Netflix</app></apps>`,
+        );
         return;
       case '/query/active-app':
         res.end(`<active-app><app id="dev">My Dev Channel</app></active-app>`);
@@ -24,7 +28,9 @@ beforeAll(async () => {
         res.end(`<player state="play" error="false" position="1234"/>`);
         return;
       case '/query/r2d2_bitrate':
-        res.end(`<r2d2-bitrates><bitrate-stream id="0" bitrate="2500000"/><bitrate-stream id="1" bitrate="3500000"/></r2d2-bitrates>`);
+        res.end(
+          `<r2d2-bitrates><bitrate-stream id="0" bitrate="2500000"/><bitrate-stream id="1" bitrate="3500000"/></r2d2-bitrates>`,
+        );
         return;
       case '/query/icon/dev':
         res.setHeader('content-type', 'image/png');
@@ -86,7 +92,10 @@ describe('EcpClient', () => {
     // hit fixed URLs. Stand up a tiny secondary server that returns 500 for everything,
     // and use that for this test.
     const { createServer } = await import('node:http');
-    const tmpServer = createServer((_req, res) => { res.statusCode = 500; res.end(); });
+    const tmpServer = createServer((_req, res) => {
+      res.statusCode = 500;
+      res.end();
+    });
     await new Promise<void>((r) => tmpServer.listen(0, '127.0.0.1', r));
     const tmpPort = (tmpServer.address() as { port: number }).port;
     try {

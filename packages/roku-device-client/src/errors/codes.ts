@@ -1,8 +1,18 @@
 // All error codes from spec §4.6. Each maps to exactly one stage.
 
 export const STAGES = [
-  'validate', 'render', 'write', 'package', 'sideload',
-  'device', 'debug', 'merge', 'freeform', 'registry', 'lint', 'bootstrap',
+  'validate',
+  'render',
+  'write',
+  'package',
+  'sideload',
+  'device',
+  'debug',
+  'merge',
+  'freeform',
+  'registry',
+  'lint',
+  'bootstrap',
 ] as const;
 export type Stage = (typeof STAGES)[number];
 

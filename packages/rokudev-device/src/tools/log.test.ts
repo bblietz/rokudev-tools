@@ -9,7 +9,7 @@ import { join } from 'node:path';
 
 const mocks = vi.hoisted(() => ({
   TelnetClient: vi.fn(),
-  LogStreamOpen: vi.fn(),     // wired as LogStream.open
+  LogStreamOpen: vi.fn(), // wired as LogStream.open
   checkReachable: vi.fn(),
 }));
 
@@ -19,7 +19,7 @@ vi.mock('@rokudev/device-client', async (importOriginal) => {
   return {
     ...actual,
     TelnetClient: mocks.TelnetClient,
-    LogStream: { open: mocks.LogStreamOpen },     // class-with-static replacement
+    LogStream: { open: mocks.LogStreamOpen }, // class-with-static replacement
   };
 });
 
@@ -81,9 +81,9 @@ async function call(name: string, args: Record<string, unknown> = {}): Promise<u
 describe('log tool registration', () => {
   it('registers all 4 tools with expected shape', () => {
     const expected: Record<string, string[]> = {
-      log_tail:         [],
-      log_stream_open:  [],
-      log_stream_read:  ['session_id'],
+      log_tail: [],
+      log_stream_open: [],
+      log_stream_read: ['session_id'],
       log_stream_close: ['session_id'],
     };
 
@@ -112,7 +112,7 @@ describe('log_tail', () => {
     const tail = vi.fn().mockResolvedValue(['line1', 'line2']);
     mocks.TelnetClient.mockImplementation(() => ({ tail }));
 
-    const result = await call('log_tail', { host: '192.168.1.50' }) as Record<string, unknown>;
+    const result = (await call('log_tail', { host: '192.168.1.50' })) as Record<string, unknown>;
 
     expect(tail).toHaveBeenCalledWith('192.168.1.50', 8085, 10);
     expect(result['ok']).toBe(true);
@@ -125,7 +125,11 @@ describe('log_tail', () => {
     const tail = vi.fn().mockResolvedValue(['a', 'b', 'c']);
     mocks.TelnetClient.mockImplementation(() => ({ tail }));
 
-    const result = await call('log_tail', { host: '10.0.0.1', port: 8087, seconds: 0.5 }) as Record<string, unknown>;
+    const result = (await call('log_tail', {
+      host: '10.0.0.1',
+      port: 8087,
+      seconds: 0.5,
+    })) as Record<string, unknown>;
 
     expect(tail).toHaveBeenCalledWith('10.0.0.1', 8087, 0.5);
     expect(result['ok']).toBe(true);
@@ -144,7 +148,10 @@ describe('log_stream_open', () => {
     const fakeStream = { read: vi.fn(), close: vi.fn() };
     mocks.LogStreamOpen.mockResolvedValue(fakeStream);
 
-    const result = await call('log_stream_open', { host: '192.168.1.50' }) as Record<string, unknown>;
+    const result = (await call('log_stream_open', { host: '192.168.1.50' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result['ok']).toBe(true);
     expect(typeof result['session_id']).toBe('string');
@@ -175,10 +182,13 @@ describe('log_stream_read', () => {
     };
     mocks.LogStreamOpen.mockResolvedValue(fakeStream);
 
-    const openResult = await call('log_stream_open', { host: '192.168.1.50' }) as Record<string, unknown>;
+    const openResult = (await call('log_stream_open', { host: '192.168.1.50' })) as Record<
+      string,
+      unknown
+    >;
     const sid = openResult['session_id'] as string;
 
-    const result = await call('log_stream_read', { session_id: sid }) as Record<string, unknown>;
+    const result = (await call('log_stream_read', { session_id: sid })) as Record<string, unknown>;
 
     expect(result['ok']).toBe(true);
     expect(result['lines']).toEqual(['a', 'b']);
@@ -193,22 +203,28 @@ describe('log_stream_read', () => {
     };
     mocks.LogStreamOpen.mockResolvedValue(fakeStream);
 
-    const openResult = await call('log_stream_open', { host: '192.168.1.50' }) as Record<string, unknown>;
+    const openResult = (await call('log_stream_open', { host: '192.168.1.50' })) as Record<
+      string,
+      unknown
+    >;
     const sid = openResult['session_id'] as string;
 
-    const result = await call('log_stream_read', { session_id: sid }) as Record<string, unknown>;
+    const result = (await call('log_stream_read', { session_id: sid })) as Record<string, unknown>;
 
     expect(result['ok']).toBe(true);
     expect(result['lines']).toEqual(['c']);
-    const details = result['details'] as { warnings: typeof warning[] };
+    const details = result['details'] as { warnings: (typeof warning)[] };
     expect(details.warnings).toHaveLength(1);
     expect(details.warnings[0]?.code).toBe('LOG_STREAM_OVERFLOW');
     expect(details.warnings[0]?.dropped_lines).toBe(5);
   });
 
   it('throws LOG_STREAM_TIMED_OUT for an unknown session_id', async () => {
-    await expect(call('log_stream_read', { session_id: 'nonexistent-id' }))
-      .rejects.toMatchObject({ ok: false, code: 'LOG_STREAM_TIMED_OUT', stage: 'device' });
+    await expect(call('log_stream_read', { session_id: 'nonexistent-id' })).rejects.toMatchObject({
+      ok: false,
+      code: 'LOG_STREAM_TIMED_OUT',
+      stage: 'device',
+    });
   });
 });
 
@@ -224,20 +240,30 @@ describe('log_stream_close', () => {
     };
     mocks.LogStreamOpen.mockResolvedValue(fakeStream);
 
-    const openResult = await call('log_stream_open', { host: '192.168.1.50' }) as Record<string, unknown>;
+    const openResult = (await call('log_stream_open', { host: '192.168.1.50' })) as Record<
+      string,
+      unknown
+    >;
     const sid = openResult['session_id'] as string;
 
-    const closeResult = await call('log_stream_close', { session_id: sid }) as Record<string, unknown>;
+    const closeResult = (await call('log_stream_close', { session_id: sid })) as Record<
+      string,
+      unknown
+    >;
     expect(closeResult['ok']).toBe(true);
     expect(fakeStream.close).toHaveBeenCalledTimes(1);
 
     // Session removed — subsequent read should throw.
-    await expect(call('log_stream_read', { session_id: sid }))
-      .rejects.toMatchObject({ code: 'LOG_STREAM_TIMED_OUT' });
+    await expect(call('log_stream_read', { session_id: sid })).rejects.toMatchObject({
+      code: 'LOG_STREAM_TIMED_OUT',
+    });
   });
 
   it('returns { ok: true } for a non-existent session_id without error', async () => {
-    const result = await call('log_stream_close', { session_id: 'does-not-exist' }) as Record<string, unknown>;
+    const result = (await call('log_stream_close', { session_id: 'does-not-exist' })) as Record<
+      string,
+      unknown
+    >;
     expect(result['ok']).toBe(true);
   });
 });

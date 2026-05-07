@@ -17,7 +17,10 @@ async function writePackageJson(dir: string, version: string): Promise<void> {
 async function writeSiblingPackageJson(tmpDir: string, version: string): Promise<void> {
   const siblingDir = join(tmpDir, 'node_modules', '@rokudev', 'device-client');
   await mkdir(siblingDir, { recursive: true });
-  await writeFile(join(siblingDir, 'package.json'), JSON.stringify({ name: '@rokudev/device-client', version }));
+  await writeFile(
+    join(siblingDir, 'package.json'),
+    JSON.stringify({ name: '@rokudev/device-client', version }),
+  );
 }
 
 async function writeAnchorFile(tmpDir: string): Promise<void> {

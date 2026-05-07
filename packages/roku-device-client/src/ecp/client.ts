@@ -12,10 +12,17 @@ async function get(
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const r = await request(`http://${host}:${port}${path}`, { method: 'GET', signal: ctrl.signal });
+    const r = await request(`http://${host}:${port}${path}`, {
+      method: 'GET',
+      signal: ctrl.signal,
+    });
     const chunks: Buffer[] = [];
     for await (const c of r.body) chunks.push(Buffer.from(c));
-    return { statusCode: r.statusCode, body: Buffer.concat(chunks), headers: r.headers as Record<string, string | string[]> };
+    return {
+      statusCode: r.statusCode,
+      body: Buffer.concat(chunks),
+      headers: r.headers as Record<string, string | string[]>,
+    };
   } catch (e: unknown) {
     if ((e as Error).name === 'AbortError') {
       throw fail('DEVICE_UNREACHABLE', `ECP request to ${host}:${port}${path} timed out`);
@@ -27,12 +34,17 @@ async function get(
 }
 
 export class EcpClient {
-  constructor(private host: string, private port: number = 8060) {}
+  constructor(
+    private host: string,
+    private port: number = 8060,
+  ) {}
 
   async deviceInfo(): Promise<Record<string, string>> {
     const r = await get(this.host, this.port, '/query/device-info');
     if (r.statusCode !== 200) throw fail('DEVICE_UNREACHABLE', `ECP returned ${r.statusCode}`);
-    const parsed = parseXml(r.body.toString('utf8')) as { 'device-info'?: Record<string, string | number | boolean> };
+    const parsed = parseXml(r.body.toString('utf8')) as {
+      'device-info'?: Record<string, string | number | boolean>;
+    };
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(parsed['device-info'] ?? {})) out[k] = String(v);
     return out;
@@ -59,7 +71,10 @@ export class EcpClient {
     const a = parsed['active-app']?.app;
     if (!a) return {};
     const id = a['@_id'];
-    return { ...(id ? { id: String(id) } : {}), name: typeof a === 'string' ? a : String(a['#text'] ?? '') };
+    return {
+      ...(id ? { id: String(id) } : {}),
+      name: typeof a === 'string' ? a : String(a['#text'] ?? ''),
+    };
   }
 
   async mediaPlayer(): Promise<Record<string, string>> {
@@ -68,7 +83,9 @@ export class EcpClient {
     const parsed = parseXml(r.body.toString('utf8')) as { player?: Record<string, unknown> };
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(parsed.player ?? {})) {
-      out[k.replace(/^@_/, '')] = String(typeof v === 'object' && v && '#text' in v ? (v as any)['#text'] : v);
+      out[k.replace(/^@_/, '')] = String(
+        typeof v === 'object' && v && '#text' in v ? (v as any)['#text'] : v,
+      );
     }
     return out;
   }
@@ -76,12 +93,15 @@ export class EcpClient {
   async r2d2Bitrate(): Promise<Array<Record<string, string>>> {
     const r = await get(this.host, this.port, '/query/r2d2_bitrate');
     if (r.statusCode !== 200) throw fail('DEVICE_UNREACHABLE', `ECP returned ${r.statusCode}`);
-    const parsed = parseXml(r.body.toString('utf8')) as { 'r2d2-bitrates'?: { 'bitrate-stream'?: any | any[] } };
+    const parsed = parseXml(r.body.toString('utf8')) as {
+      'r2d2-bitrates'?: { 'bitrate-stream'?: any | any[] };
+    };
     const list = parsed['r2d2-bitrates']?.['bitrate-stream'] ?? [];
     const arr = Array.isArray(list) ? list : [list];
     return arr.map((s) => {
       const out: Record<string, string> = {};
-      for (const [k, v] of Object.entries(s as Record<string, unknown>)) out[k.replace(/^@_/, '')] = String(v);
+      for (const [k, v] of Object.entries(s as Record<string, unknown>))
+        out[k.replace(/^@_/, '')] = String(v);
       return out;
     });
   }

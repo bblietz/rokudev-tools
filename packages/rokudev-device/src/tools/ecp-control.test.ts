@@ -67,13 +67,17 @@ async function call(name: string, args: Record<string, unknown> = {}): Promise<u
 }
 
 /** Helper: build a full EcpControl mock with all methods stubbed, overriding select ones. */
-function mockEcpControl(overrides: Partial<Record<'keypress' | 'keysequence' | 'launch' | 'input' | 'toHome', ReturnType<typeof vi.fn>>>): void {
+function mockEcpControl(
+  overrides: Partial<
+    Record<'keypress' | 'keysequence' | 'launch' | 'input' | 'toHome', ReturnType<typeof vi.fn>>
+  >,
+): void {
   mocks.EcpControl.mockImplementation(() => ({
-    keypress:    vi.fn().mockResolvedValue(undefined),
+    keypress: vi.fn().mockResolvedValue(undefined),
     keysequence: vi.fn().mockResolvedValue(undefined),
-    launch:      vi.fn().mockResolvedValue(undefined),
-    input:       vi.fn().mockResolvedValue(undefined),
-    toHome:      vi.fn().mockResolvedValue(undefined),
+    launch: vi.fn().mockResolvedValue(undefined),
+    input: vi.fn().mockResolvedValue(undefined),
+    toHome: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }));
 }
@@ -134,7 +138,10 @@ describe('ecp_keypress happy path', () => {
     const keypress = vi.fn().mockResolvedValue(undefined);
     mockEcpControl({ keypress });
 
-    const result = await call('ecp_keypress', { host: '127.0.0.1', key: 'Up' }) as Record<string, unknown>;
+    const result = (await call('ecp_keypress', { host: '127.0.0.1', key: 'Up' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(keypress).toHaveBeenCalledTimes(1);
     expect(keypress).toHaveBeenCalledWith('Up', 'press');
@@ -151,7 +158,11 @@ describe('ecp_keysequence happy path', () => {
     const keysequence = vi.fn().mockResolvedValue(undefined);
     mockEcpControl({ keysequence });
 
-    const result = await call('ecp_keysequence', { host: '127.0.0.1', keys: ['Up', 'Down'], delay_ms: 50 }) as Record<string, unknown>;
+    const result = (await call('ecp_keysequence', {
+      host: '127.0.0.1',
+      keys: ['Up', 'Down'],
+      delay_ms: 50,
+    })) as Record<string, unknown>;
 
     expect(keysequence).toHaveBeenCalledWith(['Up', 'Down'], 50);
     expect(result['ok']).toBe(true);
@@ -165,7 +176,11 @@ describe('ecp_launch happy path', () => {
     const launch = vi.fn().mockResolvedValue(undefined);
     mockEcpControl({ launch });
 
-    const result = await call('ecp_launch', { host: '127.0.0.1', app_id: 'dev', params: { contentId: 'abc' } }) as Record<string, unknown>;
+    const result = (await call('ecp_launch', {
+      host: '127.0.0.1',
+      app_id: 'dev',
+      params: { contentId: 'abc' },
+    })) as Record<string, unknown>;
 
     expect(launch).toHaveBeenCalledWith('dev', { contentId: 'abc' });
     expect(result['ok']).toBe(true);
@@ -179,7 +194,10 @@ describe('ecp_input happy path', () => {
     const input = vi.fn().mockResolvedValue(undefined);
     mockEcpControl({ input });
 
-    const result = await call('ecp_input', { host: '127.0.0.1', params: { foo: 'bar' } }) as Record<string, unknown>;
+    const result = (await call('ecp_input', {
+      host: '127.0.0.1',
+      params: { foo: 'bar' },
+    })) as Record<string, unknown>;
 
     expect(input).toHaveBeenCalledWith({ foo: 'bar' });
     expect(result['ok']).toBe(true);
@@ -192,7 +210,7 @@ describe('ecp_to_home happy path', () => {
     const toHome = vi.fn().mockResolvedValue(undefined);
     mockEcpControl({ toHome });
 
-    const result = await call('ecp_to_home', { host: '127.0.0.1' }) as Record<string, unknown>;
+    const result = (await call('ecp_to_home', { host: '127.0.0.1' })) as Record<string, unknown>;
 
     expect(toHome).toHaveBeenCalledTimes(1);
     expect(result['ok']).toBe(true);
@@ -210,8 +228,10 @@ describe('ecp_keypress disallowed key', () => {
     const keypress = vi.fn().mockRejectedValue(keyDisallowed);
     mockEcpControl({ keypress });
 
-    await expect(call('ecp_keypress', { host: '127.0.0.1', key: 'BADKEY' }))
-      .rejects.toMatchObject({ ok: false, code: 'ECP_KEY_DISALLOWED' });
+    await expect(call('ecp_keypress', { host: '127.0.0.1', key: 'BADKEY' })).rejects.toMatchObject({
+      ok: false,
+      code: 'ECP_KEY_DISALLOWED',
+    });
   });
 });
 
@@ -221,12 +241,15 @@ describe('ecp_keypress disallowed key', () => {
 
 describe('ecp_launch disallowed param', () => {
   it('rejects with ECP_PARAM_DISALLOWED failure unmodified', async () => {
-    const paramDisallowed = fail('ECP_PARAM_DISALLOWED', 'param key not allowed: evil', { key: 'evil' });
+    const paramDisallowed = fail('ECP_PARAM_DISALLOWED', 'param key not allowed: evil', {
+      key: 'evil',
+    });
     const launch = vi.fn().mockRejectedValue(paramDisallowed);
     mockEcpControl({ launch });
 
-    await expect(call('ecp_launch', { host: '127.0.0.1', app_id: 'dev', params: { evil: 'x' } }))
-      .rejects.toMatchObject({ ok: false, code: 'ECP_PARAM_DISALLOWED' });
+    await expect(
+      call('ecp_launch', { host: '127.0.0.1', app_id: 'dev', params: { evil: 'x' } }),
+    ).rejects.toMatchObject({ ok: false, code: 'ECP_PARAM_DISALLOWED' });
   });
 });
 
@@ -281,7 +304,11 @@ describe('ecp_keypress mode propagation', () => {
     const keypress = vi.fn().mockResolvedValue(undefined);
     mockEcpControl({ keypress });
 
-    const result = await call('ecp_keypress', { host: '127.0.0.1', key: 'PowerOff', mode: 'down' }) as Record<string, unknown>;
+    const result = (await call('ecp_keypress', {
+      host: '127.0.0.1',
+      key: 'PowerOff',
+      mode: 'down',
+    })) as Record<string, unknown>;
 
     expect(keypress).toHaveBeenCalledWith('PowerOff', 'down');
     expect(result['mode']).toBe('down');

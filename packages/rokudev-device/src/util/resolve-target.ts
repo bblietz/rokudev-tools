@@ -1,7 +1,12 @@
 import { RegistryReader, fail } from '@rokudev/device-client';
 
 export type ResolvedTarget = { device?: string; host: string; dev_password?: string };
-export type ResolveArgs = { device?: string; host?: string; device_ip?: string; dev_password?: string };
+export type ResolveArgs = {
+  device?: string;
+  host?: string;
+  device_ip?: string;
+  dev_password?: string;
+};
 
 export async function resolveTarget(args: ResolveArgs): Promise<ResolvedTarget> {
   const tried: string[] = [];

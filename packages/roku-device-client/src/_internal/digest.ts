@@ -79,7 +79,11 @@ export async function digestRequest(req: DigestRequest): Promise<DigestResponse>
   const realm = c.realm ?? '';
   const nonce = c.nonce ?? '';
   const opaque = c.opaque;
-  const qop = (c.qop ?? '').split(',').map((s) => s.trim()).find((v) => v === 'auth') ?? '';
+  const qop =
+    (c.qop ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .find((v) => v === 'auth') ?? '';
   const algorithm = (c.algorithm ?? 'MD5').toUpperCase();
   const cnonce = randomBytes(8).toString('hex');
   const nc = '00000001';

@@ -23,8 +23,10 @@ describe('RegistryReader', () => {
   });
 
   it('reads an existing registry', async () => {
-    await writeFile(join(tmp, 'devices.toml'),
-      `active = "home"\n[devices.home]\nhost = "1.2.3.4"\n`);
+    await writeFile(
+      join(tmp, 'devices.toml'),
+      `active = "home"\n[devices.home]\nhost = "1.2.3.4"\n`,
+    );
     const r = await new RegistryReader().read();
     expect(r.active).toBe('home');
     expect(r.devices.home?.host).toBe('1.2.3.4');

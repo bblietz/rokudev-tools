@@ -8,7 +8,10 @@ function connectTelnet(host: string, port: TelnetPort): Promise<Socket> {
     const s = new Socket();
     s.setNoDelay(true);
     let opened = false;
-    s.once('connect', () => { opened = true; resolve(s); });
+    s.once('connect', () => {
+      opened = true;
+      resolve(s);
+    });
     // Heuristic for LOG_TAIL_BUSY on telnet 8085: Roku accepts the TCP
     // connection then immediately closes it when a second client arrives.
     // We surface that as LOG_TAIL_BUSY only on 8085 within 100ms of connect.
@@ -19,14 +22,23 @@ function connectTelnet(host: string, port: TelnetPort): Promise<Socket> {
     });
     s.once('close', (hadError) => {
       if (opened && closeWatch && hadError) {
-        reject(fail('LOG_TAIL_BUSY', `telnet ${host}:8085 closed immediately; another client likely connected`));
+        reject(
+          fail(
+            'LOG_TAIL_BUSY',
+            `telnet ${host}:8085 closed immediately; another client likely connected`,
+          ),
+        );
       }
     });
     s.once('error', (err) => {
       const e = err as NodeJS.ErrnoException;
       if (e.code === 'EADDRINUSE') {
         reject(fail('LOG_TAIL_BUSY', `port ${port} on ${host} already in use`));
-      } else if (e.code === 'ECONNREFUSED' || e.code === 'EHOSTUNREACH' || e.code === 'ENETUNREACH') {
+      } else if (
+        e.code === 'ECONNREFUSED' ||
+        e.code === 'EHOSTUNREACH' ||
+        e.code === 'ENETUNREACH'
+      ) {
         reject(fail('DEVICE_UNREACHABLE', `telnet ${host}:${port}: ${e.code}`));
       } else if (e.code === 'ETIMEDOUT') {
         reject(fail('DEVICE_UNREACHABLE', `telnet ${host}:${port} timed out`));
@@ -59,7 +71,10 @@ export class TelnetClient {
         if (buf) lines.push(buf);
         resolve(lines);
       }, seconds * 1000);
-      sock.on('close', () => { clearTimeout(t); resolve(lines); });
+      sock.on('close', () => {
+        clearTimeout(t);
+        resolve(lines);
+      });
     });
   }
 }
@@ -87,8 +102,12 @@ export class LogStream {
         ls.push(line);
       }
     });
-    sock.on('close', () => { ls.closed = true; });
-    sock.on('error', () => { ls.closed = true; });
+    sock.on('close', () => {
+      ls.closed = true;
+    });
+    sock.on('error', () => {
+      ls.closed = true;
+    });
     ls.armIdle();
     return ls;
   }
@@ -97,7 +116,9 @@ export class LogStream {
   // §4.6 in-band warnings table): warnings live under `details.warnings`.
   read(): {
     lines: string[];
-    details?: { warnings: { code: 'LOG_STREAM_OVERFLOW'; dropped_lines: number; message: string }[] };
+    details?: {
+      warnings: { code: 'LOG_STREAM_OVERFLOW'; dropped_lines: number; message: string }[];
+    };
   } {
     if (this.closed && this.buf.length === 0) {
       throw fail('LOG_STREAM_TIMED_OUT', 'log stream is closed');
@@ -109,11 +130,13 @@ export class LogStream {
       const out = {
         lines,
         details: {
-          warnings: [{
-            code: 'LOG_STREAM_OVERFLOW' as const,
-            dropped_lines: this.dropped,
-            message: `dropped ${this.dropped} lines: consumer fell behind producer`,
-          }],
+          warnings: [
+            {
+              code: 'LOG_STREAM_OVERFLOW' as const,
+              dropped_lines: this.dropped,
+              message: `dropped ${this.dropped} lines: consumer fell behind producer`,
+            },
+          ],
         },
       };
       this.dropped = 0;

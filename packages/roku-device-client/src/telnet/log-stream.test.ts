@@ -55,7 +55,8 @@ describe('LogStream', () => {
       } else {
         // Skip: maxLines override happened too late; mark this iteration as not exercising.
         // Instead, FORCE drops by directly calling push.
-        for (let i = 0; i < 50; i++) (ls as unknown as { push: (s: string) => void }).push(`force${i}`);
+        for (let i = 0; i < 50; i++)
+          (ls as unknown as { push: (s: string) => void }).push(`force${i}`);
         const r2 = ls.read();
         expect(r2.details?.warnings?.[0]?.code).toBe('LOG_STREAM_OVERFLOW');
         expect(r2.details?.warnings?.[0]?.dropped_lines).toBeGreaterThan(0);
@@ -74,8 +75,9 @@ describe('LogStream', () => {
       // After close, subsequent read on empty buffer should throw.
       expect(() => ls.read()).toThrow();
       // Also verify the thrown shape.
-      try { ls.read(); }
-      catch (e: unknown) {
+      try {
+        ls.read();
+      } catch (e: unknown) {
         expect((e as { code?: string }).code).toBe('LOG_STREAM_TIMED_OUT');
       }
     } finally {

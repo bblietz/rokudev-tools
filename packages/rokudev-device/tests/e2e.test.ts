@@ -52,31 +52,60 @@ describe('rokudev-device e2e: tools/list', () => {
 
       proc.stdin.write(
         JSON.stringify({
-          jsonrpc: '2.0', id: 1, method: 'initialize',
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
           params: {
-            protocolVersion: '2024-11-05', capabilities: {},
+            protocolVersion: '2024-11-05',
+            capabilities: {},
             clientInfo: { name: 'e2e', version: '1' },
           },
         }) + '\n',
       );
     });
 
-    expect(result).toEqual([
-      // device-management (T27 + T34 device_discover)
-      'device_add', 'device_discover', 'device_list', 'device_remove', 'device_set_active',
-      'device_set_password', 'device_test',
-      // ECP read (T28)
-      'ecp_active_app', 'ecp_apps', 'ecp_device_info', 'ecp_icon',
-      'ecp_media_player', 'ecp_r2d2_bitrate',
-      // ECP control (T29)
-      'ecp_input', 'ecp_keypress', 'ecp_keysequence', 'ecp_launch', 'ecp_to_home',
-      // dev-portal (T30)
-      'crashlog_pull', 'diff_installed', 'genkey', 'pack_signed', 'profiler_snapshot',
-      'query_registry', 'rekey', 'screenshot', 'sideload', 'unload',
-      // log (T31)
-      'log_stream_close', 'log_stream_open', 'log_stream_read', 'log_tail',
-      // composite (T32)
-      'dev_loop',
-    ].sort());
+    expect(result).toEqual(
+      [
+        // device-management (T27 + T34 device_discover)
+        'device_add',
+        'device_discover',
+        'device_list',
+        'device_remove',
+        'device_set_active',
+        'device_set_password',
+        'device_test',
+        // ECP read (T28)
+        'ecp_active_app',
+        'ecp_apps',
+        'ecp_device_info',
+        'ecp_icon',
+        'ecp_media_player',
+        'ecp_r2d2_bitrate',
+        // ECP control (T29)
+        'ecp_input',
+        'ecp_keypress',
+        'ecp_keysequence',
+        'ecp_launch',
+        'ecp_to_home',
+        // dev-portal (T30)
+        'crashlog_pull',
+        'diff_installed',
+        'genkey',
+        'pack_signed',
+        'profiler_snapshot',
+        'query_registry',
+        'rekey',
+        'screenshot',
+        'sideload',
+        'unload',
+        // log (T31)
+        'log_stream_close',
+        'log_stream_open',
+        'log_stream_read',
+        'log_tail',
+        // composite (T32)
+        'dev_loop',
+      ].sort(),
+    );
   }, 15_000);
 });

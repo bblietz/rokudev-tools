@@ -1,9 +1,9 @@
 import dgram from 'node:dgram';
 
 export type Discovered = {
-  host: string;      // IPv4 of the Roku
-  location: string;  // ECP base URL e.g. http://192.168.1.42:8060/
-  serial?: string;   // from USN if present
+  host: string; // IPv4 of the Roku
+  location: string; // ECP base URL e.g. http://192.168.1.42:8060/
+  serial?: string; // from USN if present
 };
 
 const M_SEARCH = (host: string): string =>

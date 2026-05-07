@@ -113,11 +113,11 @@ describe('dev_loop happy path', () => {
     const sideloadFn = mockHappyDevPortal();
     const tailFn = mockHappyTelnet(['line1', 'line2']);
 
-    const result = await call('dev_loop', {
+    const result = (await call('dev_loop', {
       host: '192.168.1.100',
       dev_password: 'devpw',
       zip_path: '/tmp/app.zip',
-    }) as Record<string, unknown>;
+    })) as Record<string, unknown>;
 
     expect(sideloadFn).toHaveBeenCalledWith('/tmp/app.zip');
     expect(tailFn).toHaveBeenCalledWith('192.168.1.100', 8085, 10);
@@ -162,12 +162,12 @@ describe('dev_loop tail_seconds=0', () => {
     mockHappyDevPortal();
     const tailFn = mockHappyTelnet();
 
-    const result = await call('dev_loop', {
+    const result = (await call('dev_loop', {
       host: '192.168.1.100',
       dev_password: 'devpw',
       zip_path: '/tmp/app.zip',
       tail_seconds: 0,
-    }) as Record<string, unknown>;
+    })) as Record<string, unknown>;
 
     expect(tailFn).not.toHaveBeenCalled();
     expect(result['log_lines']).toEqual([]);
@@ -183,12 +183,12 @@ describe('dev_loop freeform_lint_override', () => {
     mockHappyDevPortal();
     mockHappyTelnet();
 
-    const result = await call('dev_loop', {
+    const result = (await call('dev_loop', {
       host: '192.168.1.100',
       dev_password: 'devpw',
       zip_path: '/tmp/app.zip',
       freeform_lint_override: true,
-    }) as Record<string, unknown>;
+    })) as Record<string, unknown>;
 
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('192.168.1.100');
@@ -206,8 +206,11 @@ describe('dev_loop DEVICE_NO_PASSWORD', () => {
     mockHappyDevPortal();
     mockHappyTelnet();
 
-    await expect(call('dev_loop', { host: '127.0.0.1', zip_path: '/x' }))
-      .rejects.toMatchObject({ ok: false, code: 'DEVICE_NO_PASSWORD', stage: 'device' });
+    await expect(call('dev_loop', { host: '127.0.0.1', zip_path: '/x' })).rejects.toMatchObject({
+      ok: false,
+      code: 'DEVICE_NO_PASSWORD',
+      stage: 'device',
+    });
   });
 });
 
@@ -224,11 +227,13 @@ describe('dev_loop pass-through sideload failure', () => {
     const tailFn = vi.fn();
     mocks.TelnetClient.mockImplementation(() => ({ tail: tailFn }));
 
-    await expect(call('dev_loop', {
-      host: '192.168.1.100',
-      dev_password: 'pw',
-      zip_path: '/tmp/app.zip',
-    })).rejects.toMatchObject({ ok: false, code: 'SIDELOAD_REJECTED' });
+    await expect(
+      call('dev_loop', {
+        host: '192.168.1.100',
+        dev_password: 'pw',
+        zip_path: '/tmp/app.zip',
+      }),
+    ).rejects.toMatchObject({ ok: false, code: 'SIDELOAD_REJECTED' });
 
     expect(tailFn).not.toHaveBeenCalled();
   });

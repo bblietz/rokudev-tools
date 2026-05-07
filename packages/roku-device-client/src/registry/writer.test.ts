@@ -28,7 +28,8 @@ describe('RegistryWriter', () => {
   it('addDevice rejects invalid names', async () => {
     const w = new RegistryWriter();
     await expect(w.addDevice('bad name', { host: 'x' })).rejects.toMatchObject({
-      ok: false, code: 'INVALID_DEVICE_NAME',
+      ok: false,
+      code: 'INVALID_DEVICE_NAME',
     });
   });
 
@@ -43,7 +44,8 @@ describe('RegistryWriter', () => {
   it('setPassword on missing device throws DEVICE_NOT_FOUND', async () => {
     const w = new RegistryWriter();
     await expect(w.setPassword('nope', 'x')).rejects.toMatchObject({
-      ok: false, code: 'DEVICE_NOT_FOUND',
+      ok: false,
+      code: 'DEVICE_NOT_FOUND',
     });
   });
 

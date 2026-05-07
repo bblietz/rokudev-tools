@@ -6,8 +6,8 @@ const execFileP = promisify(execFile);
 
 export type Fingerprint = {
   gateway_mac?: string;
-  gateway_subnet_v4?: string;       // e.g. "192.168.1.0/24"
-  dns_search_suffix?: string;       // e.g. "corp.example.com"
+  gateway_subnet_v4?: string; // e.g. "192.168.1.0/24"
+  dns_search_suffix?: string; // e.g. "corp.example.com"
   vpn_iface_present: boolean;
 };
 
@@ -28,14 +28,18 @@ export const realFingerprintIo: FingerprintIo = {
       // Match the line beginning with "default" or "0.0.0.0".
       const m = stdout.match(/^(?:default|0\.0\.0\.0\/0|0\.0\.0\.0)\s+(\d+\.\d+\.\d+\.\d+)/m);
       return m?.[1];
-    } catch { return undefined; }
+    } catch {
+      return undefined;
+    }
   },
   async arpLookupMac(ip: string) {
     try {
       const { stdout } = await execFileP('arp', ['-n', ip]);
       const m = stdout.match(/(([0-9a-f]{1,2}:){5}[0-9a-f]{1,2})/i);
       return m?.[1]?.toLowerCase();
-    } catch { return undefined; }
+    } catch {
+      return undefined;
+    }
   },
   async readDnsSearch() {
     try {
@@ -43,7 +47,9 @@ export const realFingerprintIo: FingerprintIo = {
       const text = await readFile('/etc/resolv.conf', 'utf8');
       const m = text.match(/^search\s+(\S+)/m) ?? text.match(/^domain\s+(\S+)/m);
       return m?.[1];
-    } catch { return undefined; }
+    } catch {
+      return undefined;
+    }
   },
   enumInterfaces: () => networkInterfaces(),
 };
@@ -77,7 +83,9 @@ export async function readFingerprint(io: FingerprintIo = realFingerprintIo): Pr
 }
 
 function sameSubnet(addr: string, mask: string, target: string): boolean {
-  const a = ip4ToInt(addr), m = ip4ToInt(mask), t = ip4ToInt(target);
+  const a = ip4ToInt(addr),
+    m = ip4ToInt(mask),
+    t = ip4ToInt(target);
   return (a & m) === (t & m);
 }
 function ip4ToInt(s: string): number {

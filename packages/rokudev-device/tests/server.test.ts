@@ -13,8 +13,14 @@ describe('rokudev-device server smoke', () => {
     });
     const reqId = 1;
     const req = JSON.stringify({
-      jsonrpc: '2.0', id: reqId, method: 'initialize',
-      params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 't', version: '1' } },
+      jsonrpc: '2.0',
+      id: reqId,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 't', version: '1' },
+      },
     });
     proc.stdin.write(req + '\n');
     let out = '';
@@ -28,7 +34,9 @@ describe('rokudev-device server smoke', () => {
           expect(obj.result.protocolVersion).toBe('2024-11-05');
           proc.kill();
           return;
-        } catch { /* keep reading */ }
+        } catch {
+          /* keep reading */
+        }
       }
     }
     // If stdout closed without a valid MCP response, the server is not wired up.

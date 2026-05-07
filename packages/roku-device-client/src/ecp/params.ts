@@ -1,7 +1,12 @@
 const ECP_INPUT_KEYS = new Set([
-  'accelerator','mediaType','contentId','contentLabel','playbackPosition','streamFormat',
+  'accelerator',
+  'mediaType',
+  'contentId',
+  'contentLabel',
+  'playbackPosition',
+  'streamFormat',
 ] as const);
-const ECP_LAUNCH_KEYS = new Set(['contentId','mediaType'] as const);
+const ECP_LAUNCH_KEYS = new Set(['contentId', 'mediaType'] as const);
 const X_KEY = /^x_[A-Za-z0-9_]+$/;
 
 export function isAllowedInputParamKey(k: string): boolean {

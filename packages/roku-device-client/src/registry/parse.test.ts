@@ -27,17 +27,21 @@ gateway_mac = "ac:de:48:00:11:22"
   });
 
   it('rejects invalid network_tag', () => {
-    expect(() => parseRegistry('[devices.x]\nhost = "1.1.1.1"\nnetwork_tag = "garage"\n')).toThrow();
+    expect(() =>
+      parseRegistry('[devices.x]\nhost = "1.1.1.1"\nnetwork_tag = "garage"\n'),
+    ).toThrow();
   });
 
   it('rejects invalid device name when constructed in-memory', () => {
     // TOML keys with spaces are rejected by the TOML parser itself, which is
     // not what we want to assert here; the schema validation is the load-bearing
     // check. Construct the object directly and run RegistrySchema.parse.
-    expect(() => RegistrySchema.parse({
-      devices: { 'bad name': { host: '1.1.1.1' } },
-      networks: {},
-    })).toThrow();
+    expect(() =>
+      RegistrySchema.parse({
+        devices: { 'bad name': { host: '1.1.1.1' } },
+        networks: {},
+      }),
+    ).toThrow();
   });
 
   it('rejects invalid device name appearing through TOML quoted-key parse', () => {
@@ -64,14 +68,18 @@ gateway_mac = "ac:de:48:00:11:22"
   });
 
   it('serialize is deterministic (sorted keys)', () => {
-    const r1 = parseRegistry(serializeRegistry({
-      devices: { z: { host: 'h' }, a: { host: 'h' } },
-      networks: {},
-    }));
-    const r2 = parseRegistry(serializeRegistry({
-      devices: { a: { host: 'h' }, z: { host: 'h' } },
-      networks: {},
-    }));
+    const r1 = parseRegistry(
+      serializeRegistry({
+        devices: { z: { host: 'h' }, a: { host: 'h' } },
+        networks: {},
+      }),
+    );
+    const r2 = parseRegistry(
+      serializeRegistry({
+        devices: { a: { host: 'h' }, z: { host: 'h' } },
+        networks: {},
+      }),
+    );
     expect(serializeRegistry(r1)).toBe(serializeRegistry(r2));
   });
 });

@@ -40,7 +40,9 @@ export class RegistryWriter {
       } catch (err: unknown) {
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
           current = { devices: {}, networks: {} };
-        } else { throw err; }
+        } else {
+          throw err;
+        }
       }
       const result = mutate(current);
       const validated = RegistrySchema.parse(current);
@@ -66,7 +68,9 @@ export class RegistryWriter {
       throw fail('INVALID_DEVICE_NAME', `device name "${name}" must match [A-Za-z0-9_-]+`);
     }
     const safeEntry = DeviceEntrySchema.parse(entry);
-    await this.transact((r) => { r.devices[name] = { ...r.devices[name], ...safeEntry }; });
+    await this.transact((r) => {
+      r.devices[name] = { ...r.devices[name], ...safeEntry };
+    });
   }
 
   async setPassword(name: string, password: string): Promise<void> {

@@ -59,9 +59,9 @@ beforeAll(async () => {
       if (url === '/plugin_inspect' && mode === 'genkey-ok') {
         res.end(
           '<html><body>' +
-          'Dev ID: <font color="green">deadbeef01234567</font><br/>' +
-          'Dev Key: <font color="green">aabbccdd11223344</font>' +
-          '</body></html>',
+            'Dev ID: <font color="green">deadbeef01234567</font><br/>' +
+            'Dev Key: <font color="green">aabbccdd11223344</font>' +
+            '</body></html>',
         );
         return;
       }
@@ -76,9 +76,9 @@ beforeAll(async () => {
       if (url === '/plugin_inspect' && mode === 'profiler-ok') {
         res.end(
           '<html><body>' +
-          '<h2>Memory</h2><p>Used: 10 MB</p>' +
-          '<h2>FPS</h2><p>60 fps</p>' +
-          '</body></html>',
+            '<h2>Memory</h2><p>Used: 10 MB</p>' +
+            '<h2>FPS</h2><p>60 fps</p>' +
+            '</body></html>',
         );
         return;
       }
@@ -102,7 +102,7 @@ beforeAll(async () => {
         res.setHeader('content-type', 'text/xml');
         res.end(
           '<?xml version="1.0" encoding="UTF-8"?>' +
-          '<registry><section name="test"><item key="k1" value="v1"/></section></registry>',
+            '<registry><section name="test"><item key="k1" value="v1"/></section></registry>',
         );
         return;
       }

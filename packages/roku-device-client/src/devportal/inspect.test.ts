@@ -11,11 +11,12 @@ beforeAll(async () => {
     if (!req.headers.authorization) {
       res.statusCode = 401;
       res.setHeader('WWW-Authenticate', 'Digest realm="r", nonce="n", qop="auth"');
-      res.end(); return;
+      res.end();
+      return;
     }
     if (req.url === '/plugin_inspect') {
       let buf = '';
-      req.on('data', (c) => buf += c);
+      req.on('data', (c) => (buf += c));
       req.on('end', () => {
         res.end(`<html><img src="/pkgs/dev.jpg"/></html>`);
       });
@@ -26,7 +27,8 @@ beforeAll(async () => {
       res.end(Buffer.from([0xff, 0xd8, 0xff, 0xe0])); // jpeg header
       return;
     }
-    res.statusCode = 404; res.end();
+    res.statusCode = 404;
+    res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   port = (server.address() as AddressInfo).port;

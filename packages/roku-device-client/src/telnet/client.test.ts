@@ -31,7 +31,8 @@ describe('TelnetClient.tail', () => {
   it('rejects with DEVICE_UNREACHABLE when the port is closed', async () => {
     // Use a port that is unlikely to have a listener. Pick a high random.
     const closedPort = 1; // privileged port; ECONNREFUSED on most systems
-    await expect(new TelnetClient().tail('127.0.0.1', closedPort as TelnetPort, 1))
-      .rejects.toMatchObject({ code: 'DEVICE_UNREACHABLE' });
+    await expect(
+      new TelnetClient().tail('127.0.0.1', closedPort as TelnetPort, 1),
+    ).rejects.toMatchObject({ code: 'DEVICE_UNREACHABLE' });
   });
 });

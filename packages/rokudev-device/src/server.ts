@@ -17,7 +17,9 @@ export async function runServer(): Promise<void> {
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [...tools.values()].map((t) => ({
-      name: t.name, description: t.description, inputSchema: t.inputSchema,
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
     })),
   }));
 

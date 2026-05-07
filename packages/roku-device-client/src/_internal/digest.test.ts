@@ -34,7 +34,8 @@ describe('digestRequest', () => {
     const r = await digestRequest({
       method: 'GET',
       url: `http://127.0.0.1:${port}/x`,
-      username: 'rokudev', password: 'pw',
+      username: 'rokudev',
+      password: 'pw',
     });
     expect(r.statusCode).toBe(200);
     expect(r.bodyText).toBe('OK');
@@ -45,8 +46,10 @@ describe('digestRequest', () => {
 
   it('uses correct response hash for known inputs', async () => {
     const r = await digestRequest({
-      method: 'GET', url: `http://127.0.0.1:${port}/x`,
-      username: 'rokudev', password: 'pw',
+      method: 'GET',
+      url: `http://127.0.0.1:${port}/x`,
+      username: 'rokudev',
+      password: 'pw',
     });
     expect(r.statusCode).toBe(200);
     // Extract the actual cnonce from the captured Authorization header so we can
@@ -64,8 +67,10 @@ describe('digestRequest', () => {
 
   it('does not leak the password into the auth header', async () => {
     await digestRequest({
-      method: 'GET', url: `http://127.0.0.1:${port}/x`,
-      username: 'rokudev', password: 'verysecret',
+      method: 'GET',
+      url: `http://127.0.0.1:${port}/x`,
+      username: 'rokudev',
+      password: 'verysecret',
     });
     expect(lastAuth).not.toContain('verysecret');
   });
@@ -76,7 +81,9 @@ describe('digestRequest', () => {
     let capturedBody: Buffer | undefined;
     const handler = (req: any, res: any) => {
       if (!req.headers.authorization) {
-        res.writeHead(401, { 'WWW-Authenticate': 'Digest realm="rokudev", nonce="b", qop="auth", opaque="op"' });
+        res.writeHead(401, {
+          'WWW-Authenticate': 'Digest realm="rokudev", nonce="b", qop="auth", opaque="op"',
+        });
         res.end();
         return;
       }
@@ -96,7 +103,8 @@ describe('digestRequest', () => {
       const r = await digestRequest({
         method: 'POST',
         url: `http://127.0.0.1:${tmpPort}/x`,
-        username: 'rokudev', password: 'pw',
+        username: 'rokudev',
+        password: 'pw',
         body,
         headers: { 'content-type': 'application/octet-stream' },
       });

@@ -12,7 +12,10 @@ async function post(url: string): Promise<number> {
 }
 
 export class EcpControl {
-  constructor(private host: string, private port = 8060) {}
+  constructor(
+    private host: string,
+    private port = 8060,
+  ) {}
 
   async keypress(key: string, mode: Mode = 'press'): Promise<void> {
     if (!isAllowedKey(key)) throw fail('ECP_KEY_DISALLOWED', `key not allowed: ${key}`, { key });
@@ -30,7 +33,9 @@ export class EcpControl {
 
   async launch(appId: string, params?: Record<string, string>): Promise<void> {
     const qs = this.encodeParams(params, isAllowedLaunchParamKey);
-    const sc = await post(`http://${this.host}:${this.port}/launch/${encodeURIComponent(appId)}${qs}`);
+    const sc = await post(
+      `http://${this.host}:${this.port}/launch/${encodeURIComponent(appId)}${qs}`,
+    );
     if (sc < 200 || sc > 299) throw fail('DEVICE_UNREACHABLE', `ECP launch returned ${sc}`);
   }
 
@@ -46,7 +51,10 @@ export class EcpControl {
     await this.keypress('Home');
   }
 
-  private encodeParams(p: Record<string, string> | undefined, allow: (k: string) => boolean): string {
+  private encodeParams(
+    p: Record<string, string> | undefined,
+    allow: (k: string) => boolean,
+  ): string {
     if (!p || Object.keys(p).length === 0) return '';
     const parts: string[] = [];
     for (const [k, v] of Object.entries(p)) {

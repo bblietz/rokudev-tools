@@ -115,7 +115,7 @@ describe('ecp_device_info', () => {
     const cannedInfo: Record<string, string> = { 'model-name': 'Roku TV', 'serial-number': 'ABC' };
     mockEcpMethod('deviceInfo', cannedInfo);
 
-    const result = await call('ecp_device_info', { host: '10.0.0.1' }) as Record<string, unknown>;
+    const result = (await call('ecp_device_info', { host: '10.0.0.1' })) as Record<string, unknown>;
 
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('10.0.0.1');
@@ -132,7 +132,7 @@ describe('ecp_apps', () => {
     ];
     mockEcpMethod('apps', cannedApps);
 
-    const result = await call('ecp_apps', { host: '10.0.0.2' }) as Record<string, unknown>;
+    const result = (await call('ecp_apps', { host: '10.0.0.2' })) as Record<string, unknown>;
 
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('10.0.0.2');
@@ -145,7 +145,7 @@ describe('ecp_active_app', () => {
     const cannedActive = { id: '12', name: 'Netflix' };
     mockEcpMethod('activeApp', cannedActive);
 
-    const result = await call('ecp_active_app', { host: '10.0.0.3' }) as Record<string, unknown>;
+    const result = (await call('ecp_active_app', { host: '10.0.0.3' })) as Record<string, unknown>;
 
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('10.0.0.3');
@@ -155,10 +155,17 @@ describe('ecp_active_app', () => {
 
 describe('ecp_media_player', () => {
   it('returns { ok, host, media_player } with player state map', async () => {
-    const cannedPlayer: Record<string, string> = { state: 'play', position: '5000', duration: '120000' };
+    const cannedPlayer: Record<string, string> = {
+      state: 'play',
+      position: '5000',
+      duration: '120000',
+    };
     mockEcpMethod('mediaPlayer', cannedPlayer);
 
-    const result = await call('ecp_media_player', { host: '10.0.0.4' }) as Record<string, unknown>;
+    const result = (await call('ecp_media_player', { host: '10.0.0.4' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('10.0.0.4');
@@ -174,7 +181,10 @@ describe('ecp_r2d2_bitrate', () => {
     ];
     mockEcpMethod('r2d2Bitrate', cannedStreams);
 
-    const result = await call('ecp_r2d2_bitrate', { host: '10.0.0.5' }) as Record<string, unknown>;
+    const result = (await call('ecp_r2d2_bitrate', { host: '10.0.0.5' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('10.0.0.5');
@@ -189,7 +199,10 @@ describe('ecp_icon', () => {
       icon: vi.fn().mockResolvedValue(cannedIcon),
     }));
 
-    const result = await call('ecp_icon', { host: '10.0.0.6', app_id: '12' }) as Record<string, unknown>;
+    const result = (await call('ecp_icon', { host: '10.0.0.6', app_id: '12' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('10.0.0.6');
@@ -227,8 +240,9 @@ describe('network guard integration', () => {
     mocks.checkReachable.mockRejectedValue(err);
     mockEcpMethod('deviceInfo', {});
 
-    await expect(call('ecp_device_info', { host: '10.0.0.9' }))
-      .rejects.toMatchObject({ code: 'NETWORK_UNREACHABLE' });
+    await expect(call('ecp_device_info', { host: '10.0.0.9' })).rejects.toMatchObject({
+      code: 'NETWORK_UNREACHABLE',
+    });
   });
 
   it('force:true passes true to checkReachable', async () => {
