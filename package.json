@@ -3,8 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.33.2",
-  "engines": { "node": ">=20" },
-  "workspaces": ["packages/*"],
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
