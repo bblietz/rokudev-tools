@@ -40,14 +40,12 @@ gateway_mac = "ac:de:48:00:11:22"
     })).toThrow();
   });
 
-  it('rejects invalid device name appearing through serialize+parse round-trip', () => {
-    // Ensure callers cannot smuggle an invalid name into the registry by writing
-    // a serialized form. This test is structural: we only construct via
-    // RegistrySchema.parse, which is the only entry point for trusted input.
-    expect(() => RegistrySchema.parse({
-      devices: { 'with/slash': { host: '1.1.1.1' } },
-      networks: {},
-    })).toThrow();
+  it('rejects invalid device name appearing through TOML quoted-key parse', () => {
+    // smol-toml accepts quoted keys with arbitrary characters; our DeviceNameSchema
+    // is the load-bearing rejection. Ensure that an attacker cannot smuggle a
+    // slash-bearing device name through the TOML layer.
+    const text = '[devices."with/slash"]\nhost = "1.1.1.1"\n';
+    expect(() => parseRegistry(text)).toThrow();
   });
 
   it('serialize then parse round-trips devices and networks', () => {

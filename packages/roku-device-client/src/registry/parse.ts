@@ -21,6 +21,7 @@ export function serializeRegistry(r: Registry): string {
   const lines: string[] = [];
   lines.push('# brs-tools device registry');
   lines.push('# WARNING: dev_password stored in plaintext. Set BRS_NO_PLAINTEXT=1 to refuse.');
+  lines.push('# Override per-call with env var BRS_DEV_PASSWORD_<DEVICE_NAME> if needed.');
   lines.push('');
   if (r.active !== undefined) {
     lines.push(`active = ${JSON.stringify(r.active)}`);
@@ -29,7 +30,7 @@ export function serializeRegistry(r: Registry): string {
   for (const name of Object.keys(r.devices).sort()) {
     const d = r.devices[name]!;
     lines.push(`[devices.${name}]`);
-    for (const [k, v] of Object.entries(d).sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [k, v] of Object.entries(d).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
       if (v === undefined) continue;
       lines.push(`${k} = ${JSON.stringify(v)}`);
     }
@@ -38,7 +39,7 @@ export function serializeRegistry(r: Registry): string {
   for (const name of Object.keys(r.networks).sort()) {
     const n = r.networks[name]!;
     lines.push(`[networks.${name}]`);
-    for (const [k, v] of Object.entries(n).sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [k, v] of Object.entries(n).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
       if (v === undefined) continue;
       lines.push(`${k} = ${JSON.stringify(v)}`);
     }
