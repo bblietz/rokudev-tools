@@ -63,3 +63,81 @@ export class TelnetClient {
     });
   }
 }
+
+export class LogStream {
+  private buf: string[] = [];
+  private dropped = 0;
+  private socket?: Socket;
+  private idleTimer?: NodeJS.Timeout;
+  private closed = false;
+  private maxLines = 65_536;
+  private idleMs = 60_000;
+
+  static async open(host: string, port: TelnetPort): Promise<LogStream> {
+    const ls = new LogStream();
+    const sock = await new TelnetClient()['connect'](host, port);
+    ls.socket = sock;
+    let pending = '';
+    sock.on('data', (chunk) => {
+      pending += chunk.toString('utf8');
+      let i;
+      while ((i = pending.indexOf('\n')) >= 0) {
+        const line = pending.slice(0, i);
+        pending = pending.slice(i + 1);
+        ls.push(line);
+      }
+    });
+    sock.on('close', () => { ls.closed = true; });
+    sock.on('error', () => { ls.closed = true; });
+    ls.armIdle();
+    return ls;
+  }
+
+  // Library-level return shape matches the spec's canonical wire shape (§4.3,
+  // §4.6 in-band warnings table): warnings live under `details.warnings`.
+  read(): {
+    lines: string[];
+    details?: { warnings: { code: 'LOG_STREAM_OVERFLOW'; dropped_lines: number; message: string }[] };
+  } {
+    if (this.closed && this.buf.length === 0) {
+      throw fail('LOG_STREAM_TIMED_OUT', 'log stream is closed');
+    }
+    this.armIdle();
+    const lines = this.buf;
+    this.buf = [];
+    if (this.dropped > 0) {
+      const out = {
+        lines,
+        details: {
+          warnings: [{
+            code: 'LOG_STREAM_OVERFLOW' as const,
+            dropped_lines: this.dropped,
+            message: `dropped ${this.dropped} lines: consumer fell behind producer`,
+          }],
+        },
+      };
+      this.dropped = 0;
+      return out;
+    }
+    return { lines };
+  }
+
+  close(): void {
+    this.closed = true;
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.socket?.destroy();
+  }
+
+  private push(line: string): void {
+    if (this.buf.length >= this.maxLines) {
+      this.buf.shift();
+      this.dropped++;
+    }
+    this.buf.push(line);
+  }
+
+  private armIdle(): void {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => this.close(), this.idleMs);
+  }
+}
