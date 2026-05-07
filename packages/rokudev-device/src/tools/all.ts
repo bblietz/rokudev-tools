@@ -3,3 +3,4 @@ import './registry.js';
 import './ecp-read.js';
 import './ecp-control.js';
 import './devportal.js';
+import './log.js';
