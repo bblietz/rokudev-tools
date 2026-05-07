@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.log
+.turbo/
+coverage/
+.DS_Store
+*.tsbuildinfo
+.brs-tools/
+.vscode/
+
+# Never commit user-level config
+~/.config/brs/
+
+# Generated FTS5 indices
+corpus/build/
