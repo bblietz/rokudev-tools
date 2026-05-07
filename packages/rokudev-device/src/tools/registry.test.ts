@@ -70,6 +70,17 @@ describe('registry tool registration', () => {
       expect(typeof def.handler).toBe('function');
     }
   });
+
+  it('registers device_discover with the right schema', () => {
+    const def = tools.get('device_discover');
+    expect(def).toBeDefined();
+    expect(def!.inputSchema).toMatchObject({
+      type: 'object',
+      properties: {
+        timeout_ms: { type: 'integer', minimum: 500, maximum: 30_000, default: 3500 },
+      },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

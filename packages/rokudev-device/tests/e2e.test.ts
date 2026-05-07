@@ -62,8 +62,8 @@ describe('rokudev-device e2e: tools/list', () => {
     });
 
     expect(result).toEqual([
-      // device-management (T27, no device_discover yet — added in T34)
-      'device_add', 'device_list', 'device_remove', 'device_set_active',
+      // device-management (T27 + T34 device_discover)
+      'device_add', 'device_discover', 'device_list', 'device_remove', 'device_set_active',
       'device_set_password', 'device_test',
       // ECP read (T28)
       'ecp_active_app', 'ecp_apps', 'ecp_device_info', 'ecp_icon',

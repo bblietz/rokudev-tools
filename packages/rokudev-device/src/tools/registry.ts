@@ -98,4 +98,19 @@ registerToolsModule((tools) => {
       return { ok: true, host: t.host, model: info['model-name'], serial: info['serial-number'] };
     },
   }));
+
+  tools.set('device_discover', tool({
+    name: 'device_discover',
+    description: 'Run an SSDP roku:ecp scan on the current LAN. Returns devices found; does NOT add them to the registry.',
+    inputSchema: {
+      type: 'object',
+      properties: { timeout_ms: { type: 'integer', minimum: 500, maximum: 30_000, default: 3500 } },
+      additionalProperties: false,
+    },
+    handler: async (a) => {
+      const { discover } = await import('@rokudev/device-client');
+      const list = await discover({ timeoutMs: (a['timeout_ms'] as number | undefined) ?? 3500 });
+      return { ok: true, found: list };
+    },
+  }));
 });
