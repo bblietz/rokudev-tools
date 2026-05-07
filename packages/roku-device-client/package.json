@@ -1,5 +1,5 @@
 {
-  "name": "@roku/device-client",
+  "name": "@rokudev/device-client",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",

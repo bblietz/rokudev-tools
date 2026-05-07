@@ -1,10 +1,10 @@
-# Plan 1: roku-device-client + brs-device MCP Foundation
+# Plan 1: roku-device-client + rokudev-device MCP Foundation
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the monorepo foundation, the shared `roku-device-client` TypeScript library, and the `brs-device` MCP server. After this plan, a developer who manually wires `brs-device` into their MCP client (e.g. `claude mcp add brs-device node /path/to/dist/index.js`) gets device introspection, ECP control, dev-portal sideload/unload/screenshot/genkey/rekey/sign, telnet log capture, and a unified device registry with multi-network detection. **Excludes** BDP debugger (Plan 2), generator (Plan 3), freeform/LSP (Plan 4), and one-shot install via the Claude Code plugin (Plan 6).
+**Goal:** Build the monorepo foundation, the shared `roku-device-client` TypeScript library, and the `rokudev-device` MCP server. After this plan, a developer who manually wires `rokudev-device` into their MCP client (e.g. `claude mcp add rokudev-device node /path/to/dist/index.js`) gets device introspection, ECP control, dev-portal sideload/unload/screenshot/genkey/rekey/sign, telnet log capture, and a unified device registry with multi-network detection. **Excludes** BDP debugger (Plan 2), generator (Plan 3), freeform/LSP (Plan 4), and one-shot install via the Claude Code plugin (Plan 6).
 
-**Architecture:** Monorepo with pnpm workspaces and Turborepo. `roku-device-client` is a pure TS library (no MCP wrapping) holding all Roku-touching primitives behind typed clients. `brs-device` is a thin MCP server that wraps the library's clients into MCP tools, adds the device registry layer, and enforces the ECP allowlists and network detection warnings. Determinism, security (`dev_password` never logged), and the unified error taxonomy are load-bearing.
+**Architecture:** Monorepo with pnpm workspaces and Turborepo. `roku-device-client` is a pure TS library (no MCP wrapping) holding all Roku-touching primitives behind typed clients. `rokudev-device` is a thin MCP server that wraps the library's clients into MCP tools, adds the device registry layer, and enforces the ECP allowlists and network detection warnings. Determinism, security (`dev_password` never logged), and the unified error taxonomy are load-bearing.
 
 **Tech Stack:** Node 20+, TypeScript 5.x, pnpm 9+, Turborepo, Vitest, Zod, undici, MCP TypeScript SDK (`@modelcontextprotocol/sdk`), yazl (zip), proper-lockfile (advisory `flock`), dgram (SSDP).
 
@@ -19,14 +19,14 @@
 ### Task 1: Initialize git repo and root files
 
 **Files:**
-- Create: `/Users/bblietz/Work/ClaudeProjects/brs-tools/.gitignore`
-- Create: `/Users/bblietz/Work/ClaudeProjects/brs-tools/README.md`
-- Create: `/Users/bblietz/Work/ClaudeProjects/brs-tools/LICENSE`
+- Create: `/Users/bblietz/Work/ClaudeProjects/rokudev-tools/.gitignore`
+- Create: `/Users/bblietz/Work/ClaudeProjects/rokudev-tools/README.md`
+- Create: `/Users/bblietz/Work/ClaudeProjects/rokudev-tools/LICENSE`
 
 - [ ] **Step 1: Initialize git**
 
 ```bash
-cd /Users/bblietz/Work/ClaudeProjects/brs-tools
+cd /Users/bblietz/Work/ClaudeProjects/rokudev-tools
 git init -b main
 ```
 
@@ -42,11 +42,11 @@ dist/
 coverage/
 .DS_Store
 *.tsbuildinfo
-.brs-tools/
+.rokudev-tools/
 .vscode/
 
 # Never commit user-level config
-~/.config/brs/
+~/.config/rokudev/
 
 # Generated FTS5 indices
 corpus/build/
@@ -59,7 +59,7 @@ Write a standard MIT LICENSE file with copyright Roku, Inc., 2026.
 - [ ] **Step 4: Create `README.md` stub**
 
 ```markdown
-# brs-tools
+# rokudev-tools
 
 Unified Roku BrightScript developer toolkit. Three MCP servers, one shared library, one Claude Code plugin.
 
@@ -99,7 +99,7 @@ Expected: a 9.x version string. If `corepack` is missing, install Node 20+ first
 
 ```json
 {
-  "name": "brs-tools",
+  "name": "rokudev-tools",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@9.12.0",
@@ -323,7 +323,7 @@ Phase 0 complete; the monorepo is bootstrapped.
 
 ## Phase 1: roku-device-client Library
 
-The shared TS library. Pure functions and typed clients; no MCP wrapping. Imported by `brs-device` (and later by `brs-gen`).
+The shared TS library. Pure functions and typed clients; no MCP wrapping. Imported by `rokudev-device` (and later by `brs-gen`).
 
 ### Task 6: Bootstrap roku-device-client package
 
@@ -342,7 +342,7 @@ mkdir -p packages/roku-device-client/tests
 
 ```json
 {
-  "name": "@roku/device-client",
+  "name": "@rokudev/device-client",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -415,7 +415,7 @@ export const VERSION = '0.1.0';
 
 ```bash
 pnpm install
-pnpm --filter @roku/device-client build
+pnpm --filter @rokudev/device-client build
 ```
 
 Expected: `dist/index.js` exists.
@@ -565,7 +565,7 @@ describe('errors', () => {
 - [ ] **Step 4: Run tests — should fail because index.ts has no exports yet**
 
 ```bash
-pnpm --filter @roku/device-client test
+pnpm --filter @rokudev/device-client test
 ```
 
 Expected: 5 tests fail (or import errors).
@@ -580,7 +580,7 @@ export const VERSION = '0.1.0';
 - [ ] **Step 6: Re-run tests**
 
 ```bash
-pnpm --filter @roku/device-client test
+pnpm --filter @rokudev/device-client test
 ```
 
 Expected: 5 passed.
@@ -668,8 +668,8 @@ export function serializeRegistry(r: Registry): string {
   // records, so build the output manually for full control over formatting and
   // determinism.
   const lines: string[] = [];
-  lines.push('# brs-tools device registry');
-  lines.push('# WARNING: dev_password stored in plaintext. Set BRS_NO_PLAINTEXT=1 to refuse.');
+  lines.push('# rokudev-tools device registry');
+  lines.push('# WARNING: dev_password stored in plaintext. Set ROKUDEV_NO_PLAINTEXT=1 to refuse.');
   lines.push('');
   if (r.active !== undefined) {
     lines.push(`active = ${JSON.stringify(r.active)}`);
@@ -784,7 +784,7 @@ gateway_mac = "ac:de:48:00:11:22"
 - [ ] **Step 4: Run tests, expect failures**
 
 ```bash
-pnpm --filter @roku/device-client test
+pnpm --filter @rokudev/device-client test
 ```
 
 Expected: 5 new tests fail (parse module not yet wired or has bugs).
@@ -825,7 +825,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export function configDir(): string {
-  return process.env.BRS_CONFIG_DIR ?? join(homedir(), '.config', 'brs');
+  return process.env.ROKUDEV_CONFIG_DIR ?? join(homedir(), '.config', 'brs');
 }
 export function devicesPath(): string { return join(configDir(), 'devices.toml'); }
 export function devicesLockPath(): string { return join(configDir(), 'devices.toml.lock'); }
@@ -875,12 +875,12 @@ import { RegistryReader } from './reader.js';
 let tmp: string;
 
 beforeEach(async () => {
-  tmp = await mkdtemp(join(tmpdir(), 'brs-test-'));
-  process.env.BRS_CONFIG_DIR = tmp;
+  tmp = await mkdtemp(join(tmpdir(), 'rokudev-test-'));
+  process.env.ROKUDEV_CONFIG_DIR = tmp;
 });
 
 afterEach(async () => {
-  delete process.env.BRS_CONFIG_DIR;
+  delete process.env.ROKUDEV_CONFIG_DIR;
   await rm(tmp, { recursive: true, force: true });
 });
 
@@ -907,7 +907,7 @@ describe('RegistryReader', () => {
 - [ ] **Step 4: Run tests, fix until pass**
 
 ```bash
-pnpm --filter @roku/device-client test
+pnpm --filter @rokudev/device-client test
 ```
 
 Expected: all tests pass.
@@ -1042,11 +1042,11 @@ import { RegistryReader } from './reader.js';
 
 let tmp: string;
 beforeEach(async () => {
-  tmp = await mkdtemp(join(tmpdir(), 'brs-test-'));
-  process.env.BRS_CONFIG_DIR = tmp;
+  tmp = await mkdtemp(join(tmpdir(), 'rokudev-test-'));
+  process.env.ROKUDEV_CONFIG_DIR = tmp;
 });
 afterEach(async () => {
-  delete process.env.BRS_CONFIG_DIR;
+  delete process.env.ROKUDEV_CONFIG_DIR;
   await rm(tmp, { recursive: true, force: true });
 });
 
@@ -1114,7 +1114,7 @@ describe('RegistryWriter', () => {
 - [ ] **Step 3: Run, iterate, all pass**
 
 ```bash
-pnpm --filter @roku/device-client test
+pnpm --filter @rokudev/device-client test
 ```
 
 - [ ] **Step 4: Update registry index to export writer**
@@ -1555,7 +1555,7 @@ describe('digestRequest', () => {
 - [ ] **Step 4: Run, iterate**
 
 ```bash
-pnpm --filter @roku/device-client test
+pnpm --filter @rokudev/device-client test
 ```
 
 - [ ] **Step 5: Commit**
@@ -1579,7 +1579,7 @@ Per spec §4.3 ECP read tools: `device-info`, `apps`, `active-app`, `media-playe
 - [ ] **Step 1: Add `fast-xml-parser` dep**
 
 ```bash
-pnpm --filter @roku/device-client add fast-xml-parser
+pnpm --filter @rokudev/device-client add fast-xml-parser
 ```
 
 - [ ] **Step 2: Write `parse-xml.ts`**
@@ -2041,7 +2041,7 @@ export type MultipartPart =
   | { kind: 'file'; name: string; filename: string; contentType: string; body: Buffer };
 
 export function buildBoundary(): string {
-  return `----brs${randomBytes(8).toString('hex')}`;
+  return `----rokudev${randomBytes(8).toString('hex')}`;
 }
 
 export function buildMultipart(parts: MultipartPart[], boundary: string): Buffer {
@@ -2192,7 +2192,7 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 describe('DevPortal sideload/unload', () => {
   let tmp: string, zipPath: string;
   beforeAll(async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'brs-test-'));
+    tmp = await mkdtemp(join(tmpdir(), 'rokudev-test-'));
     zipPath = join(tmp, 'channel.zip');
     await writeFile(zipPath, Buffer.from('PK\u0003\u0004fake-zip')); // PK header so the body looks plausible
   });
@@ -2859,7 +2859,7 @@ Expected: no match.
 - [ ] **Step 3: Build and inspect output**
 
 ```bash
-pnpm --filter @roku/device-client build
+pnpm --filter @rokudev/device-client build
 ls packages/roku-device-client/dist/
 ```
 
@@ -2900,9 +2900,9 @@ Phase 1 complete; the shared library is ready.
 
 ---
 
-## Phase 2: brs-device MCP Server
+## Phase 2: rokudev-device MCP Server
 
-The MCP wrapper. Each tool is a thin function that resolves `device:` per §2.4, applies network-detection warnings (§4.2), and calls the appropriate client from `@roku/device-client`.
+The MCP wrapper. Each tool is a thin function that resolves `device:` per §2.4, applies network-detection warnings (§4.2), and calls the appropriate client from `@rokudev/device-client`.
 
 **TDD discipline (applies to every task in Phase 2 even where abbreviated below):**
 1. Write the failing test first.
@@ -2914,26 +2914,26 @@ The MCP wrapper. Each tool is a thin function that resolves `device:` per §2.4,
 
 Some tasks below abbreviate to "tests" without re-stating the cycle; the abbreviation is for readability, not permission to skip steps.
 
-### Task 22: Bootstrap brs-device package
+### Task 22: Bootstrap rokudev-device package
 
 **Files:**
-- Create: `packages/brs-device/package.json`
-- Create: `packages/brs-device/tsconfig.json`
-- Create: `packages/brs-device/vitest.config.ts`
-- Create: `packages/brs-device/src/index.ts`
+- Create: `packages/rokudev-device/package.json`
+- Create: `packages/rokudev-device/tsconfig.json`
+- Create: `packages/rokudev-device/vitest.config.ts`
+- Create: `packages/rokudev-device/src/index.ts`
 
 - [ ] **Step 1: Create directory and `package.json`**
 
 ```bash
-mkdir -p packages/brs-device/src/tools packages/brs-device/tests
+mkdir -p packages/rokudev-device/src/tools packages/rokudev-device/tests
 ```
 
 ```json
 {
-  "name": "brs-device",
+  "name": "rokudev-device",
   "version": "0.1.0",
   "type": "module",
-  "bin": { "brs-device": "./dist/index.js" },
+  "bin": { "rokudev-device": "./dist/index.js" },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": ["dist"],
@@ -2945,7 +2945,7 @@ mkdir -p packages/brs-device/src/tools packages/brs-device/tests
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "@roku/device-client": "workspace:*",
+    "@rokudev/device-client": "workspace:*",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -2977,7 +2977,7 @@ export { default } from '../../vitest.config.base.ts';
 
 ```ts
 #!/usr/bin/env node
-console.error('brs-device starting...');
+console.error('rokudev-device starting...');
 // MCP server wired in next task.
 ```
 
@@ -2985,12 +2985,12 @@ console.error('brs-device starting...');
 
 ```bash
 pnpm install
-pnpm --filter brs-device build
+pnpm --filter rokudev-device build
 ```
 
 ```bash
-git add packages/brs-device/
-git commit -m "feat(brs-device): bootstrap MCP package"
+git add packages/rokudev-device/
+git commit -m "feat(rokudev-device): bootstrap MCP package"
 ```
 
 ---
@@ -2998,10 +2998,10 @@ git commit -m "feat(brs-device): bootstrap MCP package"
 ### Task 23: MCP server scaffold (stdio + tool registration shape)
 
 **Files:**
-- Create: `packages/brs-device/src/server.ts`
-- Modify: `packages/brs-device/src/index.ts`
-- Create: `packages/brs-device/src/tools/_register.ts`
-- Create: `packages/brs-device/tests/server.test.ts`
+- Create: `packages/rokudev-device/src/server.ts`
+- Modify: `packages/rokudev-device/src/index.ts`
+- Create: `packages/rokudev-device/src/tools/_register.ts`
+- Create: `packages/rokudev-device/tests/server.test.ts`
 
 - [ ] **Step 1: Write `server.ts`**
 
@@ -3013,7 +3013,7 @@ import { registerAllTools, type ToolDef } from './tools/_register.js';
 
 export async function runServer(): Promise<void> {
   const server = new Server(
-    { name: 'brs-device', version: '0.1.0' },
+    { name: 'rokudev-device', version: '0.1.0' },
     { capabilities: { tools: {} } },
   );
   const tools = new Map<string, ToolDef>();
@@ -3066,7 +3066,7 @@ import { runServer } from './server.js';
 import './tools/all.js';   // import side-effect modules that call registerToolsModule
 
 runServer().catch((err) => {
-  console.error('brs-device fatal error:', err);
+  console.error('rokudev-device fatal error:', err);
   process.exit(1);
 });
 ```
@@ -3086,7 +3086,7 @@ import { describe, it, expect } from 'vitest';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 
-describe('brs-device server smoke', () => {
+describe('rokudev-device server smoke', () => {
   it('responds to MCP initialize handshake', async () => {
     const proc = spawn(process.execPath, [join(__dirname, '..', 'dist', 'index.js')], {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -3114,15 +3114,15 @@ describe('brs-device server smoke', () => {
 - [ ] **Step 6: Build and run the test**
 
 ```bash
-pnpm --filter brs-device build
-pnpm --filter brs-device test
+pnpm --filter rokudev-device build
+pnpm --filter rokudev-device test
 ```
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/brs-device/
-git commit -m "feat(brs-device): MCP stdio server with tool registration scaffold"
+git add packages/rokudev-device/
+git commit -m "feat(rokudev-device): MCP stdio server with tool registration scaffold"
 ```
 
 ---
@@ -3132,9 +3132,9 @@ git commit -m "feat(brs-device): MCP stdio server with tool registration scaffol
 Per §7.3 step 7 and §4.6.
 
 **Files:**
-- Create: `packages/brs-device/src/bootstrap/version-check.ts`
-- Create: `packages/brs-device/src/bootstrap/version-check.test.ts`
-- Modify: `packages/brs-device/src/server.ts` (call check at startup, gate tool calls)
+- Create: `packages/rokudev-device/src/bootstrap/version-check.ts`
+- Create: `packages/rokudev-device/src/bootstrap/version-check.test.ts`
+- Modify: `packages/rokudev-device/src/server.ts` (call check at startup, gate tool calls)
 
 - [ ] **Step 1: Write `version-check.ts`**
 
@@ -3143,7 +3143,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { fail, warn } from '@roku/device-client';
+import { fail, warn } from '@rokudev/device-client';
 
 export type VersionState =
   | { ok: true }
@@ -3155,12 +3155,12 @@ export async function checkSiblings(myImportMetaUrl: string): Promise<VersionSta
   const me = JSON.parse(await readFile(resolve(myDir, 'package.json'), 'utf8'));
   const mine = String(me.version);
   const mineMajor = parseInt(mine.split('.')[0]!, 10);
-  // Resolve sibling: @roku/device-client. require() is unavailable in ESM,
+  // Resolve sibling: @rokudev/device-client. require() is unavailable in ESM,
   // so synthesize a CommonJS-style require bound to this module's URL.
   const require = createRequire(myImportMetaUrl);
   let siblingVersion: string | undefined;
   try {
-    const siblingPath = require.resolve('@roku/device-client/package.json');
+    const siblingPath = require.resolve('@rokudev/device-client/package.json');
     siblingVersion = JSON.parse(await readFile(siblingPath, 'utf8')).version;
   } catch {
     // sibling not findable; nothing to check (e.g. running from source).
@@ -3171,16 +3171,16 @@ export async function checkSiblings(myImportMetaUrl: string): Promise<VersionSta
     return {
       ok: false,
       failure: fail('CROSS_PACKAGE_VERSION_MISMATCH',
-        `brs-device@${mine} requires @roku/device-client@${mineMajor}.x; found ${siblingVersion}`,
-        { package: '@roku/device-client', installed_version: siblingVersion, expected_version: `${mineMajor}.x` }),
+        `rokudev-device@${mine} requires @rokudev/device-client@${mineMajor}.x; found ${siblingVersion}`,
+        { package: '@rokudev/device-client', installed_version: siblingVersion, expected_version: `${mineMajor}.x` }),
     };
   }
   if (siblingVersion !== mine) {
     return {
       ok: true,
       warning: warn('CROSS_PACKAGE_VERSION_MISMATCH',
-        `minor-version drift: brs-device ${mine} vs @roku/device-client ${siblingVersion}`,
-        { package: '@roku/device-client', installed_version: siblingVersion, expected_version: mine }),
+        `minor-version drift: rokudev-device ${mine} vs @rokudev/device-client ${siblingVersion}`,
+        { package: '@rokudev/device-client', installed_version: siblingVersion, expected_version: mine }),
     };
   }
   return { ok: true };
@@ -3189,7 +3189,7 @@ export async function checkSiblings(myImportMetaUrl: string): Promise<VersionSta
 
 - [ ] **Step 2: Write tests**
 
-Mock by creating a tmp dir with a fake `package.json` and a `node_modules/@roku/device-client/package.json`. Verify:
+Mock by creating a tmp dir with a fake `package.json` and a `node_modules/@rokudev/device-client/package.json`. Verify:
 - equal versions → `{ ok: true }` no warning
 - patch drift → `{ ok: true, warning: { code: 'CROSS_PACKAGE_VERSION_MISMATCH' } }`
 - major drift → `{ ok: false, failure: { code: 'CROSS_PACKAGE_VERSION_MISMATCH' } }`
@@ -3222,8 +3222,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/brs-device/src/bootstrap/ packages/brs-device/src/server.ts
-git commit -m "feat(brs-device): cross-package version check at startup"
+git add packages/rokudev-device/src/bootstrap/ packages/rokudev-device/src/server.ts
+git commit -m "feat(rokudev-device): cross-package version check at startup"
 ```
 
 ---
@@ -3233,13 +3233,13 @@ git commit -m "feat(brs-device): cross-package version check at startup"
 Implements §2.4. Used by every tool that takes a `device:` parameter.
 
 **Files:**
-- Create: `packages/brs-device/src/util/resolve-target.ts`
-- Create: `packages/brs-device/src/util/resolve-target.test.ts`
+- Create: `packages/rokudev-device/src/util/resolve-target.ts`
+- Create: `packages/rokudev-device/src/util/resolve-target.test.ts`
 
 - [ ] **Step 1: Write `resolve-target.ts`**
 
 ```ts
-import { RegistryReader, fail } from '@roku/device-client';
+import { RegistryReader, fail } from '@rokudev/device-client';
 
 export type ResolvedTarget = { device?: string; host: string; dev_password?: string };
 export type ResolveArgs = { device?: string; host?: string; device_ip?: string; dev_password?: string };
@@ -3269,8 +3269,8 @@ export async function resolveTarget(args: ResolveArgs): Promise<ResolvedTarget> 
 
   if (deviceName) {
     const envName = deviceName.replace(/-/g, '_').toUpperCase();
-    const envHost = process.env[`BRS_HOST_${envName}`];
-    const envPass = process.env[`BRS_DEV_PASSWORD_${envName}`];
+    const envHost = process.env[`ROKUDEV_HOST_${envName}`];
+    const envPass = process.env[`ROKUDEV_DEV_PASSWORD_${envName}`];
     if (entry || envHost) {
       const host = envHost ?? entry?.host;
       if (!host) {
@@ -3284,9 +3284,9 @@ export async function resolveTarget(args: ResolveArgs): Promise<ResolvedTarget> 
     tried.push(args.device ? 'registry-device' : 'registry-active');
   }
 
-  // Step 4: global env vars (BRS_DEFAULT_ROKU_HOST + BRS_ROKU_DEV_PASSWORD).
-  const gHost = process.env.BRS_DEFAULT_ROKU_HOST;
-  const gPass = process.env.BRS_ROKU_DEV_PASSWORD;
+  // Step 4: global env vars (ROKUDEV_DEFAULT_ROKU_HOST + ROKUDEV_ROKU_DEV_PASSWORD).
+  const gHost = process.env.ROKUDEV_DEFAULT_ROKU_HOST;
+  const gPass = process.env.ROKUDEV_ROKU_DEV_PASSWORD;
   if (gHost) {
     return { host: gHost, ...(gPass ? { dev_password: gPass } : {}) };
   }
@@ -3298,22 +3298,22 @@ export async function resolveTarget(args: ResolveArgs): Promise<ResolvedTarget> 
 
 - [ ] **Step 2: Tests**
 
-Cover the §2.4 precedence chain comprehensively. Use `BRS_CONFIG_DIR` override + `process.env` mutation. Required test cases:
+Cover the §2.4 precedence chain comprehensively. Use `ROKUDEV_CONFIG_DIR` override + `process.env` mutation. Required test cases:
 
 1. Per-call `host` wins over env and registry.
 2. Per-call `host` + per-call `dev_password` are returned together.
-3. `device:` arg + per-device env (`BRS_HOST_HOME_TV`) overrides registry host for that device.
+3. `device:` arg + per-device env (`ROKUDEV_HOST_HOME_TV`) overrides registry host for that device.
 4. `device:` arg + per-device env password overrides registry password.
-5. **Active-device + per-device env vars override registry** (the spec says env wins over registry; do not let this regress). Setup: registry has `home-tv` with host `1.1.1.1`, `active = "home-tv"`; env sets `BRS_HOST_HOME_TV=2.2.2.2`. Expected: `host = "2.2.2.2"`.
-6. Global env (`BRS_DEFAULT_ROKU_HOST`) used when no `device:` and no active.
-7. Active registry device used when no `device:` and no env (and confirms env-var name normalization: `corp-tv-43` → `BRS_HOST_CORP_TV_43`).
+5. **Active-device + per-device env vars override registry** (the spec says env wins over registry; do not let this regress). Setup: registry has `home-tv` with host `1.1.1.1`, `active = "home-tv"`; env sets `ROKUDEV_HOST_HOME_TV=2.2.2.2`. Expected: `host = "2.2.2.2"`.
+6. Global env (`ROKUDEV_DEFAULT_ROKU_HOST`) used when no `device:` and no active.
+7. Active registry device used when no `device:` and no env (and confirms env-var name normalization: `corp-tv-43` → `ROKUDEV_HOST_CORP_TV_43`).
 8. `DEVICE_NOT_RESOLVED` thrown with `details.tried` enumerating consulted steps when nothing resolves.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/brs-device/src/util/
-git commit -m "feat(brs-device): resolveTarget per spec §2.4 precedence"
+git add packages/rokudev-device/src/util/
+git commit -m "feat(rokudev-device): resolveTarget per spec §2.4 precedence"
 ```
 
 ---
@@ -3323,13 +3323,13 @@ git commit -m "feat(brs-device): resolveTarget per spec §2.4 precedence"
 Wraps every device tool with the §4.2 reachability check.
 
 **Files:**
-- Create: `packages/brs-device/src/util/network-guard.ts`
-- Create: `packages/brs-device/src/util/network-guard.test.ts`
+- Create: `packages/rokudev-device/src/util/network-guard.ts`
+- Create: `packages/rokudev-device/src/util/network-guard.test.ts`
 
 - [ ] **Step 1: Write `network-guard.ts`**
 
 ```ts
-import { readFingerprint, classifyNetwork, isReachable, RegistryReader, fail } from '@roku/device-client';
+import { readFingerprint, classifyNetwork, isReachable, RegistryReader, fail } from '@rokudev/device-client';
 
 let cached: { ts: number; tag: ReturnType<typeof classifyNetwork> } | undefined;
 const CACHE_MS = 30_000;
@@ -3356,7 +3356,7 @@ export function _resetCache(): void { cached = undefined; }
 
 - [ ] **Step 2: Tests**
 
-Inject a fake `RegistryReader`-like object via DI or by overriding registry IO with `BRS_CONFIG_DIR`. Verify:
+Inject a fake `RegistryReader`-like object via DI or by overriding registry IO with `ROKUDEV_CONFIG_DIR`. Verify:
 - with `force: true`, never throws,
 - with no `network_tag`, never throws,
 - when classifier returns unreachable target, throws `NETWORK_UNREACHABLE` with correct `details`,
@@ -3367,8 +3367,8 @@ For testing, set `cached` manually via the export (dirty but pragmatic).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/brs-device/src/util/
-git commit -m "feat(brs-device): network reachability guard with 30s cache"
+git add packages/rokudev-device/src/util/
+git commit -m "feat(rokudev-device): network reachability guard with 30s cache"
 ```
 
 ---
@@ -3376,9 +3376,9 @@ git commit -m "feat(brs-device): network reachability guard with 30s cache"
 ### Task 27: Registry tools (`device_list`, `device_add`, `device_set_password`, `device_set_active`, `device_remove`, `device_test`)
 
 **Files:**
-- Create: `packages/brs-device/src/tools/registry.ts`
-- Create: `packages/brs-device/src/tools/registry.test.ts`
-- Modify: `packages/brs-device/src/tools/all.ts`
+- Create: `packages/rokudev-device/src/tools/registry.ts`
+- Create: `packages/rokudev-device/src/tools/registry.test.ts`
+- Modify: `packages/rokudev-device/src/tools/all.ts`
 
 - [ ] **Step 1: Write `registry.ts`**
 
@@ -3386,7 +3386,7 @@ Each tool is a `ToolDef` registered via `registerToolsModule`. Use Zod schemas f
 
 ```ts
 import { registerToolsModule, type ToolDef } from './_register.js';
-import { RegistryReader, RegistryWriter, EcpClient, fail } from '@roku/device-client';
+import { RegistryReader, RegistryWriter, EcpClient, fail } from '@rokudev/device-client';
 
 function tool(t: ToolDef): ToolDef { return t; }
 
@@ -3495,13 +3495,13 @@ import './registry.js';
 
 - [ ] **Step 3: Tests**
 
-`registry.test.ts` exercises each tool against a tmp `BRS_CONFIG_DIR` and (for `device_test`) an HTTP mock for ECP. Use the in-process tool-call API: directly construct the `ToolDef` map by importing the module and inspecting the registrar.
+`registry.test.ts` exercises each tool against a tmp `ROKUDEV_CONFIG_DIR` and (for `device_test`) an HTTP mock for ECP. Use the in-process tool-call API: directly construct the `ToolDef` map by importing the module and inspecting the registrar.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/brs-device/src/tools/
-git commit -m "feat(brs-device): registry tools"
+git add packages/rokudev-device/src/tools/
+git commit -m "feat(rokudev-device): registry tools"
 ```
 
 ---
@@ -3509,9 +3509,9 @@ git commit -m "feat(brs-device): registry tools"
 ### Task 28: ECP read tools
 
 **Files:**
-- Create: `packages/brs-device/src/tools/ecp-read.ts`
-- Create: `packages/brs-device/src/tools/ecp-read.test.ts`
-- Modify: `packages/brs-device/src/tools/all.ts`
+- Create: `packages/rokudev-device/src/tools/ecp-read.ts`
+- Create: `packages/rokudev-device/src/tools/ecp-read.test.ts`
+- Modify: `packages/rokudev-device/src/tools/all.ts`
 
 - [ ] **Step 1: Write `ecp-read.ts`** — six tools: `ecp_device_info`, `ecp_apps`, `ecp_active_app`, `ecp_media_player`, `ecp_r2d2_bitrate`, `ecp_icon`.
 
@@ -3536,8 +3536,8 @@ import './ecp-read.js';
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/brs-device/src/tools/
-git commit -m "feat(brs-device): ECP read tools"
+git add packages/rokudev-device/src/tools/
+git commit -m "feat(rokudev-device): ECP read tools"
 ```
 
 ---
@@ -3545,9 +3545,9 @@ git commit -m "feat(brs-device): ECP read tools"
 ### Task 29: ECP control tools
 
 **Files:**
-- Create: `packages/brs-device/src/tools/ecp-control.ts`
-- Create: `packages/brs-device/src/tools/ecp-control.test.ts`
-- Modify: `packages/brs-device/src/tools/all.ts`
+- Create: `packages/rokudev-device/src/tools/ecp-control.ts`
+- Create: `packages/rokudev-device/src/tools/ecp-control.test.ts`
+- Modify: `packages/rokudev-device/src/tools/all.ts`
 
 - [ ] **Step 1: Write `ecp-control.ts`** — five tools: `ecp_keypress`, `ecp_keysequence`, `ecp_launch`, `ecp_input`, `ecp_to_home`.
 
@@ -3588,8 +3588,8 @@ Mock ECP server (post-only). Verify:
 - [ ] **Step 3: Add to `all.ts`** and commit.
 
 ```bash
-git add packages/brs-device/src/tools/
-git commit -m "feat(brs-device): ECP control tools"
+git add packages/rokudev-device/src/tools/
+git commit -m "feat(rokudev-device): ECP control tools"
 ```
 
 ---
@@ -3597,9 +3597,9 @@ git commit -m "feat(brs-device): ECP control tools"
 ### Task 30: Dev-portal tools (sideload, unload, screenshot, genkey, rekey, pack_signed, diff_installed, query_registry, profiler_snapshot, crashlog_pull)
 
 **Files:**
-- Create: `packages/brs-device/src/tools/devportal.ts`
-- Create: `packages/brs-device/src/tools/devportal.test.ts`
-- Modify: `packages/brs-device/src/tools/all.ts`
+- Create: `packages/rokudev-device/src/tools/devportal.ts`
+- Create: `packages/rokudev-device/src/tools/devportal.test.ts`
+- Modify: `packages/rokudev-device/src/tools/all.ts`
 
 - [ ] **Step 1: Write `devportal.ts`**
 
@@ -3673,8 +3673,8 @@ This makes the §4.7.3 "secrets never echoed" rule a CI-enforced invariant for e
 - [ ] **Step 4: Add to `all.ts`** and commit.
 
 ```bash
-git add packages/brs-device/src/tools/
-git commit -m "feat(brs-device): dev-portal tools (sideload through crashlog_pull)"
+git add packages/rokudev-device/src/tools/
+git commit -m "feat(rokudev-device): dev-portal tools (sideload through crashlog_pull)"
 ```
 
 ---
@@ -3682,15 +3682,15 @@ git commit -m "feat(brs-device): dev-portal tools (sideload through crashlog_pul
 ### Task 31: Telnet log tools (`log_tail`, `log_stream_open`, `log_stream_read`, `log_stream_close`)
 
 **Files:**
-- Create: `packages/brs-device/src/tools/log.ts`
-- Create: `packages/brs-device/src/tools/log.test.ts`
-- Modify: `packages/brs-device/src/tools/all.ts`
+- Create: `packages/rokudev-device/src/tools/log.ts`
+- Create: `packages/rokudev-device/src/tools/log.test.ts`
+- Modify: `packages/rokudev-device/src/tools/all.ts`
 
 - [ ] **Step 1: Write `log.ts`**
 
 ```ts
 import { registerToolsModule } from './_register.js';
-import { TelnetClient, LogStream, fail } from '@roku/device-client';
+import { TelnetClient, LogStream, fail } from '@rokudev/device-client';
 import { resolveTarget } from '../util/resolve-target.js';
 import { checkReachable } from '../util/network-guard.js';
 
@@ -3785,8 +3785,8 @@ Use the `mock-telnet.ts` fixture from Task 18. Verify the `log_tail` tool return
 - [ ] **Step 3: Add to `all.ts`** and commit.
 
 ```bash
-git add packages/brs-device/src/tools/
-git commit -m "feat(brs-device): log_tail and log_stream_* tools"
+git add packages/rokudev-device/src/tools/
+git commit -m "feat(rokudev-device): log_tail and log_stream_* tools"
 ```
 
 ---
@@ -3796,15 +3796,15 @@ git commit -m "feat(brs-device): log_tail and log_stream_* tools"
 `dev_loop_with_smoke` is deferred until Plan 4 (it needs the smoke fingerprint pack). At Plan 1, only `dev_loop` ships.
 
 **Files:**
-- Create: `packages/brs-device/src/tools/dev-loop.ts`
-- Create: `packages/brs-device/src/tools/dev-loop.test.ts`
-- Modify: `packages/brs-device/src/tools/all.ts`
+- Create: `packages/rokudev-device/src/tools/dev-loop.ts`
+- Create: `packages/rokudev-device/src/tools/dev-loop.test.ts`
+- Modify: `packages/rokudev-device/src/tools/all.ts`
 
 - [ ] **Step 1: Write `dev-loop.ts`**
 
 ```ts
 import { registerToolsModule } from './_register.js';
-import { DevPortal, TelnetClient, fail } from '@roku/device-client';
+import { DevPortal, TelnetClient, fail } from '@rokudev/device-client';
 import { resolveTarget } from '../util/resolve-target.js';
 import { checkReachable } from '../util/network-guard.js';
 
@@ -3848,8 +3848,8 @@ Mock both the dev-portal HTTP server (reuse fixtures from Task 15) and a telnet 
 - [ ] **Step 3: Add to `all.ts`** and commit.
 
 ```bash
-git add packages/brs-device/src/tools/
-git commit -m "feat(brs-device): composite dev_loop"
+git add packages/rokudev-device/src/tools/
+git commit -m "feat(rokudev-device): composite dev_loop"
 ```
 
 ---
@@ -3859,7 +3859,7 @@ git commit -m "feat(brs-device): composite dev_loop"
 **Decision:** A full end-to-end e2e (drive the MCP server in a child process and exercise every tool against mock servers) requires either overriding hard-coded ports on the *device-side* (Roku's 80 / 8060 / 8085 are not configurable when addressed via the registry's `host`) or running tests in a network namespace, both of which are out of scope for Plan 1. Per-tool unit tests in Tasks 13–32 already cover the wire shapes by calling the library classes with injectable ports. Plan 1's e2e is therefore limited to a `tools/list` smoke that validates the MCP wiring and confirms every tool registered. Full multi-tool e2e is deferred to Plan 2 (when BDP work forces full mock-Roku infrastructure).
 
 **Files:**
-- Create: `packages/brs-device/tests/e2e.test.ts`
+- Create: `packages/rokudev-device/tests/e2e.test.ts`
 
 - [ ] **Step 1: Write `e2e.test.ts` (tools/list only)**
 
@@ -3868,7 +3868,7 @@ import { describe, it, expect } from 'vitest';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 
-describe('brs-device e2e: tools/list', () => {
+describe('rokudev-device e2e: tools/list', () => {
   it('lists every tool from Phase 2', async () => {
     const proc = spawn(process.execPath, [join(__dirname, '..', 'dist', 'index.js')]);
     const init = JSON.stringify({
@@ -3915,10 +3915,10 @@ describe('brs-device e2e: tools/list', () => {
 - [ ] **Step 2: Run, iterate, commit**
 
 ```bash
-pnpm --filter brs-device build
-pnpm --filter brs-device test
-git add packages/brs-device/tests/
-git commit -m "test(brs-device): e2e tools/list smoke"
+pnpm --filter rokudev-device build
+pnpm --filter rokudev-device test
+git add packages/rokudev-device/tests/
+git commit -m "test(rokudev-device): e2e tools/list smoke"
 ```
 
 ---
@@ -3928,8 +3928,8 @@ git commit -m "test(brs-device): e2e tools/list smoke"
 Wraps `discover()` from the library and offers each result as a `device_add`-ready entry.
 
 **Files:**
-- Modify: `packages/brs-device/src/tools/registry.ts` (add `device_discover`)
-- Modify: `packages/brs-device/src/tools/registry.test.ts`
+- Modify: `packages/rokudev-device/src/tools/registry.ts` (add `device_discover`)
+- Modify: `packages/rokudev-device/src/tools/registry.test.ts`
 - Modify: e2e expected list above to include `device_discover`.
 
 - [ ] **Step 1: Add `device_discover`**
@@ -3944,7 +3944,7 @@ tools.set('device_discover', tool({
     additionalProperties: false,
   },
   handler: async (a) => {
-    const { discover } = await import('@roku/device-client');
+    const { discover } = await import('@rokudev/device-client');
     const list = await discover((a.timeout_ms as number | undefined) ?? 3500);
     return { ok: true, found: list };
   },
@@ -3958,8 +3958,8 @@ If real-device SSDP is impractical in CI, mark the test `it.skip` with a TODO (c
 - [ ] **Step 3: Update e2e expected list and commit**
 
 ```bash
-git add packages/brs-device/src/tools/ packages/brs-device/tests/
-git commit -m "feat(brs-device): device_discover tool (SSDP one-shot)"
+git add packages/rokudev-device/src/tools/ packages/rokudev-device/tests/
+git commit -m "feat(rokudev-device): device_discover tool (SSDP one-shot)"
 ```
 
 ---
@@ -4008,13 +4008,13 @@ A non-CI script the developer runs once after wiring up a real device, to confir
 
 ```js
 #!/usr/bin/env node
-// Manual smoke: spawn brs-device, exercise the device tools against a real Roku.
-// Usage: BRS_DEFAULT_ROKU_HOST=192.168.1.42 BRS_ROKU_DEV_PASSWORD=rokudev node scripts/manual-smoke.mjs
+// Manual smoke: spawn rokudev-device, exercise the device tools against a real Roku.
+// Usage: ROKUDEV_DEFAULT_ROKU_HOST=192.168.1.42 ROKUDEV_ROKU_DEV_PASSWORD=rokudev node scripts/manual-smoke.mjs
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const proc = spawn(process.execPath,
-  [resolve('packages/brs-device/dist/index.js')],
+  [resolve('packages/rokudev-device/dist/index.js')],
   { stdio: ['pipe', 'pipe', 'inherit'] });
 
 let nextId = 1;
@@ -4052,7 +4052,7 @@ Add a short section to `README.md`:
 ```md
 ## Manual smoke against a real Roku
 
-Set `BRS_DEFAULT_ROKU_HOST` and `BRS_ROKU_DEV_PASSWORD`, then run:
+Set `ROKUDEV_DEFAULT_ROKU_HOST` and `ROKUDEV_ROKU_DEV_PASSWORD`, then run:
 
     pnpm build && node scripts/manual-smoke.mjs
 ```
@@ -4083,8 +4083,8 @@ Append to `README.md`:
 ```md
 ## What's in v0.1 (Plan 1)
 
-- `@roku/device-client` (TS library): RFC 2617 Digest auth, ECP HTTP, dev portal, telnet, SSDP discovery, registry, error taxonomy.
-- `brs-device` (MCP, stdio): registry tools, ECP read/control, dev-portal sideload/unload/screenshot/genkey/rekey/sign/diff/registry/profiler/crashlog, telnet log_tail/log_stream, composite dev_loop, cross-package version check.
+- `@rokudev/device-client` (TS library): RFC 2617 Digest auth, ECP HTTP, dev portal, telnet, SSDP discovery, registry, error taxonomy.
+- `rokudev-device` (MCP, stdio): registry tools, ECP read/control, dev-portal sideload/unload/screenshot/genkey/rekey/sign/diff/registry/profiler/crashlog, telnet log_tail/log_stream, composite dev_loop, cross-package version check.
 
 Not in this release: BDP debugger (Plan 2), generator + module merger (Plan 3), freeform/LSP (Plan 4), brs-docs (Plan 5), skills + plugin (Plan 6).
 ```
@@ -4092,7 +4092,7 @@ Not in this release: BDP debugger (Plan 2), generator + module merger (Plan 3), 
 - [ ] **Step 3: Tag the release**
 
 ```bash
-git tag -a v0.1.0 -m "v0.1.0: roku-device-client + brs-device foundation"
+git tag -a v0.1.0 -m "v0.1.0: roku-device-client + rokudev-device foundation"
 ```
 
 - [ ] **Step 4: Final commit**
@@ -4109,10 +4109,10 @@ git commit -m "docs: Plan 1 release notes in README"
 - [ ] Every task above has its tests run and committed.
 - [ ] `pnpm release-prep` passes from a clean checkout.
 - [ ] Manual smoke script exercised against at least one real Roku.
-- [ ] Public export surface of `@roku/device-client` matches §2.3 of the spec.
+- [ ] Public export surface of `@rokudev/device-client` matches §2.3 of the spec.
 - [ ] Error taxonomy in `errors/codes.ts` matches §4.6 (excluding codes from later plans).
 - [ ] `dev_password` does not appear in any test fixture's expected output, in any captured log, or in any tool result schema.
-- [ ] Registry file at `~/.config/brs/devices.toml` is created with mode 0600 by `device_add`.
+- [ ] Registry file at `~/.config/rokudev/devices.toml` is created with mode 0600 by `device_add`.
 
 When the checklist is green, hand off to Plan 2 (BDP debugger) which depends only on what Plan 1 ships.
 

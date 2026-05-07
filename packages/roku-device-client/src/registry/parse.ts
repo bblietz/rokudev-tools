@@ -19,9 +19,9 @@ export function serializeRegistry(r: Registry): string {
   // records, so build the output manually for full control over formatting and
   // determinism.
   const lines: string[] = [];
-  lines.push('# brs-tools device registry');
-  lines.push('# WARNING: dev_password stored in plaintext. Set BRS_NO_PLAINTEXT=1 to refuse.');
-  lines.push('# Override per-call with env var BRS_DEV_PASSWORD_<DEVICE_NAME> if needed.');
+  lines.push('# rokudev-tools device registry');
+  lines.push('# WARNING: dev_password stored in plaintext. Set ROKUDEV_NO_PLAINTEXT=1 to refuse.');
+  lines.push('# Override per-call with env var ROKUDEV_DEV_PASSWORD_<DEVICE_NAME> if needed.');
   lines.push('');
   if (r.active !== undefined) {
     lines.push(`active = ${JSON.stringify(r.active)}`);

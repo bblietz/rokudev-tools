@@ -39,7 +39,7 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 describe('DevPortal sideload/unload', () => {
   let tmp: string, zipPath: string;
   beforeAll(async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'brs-test-'));
+    tmp = await mkdtemp(join(tmpdir(), 'rokudev-test-'));
     zipPath = join(tmp, 'channel.zip');
     await writeFile(zipPath, Buffer.from('PK\u0003\u0004fake-zip')); // PK header so the body looks plausible
   });

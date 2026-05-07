@@ -7,12 +7,12 @@ import { RegistryReader } from './reader.js';
 let tmp: string;
 
 beforeEach(async () => {
-  tmp = await mkdtemp(join(tmpdir(), 'brs-test-'));
-  process.env['BRS_CONFIG_DIR'] = tmp;
+  tmp = await mkdtemp(join(tmpdir(), 'rokudev-test-'));
+  process.env['ROKUDEV_CONFIG_DIR'] = tmp;
 });
 
 afterEach(async () => {
-  delete process.env['BRS_CONFIG_DIR'];
+  delete process.env['ROKUDEV_CONFIG_DIR'];
   await rm(tmp, { recursive: true, force: true });
 });
 

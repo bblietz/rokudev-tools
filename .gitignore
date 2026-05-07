@@ -5,11 +5,11 @@ dist/
 coverage/
 .DS_Store
 *.tsbuildinfo
-.brs-tools/
+.rokudev-tools/
 .vscode/
 
 # Never commit user-level config
-~/.config/brs/
+~/.config/rokudev/
 
 # Generated FTS5 indices
 corpus/build/

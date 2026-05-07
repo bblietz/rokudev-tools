@@ -1,8 +1,8 @@
-# brs-tools: Unified Roku BrightScript Developer Toolkit
+# rokudev-tools: Unified Roku BrightScript Developer Toolkit
 
 PRD / design document. Status: draft for review. Date: 2026-05-06.
 
-This document captures the product requirements and high-level design for `brs-tools`, a unified developer toolkit that consolidates the existing prototype servers (`brs-mcp`, `brs-debug-mcp`, `brs-mcp-for-docs`) into a coherent product surface for AI-assisted Roku channel development.
+This document captures the product requirements and high-level design for `rokudev-tools`, a unified developer toolkit that consolidates the existing prototype servers (`brs-mcp`, `brs-debug-mcp`, `brs-mcp-for-docs`) into a coherent product surface for AI-assisted Roku channel development.
 
 It is a PRD, not an implementation plan. The implementation plan will be derived from this document in a separate session via the writing-plans skill.
 
@@ -10,7 +10,7 @@ It is a PRD, not an implementation plan. The implementation plan will be derived
 
 ### 1.1 Working name
 
-`brs-tools`. The product is a single shipping artifact set composed of three MCP servers, one shared TypeScript library, a Claude Code plugin, and a skills layer.
+`rokudev-tools`. The product is a single shipping artifact set composed of three MCP servers, one shared TypeScript library, a Claude Code plugin, and a skills layer.
 
 ### 1.2 Audience
 
@@ -52,7 +52,7 @@ Three MCP servers, one shared TypeScript library, one skills layer, one Claude C
             ┌─────────────────────────┼─────────────────────────┐
             │                         │                         │
    ┌────────▼────────┐       ┌────────▼────────┐       ┌────────▼────────┐
-   │    brs-gen      │       │   brs-device    │       │    brs-docs     │
+   │    brs-gen      │       │   rokudev-device    │       │    brs-docs     │
    │    (TS/Node)    │       │    (TS/Node)    │       │    (Python)     │
    ├─────────────────┤       ├─────────────────┤       ├─────────────────┤
    │ templates       │       │ ECP             │       │ FTS5 search     │
@@ -68,7 +68,7 @@ Three MCP servers, one shared TypeScript library, one skills layer, one Claude C
                 ┌─────────▼──────────┐
                 │ roku-device-client │   shared TS library
                 │ (RFC 2617 Digest,  │   imported by brs-gen and
-                │  ECP HTTP, BDP     │   brs-device; single source
+                │  ECP HTTP, BDP     │   rokudev-device; single source
                 │  binary client,    │   of truth for every Roku
                 │  telnet client,    │   network call.
                 │  registry I/O,     │
@@ -76,8 +76,8 @@ Three MCP servers, one shared TypeScript library, one skills layer, one Claude C
                 └────────────────────┘
 
       shared at the filesystem layer:
-      ~/.config/brs/devices.toml      device registry (0600)
-      ~/.config/brs/config.toml       general config, internal-flag opt-ins
+      ~/.config/rokudev/devices.toml      device registry (0600)
+      ~/.config/rokudev/config.toml       general config, internal-flag opt-ins
       ~/.cache/brs/docs/              docs corpus and index (refreshable)
 ```
 
@@ -87,20 +87,20 @@ Hard boundaries; do not blur during implementation.
 
 | Plane | Owns | Forbidden |
 |---|---|---|
-| `brs-gen` | All file generation: project trees, manifests, asset placement, module merge, freeform scaffolding. Calls `brs-device` only via the shared library for sideload-after-generate convenience flows. | No direct device I/O of its own. No corpus storage. |
-| `brs-device` | Every Roku-touching call. The only place `undici`/HTTP/telnet/binary-protocol clients live. Owns the device registry and network detection. | No template knowledge. No docs corpus. |
+| `brs-gen` | All file generation: project trees, manifests, asset placement, module merge, freeform scaffolding. Calls `rokudev-device` only via the shared library for sideload-after-generate convenience flows. | No direct device I/O of its own. No corpus storage. |
+| `rokudev-device` | Every Roku-touching call. The only place `undici`/HTTP/telnet/binary-protocol clients live. Owns the device registry and network detection. | No template knowledge. No docs corpus. |
 | `brs-docs` | The corpus (BrightScript reference + samples), refresh from `rokudev/dev-doc`, FTS5 search, `brs_get`/`brs_list`. | No file generation. No device I/O. |
 | `roku-device-client` | Pure library: HTTP Digest, ECP HTTP, BDP binary framing, telnet wrappers, registry parsing, the unified error taxonomy. No MCP wrapping. | No tools, no stdio. |
-| Skills | Orchestration recipes: which MCP calls to make, in what order, for common workflows (deploy-and-smoke, triage, perf trace, deep-link test). | No new device I/O. Must call `brs-device`. |
+| Skills | Orchestration recipes: which MCP calls to make, in what order, for common workflows (deploy-and-smoke, triage, perf trace, deep-link test). | No new device I/O. Must call `rokudev-device`. |
 | Claude Code plugin | One-shot install, MCP wiring, ships skills, runs `brs setup`. | No business logic. |
 
 ### 2.3 Architectural invariants
 
-- `roku-device-client` is published to npm (not internal-only). External developers building other AI tools may depend on it. **Public export surface** is the typed clients (`EcpClient`, `DevPortalClient`, `BdpClient`, `TelnetClient`, `RegistryReader`, `RegistryWriter`), the `errors` module, and the `discovery` module. Lower-level primitives (`digestRequest`, `multipartStream`, BDP wire codecs) live under a `_internal/` namespace; they are excluded from the package's `exports` field and are not part of the SemVer surface. `RegistryWriter` is included in the public surface because both `brs-gen` and `brs-device` need write access to the registry; the file-locking protocol in §4.1 is implemented inside `RegistryWriter`.
-- Network detection is implemented in `brs-device`, not in the shared library. Detection is an MCP-tool-level concern (warning users about cross-network access). The library only makes the call.
-- Skills do not bypass `brs-device` to make Roku calls themselves. The rule is enforced socially and structurally; new skills that need a new transport require a new tool in `brs-device` first.
+- `roku-device-client` is published to npm (not internal-only). External developers building other AI tools may depend on it. **Public export surface** is the typed clients (`EcpClient`, `DevPortalClient`, `BdpClient`, `TelnetClient`, `RegistryReader`, `RegistryWriter`), the `errors` module, and the `discovery` module. Lower-level primitives (`digestRequest`, `multipartStream`, BDP wire codecs) live under a `_internal/` namespace; they are excluded from the package's `exports` field and are not part of the SemVer surface. `RegistryWriter` is included in the public surface because both `brs-gen` and `rokudev-device` need write access to the registry; the file-locking protocol in §4.1 is implemented inside `RegistryWriter`.
+- Network detection is implemented in `rokudev-device`, not in the shared library. Detection is an MCP-tool-level concern (warning users about cross-network access). The library only makes the call.
+- Skills do not bypass `rokudev-device` to make Roku calls themselves. The rule is enforced socially and structurally; new skills that need a new transport require a new tool in `rokudev-device` first.
 - **Determinism guarantee scope.** Same `AppSpec` plus same module versions plus same template version plus same `brs-gen` version produces byte-identical output (project tree, zip bytes via sorted entries and fixed mtime, and `provenance.json`). This guarantee applies **only to the deterministic path (Path A)**. Freeform-path output is explicitly nondeterministic by design; `provenance.json` for a freeform project records the bootstrap template version, a session id, and the bsc/smoke pass markers, but file contents are not reproducible.
-- All Roku-touching code lives in one place. There is exactly one `sideload()` function (in `roku-device-client`), called by both `brs-device` and `brs-gen`.
+- All Roku-touching code lives in one place. There is exactly one `sideload()` function (in `roku-device-client`), called by both `rokudev-device` and `brs-gen`.
 - `dev_password`, signing passwords, and any secret material are never logged or echoed.
 
 ### 2.4 Configuration precedence
@@ -109,9 +109,9 @@ For every device tool, the values for `host` (or `device_ip`) and `dev_password`
 
 1. **Per-call argument.** A `host`, `device_ip`, or `dev_password` passed in the tool arguments.
 2. **Per-call `device:` argument.** When `device: <name>` is supplied, the registry entry's `host` and `dev_password` are used.
-3. **Per-device env vars.** `BRS_HOST_<DEVICE_NAME>`, `BRS_DEV_PASSWORD_<DEVICE_NAME>`. Useful for CI matrices and for keeping secrets out of `devices.toml`. **Name normalization:** `<DEVICE_NAME>` is the device's registry name with `-` replaced by `_` and the result uppercased. So `corp-tv-43` → `BRS_HOST_CORP_TV_43`, `home-tv` → `BRS_HOST_HOME_TV`. Names containing characters other than `[A-Za-z0-9_-]` are rejected at registry-add time (`device_add` returns `INVALID_DEVICE_NAME`) so the env-var transform is unambiguous.
-4. **Global env vars.** `BRS_DEFAULT_ROKU_HOST`, `BRS_ROKU_DEV_PASSWORD`. (These names are kept for compatibility with the existing prototype.)
-5. **Active registry device.** The `[active]` device in `~/.config/brs/devices.toml`.
+3. **Per-device env vars.** `ROKUDEV_HOST_<DEVICE_NAME>`, `ROKUDEV_DEV_PASSWORD_<DEVICE_NAME>`. Useful for CI matrices and for keeping secrets out of `devices.toml`. **Name normalization:** `<DEVICE_NAME>` is the device's registry name with `-` replaced by `_` and the result uppercased. So `corp-tv-43` → `ROKUDEV_HOST_CORP_TV_43`, `home-tv` → `ROKUDEV_HOST_HOME_TV`. Names containing characters other than `[A-Za-z0-9_-]` are rejected at registry-add time (`device_add` returns `INVALID_DEVICE_NAME`) so the env-var transform is unambiguous.
+4. **Global env vars.** `ROKUDEV_DEFAULT_ROKU_HOST`, `ROKUDEV_ROKU_DEV_PASSWORD`. (These names are kept for compatibility with the existing prototype.)
+5. **Active registry device.** The `[active]` device in `~/.config/rokudev/devices.toml`.
 
 If no value is resolved by step 5, the tool returns `{ ok: false, code: "DEVICE_NOT_RESOLVED", details: { tried: [...] } }`. The `tried` array enumerates the steps consulted so the agent can debug.
 
@@ -119,7 +119,7 @@ The same precedence applies to `signing_password` for `pack_signed` and `rekey`,
 
 ### 2.5 Internal feature flags
 
-Internal-only behavior is opt-in via `[features.internal]` in `~/.config/brs/config.toml`. Concrete v1 flags:
+Internal-only behavior is opt-in via `[features.internal]` in `~/.config/rokudev/config.toml`. Concrete v1 flags:
 
 - `internal.use_corp_doc_mirror = true` enables `brs docs refresh` to use the configured corp mirror URL instead of GitHub.
 - `internal.raf_test_endpoints = true` exposes the Roku-internal RAF test ad servers as selectable values in the `ads.raf_csai` and `ads.raf_ssai` module configs.
@@ -318,7 +318,7 @@ Templates declare what they provide; modules declare what they need. The merger 
 
 #### 3.2.7 Provenance
 
-The merger emits `.brs-tools/provenance.json`:
+The merger emits `.rokudev-tools/provenance.json`:
 
 ```json
 {
@@ -343,8 +343,8 @@ For the long tail of "make me a thing nobody templated yet." The agent works ins
 1. **Open session.** `brs-gen.freeform_session_open(project_dir)` returns a `session_id`. The session is bootstrapped from `blank_scenegraph` (manifest, splash, icon, deep-link plumbing, `MainScene.xml`) on first call.
 2. Optionally opens an LSP-as-tool session for symbol-aware editing.
 3. The agent writes BrightScript directly, querying `brs-docs` for component and interface lookups.
-4. **Lint gate.** `brs-device.sideload`, `brs-device.dev_loop`, and `brs-device.dev_loop_with_smoke` refuse to proceed (`LINT_REQUIRED` error) when called against a project that has a `.brs-tools/freeform-session.json` whose latest mtime indicates source changes since the last successful `brs-gen.lint` run. The agent must call `brs-gen.lint` and resolve all errors before proceeding. The toolkit owns this gate; the agent cannot bypass it without an explicit `freeform_lint_override: true` flag (which is logged and surfaced in the result `details.warnings`).
-5. Once lint-clean, runs `brs-device.dev_loop_with_smoke` to sideload, smoke, and screenshot.
+4. **Lint gate.** `rokudev-device.sideload`, `rokudev-device.dev_loop`, and `rokudev-device.dev_loop_with_smoke` refuse to proceed (`LINT_REQUIRED` error) when called against a project that has a `.rokudev-tools/freeform-session.json` whose latest mtime indicates source changes since the last successful `brs-gen.lint` run. The agent must call `brs-gen.lint` and resolve all errors before proceeding. The toolkit owns this gate; the agent cannot bypass it without an explicit `freeform_lint_override: true` flag (which is logged and surfaced in the result `details.warnings`).
+5. Once lint-clean, runs `rokudev-device.dev_loop_with_smoke` to sideload, smoke, and screenshot.
 6. The smoke step asserts the screenshot does not match the error-overlay fingerprint set (§4.3). **Smoke-pass at v1 means "no visible error overlay," not "renders the intended content."** A channel that boots into a black screen and renders nothing technically passes smoke. This is a deliberate v1 limit; positive-fingerprint or content-aware smoke is a v1.x feature. The §1.5 success-criterion language reflects this honestly.
 7. **Close session.** `brs-gen.freeform_session_close(session_id)` finalizes `provenance.json` (records bootstrap version, session id, lint pass marker, smoke pass marker, no file contents).
 
@@ -388,20 +388,20 @@ The full `brs-gen` MCP tool list, gathered here for migration-table convenience.
 | Lint | `lint(project_dir)` | §5.5 |
 | LSP | `lsp_open_workspace`, `lsp_close_workspace`, `lsp_diagnostics`, `lsp_hover`, `lsp_definition`, `lsp_references`, `lsp_document_symbols`, `lsp_workspace_symbols` | §5.4 |
 
-Note: `freeform_lint_override` is a parameter of `brs-device.dev_loop` and `brs-device.dev_loop_with_smoke` (§4.3), not a `brs-gen` tool, because it gates the device call. `brs-gen` enforces the lint cadence by writing `.brs-tools/freeform-session.json` and consulting it before generation; the override is consumed by the device side.
+Note: `freeform_lint_override` is a parameter of `rokudev-device.dev_loop` and `rokudev-device.dev_loop_with_smoke` (§4.3), not a `brs-gen` tool, because it gates the device call. `brs-gen` enforces the lint cadence by writing `.rokudev-tools/freeform-session.json` and consulting it before generation; the override is consumed by the device side.
 
 ## 4. Device plane
 
 ### 4.1 Device registry
 
-Stored at `~/.config/brs/devices.toml` with mode `0600`. Single source of truth across the three MCPs. dev_password is stored in plaintext by design (no keychain dependency); strict file perms and a documented warning. `BRS_NO_PLAINTEXT=1` opts out (env-var-only mode for CI).
+Stored at `~/.config/rokudev/devices.toml` with mode `0600`. Single source of truth across the three MCPs. dev_password is stored in plaintext by design (no keychain dependency); strict file perms and a documented warning. `ROKUDEV_NO_PLAINTEXT=1` opts out (env-var-only mode for CI).
 
-**Concurrency.** The registry is shared by `brs-gen`, `brs-device`, and the `brs` CLI; multiple processes may read/write concurrently. All writes go through `roku-device-client`'s `RegistryWriter`, which:
+**Concurrency.** The registry is shared by `brs-gen`, `rokudev-device`, and the `brs` CLI; multiple processes may read/write concurrently. All writes go through `roku-device-client`'s `RegistryWriter`, which:
 
-1. Acquires an advisory `flock` on `~/.config/brs/devices.toml.lock`.
+1. Acquires an advisory `flock` on `~/.config/rokudev/devices.toml.lock`.
 2. Re-reads the registry under the lock.
 3. Applies the change in-memory.
-4. Writes to `~/.config/brs/devices.toml.tmp.<pid>` with mode 0600.
+4. Writes to `~/.config/rokudev/devices.toml.tmp.<pid>` with mode 0600.
 5. `rename(2)` over the original (atomic on POSIX; fallback to write-then-rename-with-backup on Windows).
 6. Releases the lock.
 
@@ -411,16 +411,16 @@ If `flock` cannot be acquired within 5 seconds, the write returns `REGISTRY_BUSY
 
 **Discovery → password flow.** `device_discover` adds discovered devices to the registry without a `dev_password` (the field is left absent, not empty-string). When a tool call later targets such a device and password resolution per §2.4 fails, the response is `{ ok: false, code: "DEVICE_NO_PASSWORD", details: { device, prompt_hint } }`. The `device_set_password(device, dev_password)` tool sets the password on an existing registry entry. `device_add(...)` may also be called to upsert (it accepts an optional `dev_password`).
 
-**Backup-vector note.** macOS Time Machine and Spotlight will index `~/.config/brs/` by default. The `brs setup` flow:
+**Backup-vector note.** macOS Time Machine and Spotlight will index `~/.config/rokudev/` by default. The `brs setup` flow:
 
-- Adds `~/.config/brs/` to Spotlight's exclusion list via `mdimport -d` (best-effort).
+- Adds `~/.config/rokudev/` to Spotlight's exclusion list via `mdimport -d` (best-effort).
 - Suggests adding the path to Time Machine exclusions (cannot do silently without sudo).
 - Documents both as part of the plaintext-password warning emitted on first run.
 
 ```toml
-# brs-tools device registry
-# WARNING: dev_password stored in plaintext. Set BRS_NO_PLAINTEXT=1 to refuse.
-# Override per-call with env var BRS_DEV_PASSWORD_<DEVICE_NAME> if needed.
+# rokudev-tools device registry
+# WARNING: dev_password stored in plaintext. Set ROKUDEV_NO_PLAINTEXT=1 to refuse.
+# Override per-call with env var ROKUDEV_DEV_PASSWORD_<DEVICE_NAME> if needed.
 
 active = "home-tv"
 
@@ -470,7 +470,7 @@ reachable_from = ["corp", "home_via_vpn"]
 
 ### 4.2 Network detection and warnings
 
-At MCP startup and on the first device call per session, `brs-device` builds a network fingerprint from the current default-route environment and matches it against `[networks.*]` entries. The session is classified as `home`, `corp`, `home_via_vpn`, or `unknown`.
+At MCP startup and on the first device call per session, `rokudev-device` builds a network fingerprint from the current default-route environment and matches it against `[networks.*]` entries. The session is classified as `home`, `corp`, `home_via_vpn`, or `unknown`.
 
 **Fingerprint composition.** Gateway MAC alone is fragile (HSRP/VRRP virtual MACs can collide across VLANs and across sites). The fingerprint is a tuple:
 
@@ -489,13 +489,13 @@ When a tool addresses a device whose `network_tag` is not reachable from the cur
   "details": { "device_network": "home", "current_network": "corp" } }
 ```
 
-**Behavior on `unknown` network classification:** the policy is **permissive**. When the current session classifies as `unknown` (no `[networks.*]` fingerprint matched, e.g. hotel Wi-Fi, coffee shop, or first-run before any networks are configured), `brs-device` does not return `NETWORK_UNREACHABLE` for any device. The tool attempts the call and reports the actual network result. Rationale: a wrong restrictive default would block legitimate first-run use; a wrong permissive default produces a real network error a few seconds later, which is no worse than the current prototype behavior. Users who want strict behavior can populate `[networks.*]` entries to upgrade to detected mode.
+**Behavior on `unknown` network classification:** the policy is **permissive**. When the current session classifies as `unknown` (no `[networks.*]` fingerprint matched, e.g. hotel Wi-Fi, coffee shop, or first-run before any networks are configured), `rokudev-device` does not return `NETWORK_UNREACHABLE` for any device. The tool attempts the call and reports the actual network result. Rationale: a wrong restrictive default would block legitimate first-run use; a wrong permissive default produces a real network error a few seconds later, which is no worse than the current prototype behavior. Users who want strict behavior can populate `[networks.*]` entries to upgrade to detected mode.
 
 Every device tool accepts a `force: true` override for cases where the heuristic is wrong even on a known network.
 
 ### 4.3 Tool surface
 
-`brs-device` tools, consolidated from the prototypes:
+`rokudev-device` tools, consolidated from the prototypes:
 
 | Category | Tools |
 |---|---|
@@ -507,7 +507,7 @@ Every device tool accepts a `force: true` override for cases where the heuristic
 | BDP (real debug) | `debug_attach`, `debug_detach`, `debug_session_state`, `debug_set_breakpoint`, `debug_clear_breakpoint`, `debug_list_breakpoints`, `debug_continue`, `debug_step`, `debug_step_over`, `debug_step_out`, `debug_pause`, `debug_stack_trace`, `debug_threads`, `debug_variables`, `debug_eval` |
 | Composite | `dev_loop` (sideload + tail), `dev_loop_with_smoke` (sideload + smoke + screenshot, see contract below). Both accept `freeform_lint_override: true` to bypass the §3.3 lint gate (logged in `details.warnings`). |
 
-**`dev_loop_with_smoke` contract.** After a successful sideload, the tool: (1) launches the dev channel via ECP, (2) waits for the channel to become the active app (poll `ecp_active_app` with a configurable timeout, default 10s), (3) sends a small navigation sequence (`Down`, `Right`, `Right`) via `ecp_keysequence`, (4) captures a screenshot via the dev portal, (5) asserts the screenshot does not match a known error-overlay fingerprint set (the "channel crashed" red screen, the "Sorry, an error occurred" dialog), and (6) tails logs for a configurable duration (default 5s). Returns `{ ok, sideload, launch_ms, screenshot, log_lines, smoke_pass: bool, smoke_failures?: string[] }`. **`log_lines` is capped at the last 200 lines or 64 KB (whichever is hit first) to bound token cost; the full log is available via `log_tail` if needed.** The error-overlay fingerprint set is shipped with `brs-device` and refreshes automatically with `brs-device` package upgrades; users can also force-refresh via `brs devices update-fingerprints` (which downloads the latest fingerprint pack from the same release artifact stream).
+**`dev_loop_with_smoke` contract.** After a successful sideload, the tool: (1) launches the dev channel via ECP, (2) waits for the channel to become the active app (poll `ecp_active_app` with a configurable timeout, default 10s), (3) sends a small navigation sequence (`Down`, `Right`, `Right`) via `ecp_keysequence`, (4) captures a screenshot via the dev portal, (5) asserts the screenshot does not match a known error-overlay fingerprint set (the "channel crashed" red screen, the "Sorry, an error occurred" dialog), and (6) tails logs for a configurable duration (default 5s). Returns `{ ok, sideload, launch_ms, screenshot, log_lines, smoke_pass: bool, smoke_failures?: string[] }`. **`log_lines` is capped at the last 200 lines or 64 KB (whichever is hit first) to bound token cost; the full log is available via `log_tail` if needed.** The error-overlay fingerprint set is shipped with `rokudev-device` and refreshes automatically with `rokudev-device` package upgrades; users can also force-refresh via `brs devices update-fingerprints` (which downloads the latest fingerprint pack from the same release artifact stream).
 
 **Screenshot return shape (convention across all tools).** Every tool that returns a screenshot has a `return: "inline" | "ref"` parameter (default `inline`). In `inline` mode the result is `{ mime: "image/jpeg" | "image/png", base64: string, bytes: number }` (the existing `brs-mcp` shape, preserved). In `ref` mode the result is `{ mime, path: string, bytes: number }` where `path` is a file written to `~/.cache/brs/screenshots/<sha256>.<ext>` (mode 0600). `ref` mode exists because base64 PNGs from a Roku are typically 300-800 KB pre-encoding and consume meaningful tokens for the LLM caller; the agent can choose `ref` for diagnostic-only flows and `inline` when the model needs to see the image.
 
@@ -653,7 +653,7 @@ Telnet 8080/8085/8087 are unauthenticated by Roku design; anyone on the LAN can 
 
 - On shared/untrusted networks (hotel Wi-Fi, conferences), `log_stream_*` and `log_tail` may expose channel logs to other clients on the LAN. The `roku-network-doctor` skill warns when the current network classifies as `unknown` and a long-running stream is requested.
 - BDP 8081 is also unauthenticated. A user running `debug_attach` on a hostile LAN exposes their channel's runtime state. Same warning surface.
-- This is a Roku-platform constraint, not a `brs-tools` defect; documented but not mitigated.
+- This is a Roku-platform constraint, not a `rokudev-tools` defect; documented but not mitigated.
 
 ## 5. Knowledge plane
 
@@ -684,14 +684,14 @@ A fixture-based regression test (`brs-docs/tests/recommend/`) pins the top-K res
 |---|---|---|
 | `rokudev/dev-doc` | `kind: component / interface / event / node / concept` | Pinned to a commit SHA at release; `brs docs refresh` upgrades. |
 | `rokudev/samples`, `rokudev/scenegraph-master-sample` | `kind: sample` (with `path`, `language`, `summary`, `tags`, full file `body`) | Same release-pin model; `brs docs refresh` re-clones. |
-| `brs-tools` feature modules | `kind: feature_module` (id, summary, AppSpec excerpt, prerequisites) | Generated from the module registry at build time. |
-| `brs-tools` base templates | `kind: template` (id, summary, AppSpec excerpt, supported modules) | Same. |
+| `rokudev-tools` feature modules | `kind: feature_module` (id, summary, AppSpec excerpt, prerequisites) | Generated from the module registry at build time. |
+| `rokudev-tools` base templates | `kind: template` (id, summary, AppSpec excerpt, supported modules) | Same. |
 
 **Sample retrieval shape.** `brs_get(id)` for `kind: sample` returns `{ id, kind: "sample", path, language, summary, tags, body }`. `body` is the full file text for files under 64 KB; for larger files, `body` is omitted and `body_truncated: true` plus a `byte_count` field is set, and the caller fetches via `brs_sample_read(id, byte_offset?, byte_limit?)`.
 
 ### 5.3 Refresh story
 
-`brs docs refresh` (CLI in the plugin) re-pulls upstream sources at HEAD, rebuilds the SQLite FTS5 index in `~/.cache/brs/docs/`, and writes a `corpus.lock` recording the resolved SHAs. Refresh is explicit, never automatic. Internal users on the corp network may configure a mirror in `~/.config/brs/config.toml` (`internal.use_corp_doc_mirror = true` plus `corpus.mirror_url`).
+`brs docs refresh` (CLI in the plugin) re-pulls upstream sources at HEAD, rebuilds the SQLite FTS5 index in `~/.cache/brs/docs/`, and writes a `corpus.lock` recording the resolved SHAs. Refresh is explicit, never automatic. Internal users on the corp network may configure a mirror in `~/.config/rokudev/config.toml` (`internal.use_corp_doc_mirror = true` plus `corpus.mirror_url`).
 
 **Pre-bundled corpus.** The `brs-docs` PyPI package ships with a pre-built SQLite FTS5 index for the corpus pinned at release time, located at `<package>/data/corpus.sqlite`. First-run `brs-docs` does not require network access; the pre-bundled corpus is copied (or symlinked) into `~/.cache/brs/docs/` on first use. `brs docs refresh` is the way to upgrade beyond the bundled snapshot.
 
@@ -734,21 +734,21 @@ The existing `roku-bsc-lint` skill becomes a thin wrapper.
 
 ### 6.1 Composition rule
 
-Skills must not introduce new **Roku-device-touching** transports. If a skill needs a Roku call that doesn't exist in `brs-device`, the answer is to add the tool to `brs-device` and update the skill, not to open a socket from inside the skill. Local non-Roku work (image processing in `roku-asset-pipeline`, manifest text linting in `roku-manifest-validator` before being moved into `brs-gen`, file scanning, etc.) is permitted; only HTTP/telnet/binary-protocol calls to a Roku device are restricted. This rule keeps the error taxonomy and addressing model coherent over time.
+Skills must not introduce new **Roku-device-touching** transports. If a skill needs a Roku call that doesn't exist in `rokudev-device`, the answer is to add the tool to `rokudev-device` and update the skill, not to open a socket from inside the skill. Local non-Roku work (image processing in `roku-asset-pipeline`, manifest text linting in `roku-manifest-validator` before being moved into `brs-gen`, file scanning, etc.) is permitted; only HTTP/telnet/binary-protocol calls to a Roku device are restricted. This rule keeps the error taxonomy and addressing model coherent over time.
 
 ### 6.2 Existing skills updated in place
 
 | Skill | Now calls | Notes |
 |---|---|---|
-| `roku-dev-loop` | `brs-device.dev_loop` | Args change to `device:` (registry name). |
+| `roku-dev-loop` | `rokudev-device.dev_loop` | Args change to `device:` (registry name). |
 | `roku-bsc-lint` | `brs-gen.lint` | Structured diagnostics format unified. |
-| `roku-rooibos-test` | `brs-gen.lint` + `brs-device.dev_loop` + telnet capture | Test-runner flow stays the same; transport unified. |
-| `roku-smoke-test` | `brs-device.dev_loop_with_smoke` + `brs-device.screenshot` | Thin orchestrator over the new composite tool. |
-| `roku-deep-link-test` | `brs-device.ecp_launch` + `log_stream_*` + `screenshot` | Same flow, cleaner errors. |
-| `roku-triage` | `brs-device.screenshot` + `log_tail` + `crashlog_pull` + `profiler_snapshot` + `debug_attach` | New: BDP attach to inspect at the moment of failure. |
-| `roku-perf-trace` | `brs-device.log_stream_*` + `brs-device.profiler_snapshot` | Capture-and-summarize unchanged. |
+| `roku-rooibos-test` | `brs-gen.lint` + `rokudev-device.dev_loop` + telnet capture | Test-runner flow stays the same; transport unified. |
+| `roku-smoke-test` | `rokudev-device.dev_loop_with_smoke` + `rokudev-device.screenshot` | Thin orchestrator over the new composite tool. |
+| `roku-deep-link-test` | `rokudev-device.ecp_launch` + `log_stream_*` + `screenshot` | Same flow, cleaner errors. |
+| `roku-triage` | `rokudev-device.screenshot` + `log_tail` + `crashlog_pull` + `profiler_snapshot` + `debug_attach` | New: BDP attach to inspect at the moment of failure. |
+| `roku-perf-trace` | `rokudev-device.log_stream_*` + `rokudev-device.profiler_snapshot` | Capture-and-summarize unchanged. |
 | `roku-asset-pipeline` | local image work + `brs-gen.validate_assets` | Adds a validate step against template requirements. |
-| `roku-ecp-recipes` | `brs-device.ecp_*` | Recipe content unchanged. |
+| `roku-ecp-recipes` | `rokudev-device.ecp_*` | Recipe content unchanged. |
 | `roku-manifest-validator` | `brs-gen.validate_manifest` | Logic moves into the MCP; skill becomes orchestration. |
 
 ### 6.3 New skills at v1
@@ -757,9 +757,9 @@ Skills must not introduce new **Roku-device-touching** transports. If a skill ne
 |---|---|
 | `roku-vibe` | Flagship. Free-text product description in, draft AppSpec out, generate, sideload, smoke-test, report. End-to-end happy path. Opinionated by default (asks no more than 3 clarifying questions, picks defaults aggressively); `--thorough` flag for full elicitation. |
 | `roku-debug-session` | Wraps `debug_attach` and the BDP toolset into a guided debugging conversation. Replaces manual telnet poking. |
-| `roku-module-add` | Add a feature module to an existing project. Reads `.brs-tools/provenance.json`, validates compatibility against the conflict matrix, regenerates affected files, re-lints, optionally re-sideloads. |
+| `roku-module-add` | Add a feature module to an existing project. Reads `.rokudev-tools/provenance.json`, validates compatibility against the conflict matrix, regenerates affected files, re-lints, optionally re-sideloads. |
 | `roku-module-remove` | Inverse of `roku-module-add`. |
-| `roku-eject` | Convert a brs-tools-managed project (with provenance) into a plain hand-edit-friendly project. One-way at v1; documented as such. |
+| `roku-eject` | Convert a rokudev-tools-managed project (with provenance) into a plain hand-edit-friendly project. One-way at v1; documented as such. |
 | `roku-channel-store-precheck` | Local equivalents of Channel Store submission checks (manifest sanity, splash dimensions, signed-package round-trip, dev-portal warnings). Not a substitute for actual submission. |
 | `roku-network-doctor` | Diagnose multi-network situation. Reports current network classification, lists registered devices and reachability, flags devices whose `last_seen` is stale. |
 
@@ -788,19 +788,19 @@ The table lives in `skills/roku-vibe/defaults.toml`. `--thorough` always asks; `
 
 ### 7.1 Monorepo layout
 
-Single repository at `/Users/bblietz/Work/ClaudeProjects/brs-tools/` (currently empty). Single fixed SemVer across all packages.
+Single repository at `/Users/bblietz/Work/ClaudeProjects/rokudev-tools/` (currently empty). Single fixed SemVer across all packages.
 
 ```
-brs-tools/                                  ← monorepo root
+rokudev-tools/                                  ← monorepo root
 ├── package.json                            ← workspaces root
 ├── pnpm-workspace.yaml                     ← workspaces config
 ├── turbo.json                              ← cross-package build/test orchestration
 ├── .release/
 │   └── version.json                        ← single SemVer for all packages
 ├── packages/
-│   ├── roku-device-client/                 ← npm: @roku/device-client (TS lib)
+│   ├── roku-device-client/                 ← npm: @rokudev/device-client (TS lib)
 │   │   └── src/{http,ecp,devportal,telnet,bdp,registry,errors}.ts
-│   ├── brs-device/                         ← npm: brs-device (MCP, TS)
+│   ├── rokudev-device/                         ← npm: rokudev-device (MCP, TS)
 │   │   └── src/{tools,server.ts}
 │   ├── brs-gen/                            ← npm: brs-gen (MCP, TS)
 │   │   └── src/{templates,modules,merger,freeform,lint,lsp,server.ts}
@@ -826,7 +826,7 @@ brs-tools/                                  ← monorepo root
 │   └── music_player/
 ├── plugin/                                 ← Claude Code plugin
 │   ├── plugin.json
-│   ├── mcp.json                            ← wires brs-gen, brs-device, brs-docs
+│   ├── mcp.json                            ← wires brs-gen, rokudev-device, brs-docs
 │   └── postinstall                         ← runs `brs setup`
 ├── skills/                                 ← roku-* skills (kept here for lockstep release)
 │   ├── roku-vibe/
@@ -858,7 +858,7 @@ brs-tools/                                  ← monorepo root
 
 | Subcommand | Purpose |
 |---|---|
-| `brs setup` | One-shot install hook. Creates `~/.config/brs/` (0700), default `config.toml`, empty `devices.toml` (0600). Adds Spotlight exclusion best-effort. |
+| `brs setup` | One-shot install hook. Creates `~/.config/rokudev/` (0700), default `config.toml`, empty `devices.toml` (0600). Adds Spotlight exclusion best-effort. |
 | `brs devices add <name> --host=<ip> [--password=<pw>]` | Add or upsert a device registry entry. |
 | `brs devices set-password <name>` | Prompts for password (no echo); writes to registry under `flock`. |
 | `brs devices list` | Prints `device_list` output as a table. |
@@ -868,7 +868,7 @@ brs-tools/                                  ← monorepo root
 | `brs docs refresh [--mirror=<url>]` | Re-pulls upstream sources, rebuilds FTS5 index transactionally. |
 | `brs docs status` | Shows pinned SHAs, last refresh, corpus byte size. |
 | `brs spec upgrade <file>` | Promotes a v1 AppSpec on disk to v2. Writes back atomically. |
-| `brs devices update-fingerprints` | Force-refresh the error-overlay screenshot fingerprint pack used by `dev_loop_with_smoke` (§4.3). Normally these refresh automatically with `brs-device` package upgrades. |
+| `brs devices update-fingerprints` | Force-refresh the error-overlay screenshot fingerprint pack used by `dev_loop_with_smoke` (§4.3). Normally these refresh automatically with `rokudev-device` package upgrades. |
 | `brs version` | Prints package versions; includes the load-bearing `telemetry: none` line (§8.5). |
 
 ### 7.2 Toolchain
@@ -885,19 +885,19 @@ brs-tools/                                  ← monorepo root
 3. Real-device smoke tests are a required CI check that asserts one of two outcomes: (a) **smoke ran and passed** (real Roku attached, smoke suite green), or (b) **smoke explicitly skipped** with a documented reason recorded in the release notes (e.g. `SKIPPED_NO_DEVICE_ATTACHED`, `SKIPPED_DEVICE_OFFLINE`). A silent skip never passes CI; the smoke step always emits one of the two outcomes.
 4. **Publish ordering (not atomic).** True cross-registry atomicity is not possible (npm and PyPI are independent registries with no two-phase commit and asymmetric un-publish policies). The release runs in this order to minimize blast radius on partial failure:
    1. `uv publish` to PyPI first (`brs-docs`). Smaller blast radius; if it fails, no npm packages have been published.
-   2. `npm publish` for `roku-device-client`, `brs-device`, `brs-gen` in dependency order. Each publish is a separate operation; if any fails after PyPI succeeded, that PyPI version remains and the npm versions that did publish remain. The release script:
+   2. `npm publish` for `roku-device-client`, `rokudev-device`, `brs-gen` in dependency order. Each publish is a separate operation; if any fails after PyPI succeeded, that PyPI version remains and the npm versions that did publish remain. The release script:
       - Never re-publishes the same version on partial failure (npm rejects re-publish anyway).
       - Bumps to the next patch and re-runs from step 1, leaving the failed version visible but not advanced via dist-tag.
    3. The npm `latest` dist-tag and PyPI's "current" pointer are advanced **only after all packages succeed**. Users running `npm i brs-gen` always pull a coherent set.
 5. The Claude Code plugin is published last, after all three MCP packages and the shared library are at the same version. The plugin declares exact `=X.Y.Z` pins.
 6. **Rollback.** Because partial publishes cannot be unpublished cleanly, "rollback" means: keep the partial-publish versions on the registry as orphan versions, never advance dist-tags, and document the orphans in `CHANGELOG.md`. Subsequent releases use the next version.
-7. **Cross-package version compatibility check at runtime.** Each MCP server reads the published version of its sibling packages (resolved via `node_modules` for TS packages and `pkg_resources` for Python) on startup. **Major-version divergence** (e.g. user installed `brs-docs@2.x` from PyPI directly while the plugin pins `brs-gen@1.x`/`brs-device@1.x`) returns the **failure** code `CROSS_PACKAGE_VERSION_MISMATCH` (stage `bootstrap`, see §4.6) on every subsequent tool call until the user resolves the mismatch. **Minor-version drift** is permitted; it surfaces as the **in-band warning** with the same code on the first call only. This protects users from the orphan-PyPI-version edge case in step 4.
+7. **Cross-package version compatibility check at runtime.** Each MCP server reads the published version of its sibling packages (resolved via `node_modules` for TS packages and `pkg_resources` for Python) on startup. **Major-version divergence** (e.g. user installed `brs-docs@2.x` from PyPI directly while the plugin pins `brs-gen@1.x`/`rokudev-device@1.x`) returns the **failure** code `CROSS_PACKAGE_VERSION_MISMATCH` (stage `bootstrap`, see §4.6) on every subsequent tool call until the user resolves the mismatch. **Minor-version drift** is permitted; it surfaces as the **in-band warning** with the same code on the first call only. This protects users from the orphan-PyPI-version edge case in step 4.
 
 **Note on the npm scope.** This PRD assumes `@roku` is available as an npm scope or is owned by Roku. If it is not, the package is published as `roku-device-client` (unscoped) instead. This is settled at repo init, not here; flagged as an open question in §8.4.
 
 ### 7.4 Migration from prototypes
 
-`docs/migration-from-prototypes.md` provides a per-tool table mapping every prototype tool to its unified equivalent or to a documented deprecation. The three prototype repos receive a final release with a deprecation notice pointing to `brs-tools`. They are not deleted.
+`docs/migration-from-prototypes.md` provides a per-tool table mapping every prototype tool to its unified equivalent or to a documented deprecation. The three prototype repos receive a final release with a deprecation notice pointing to `rokudev-tools`. They are not deleted.
 
 **Behavior changes the migration document must call out (non-exhaustive):**
 
@@ -912,7 +912,7 @@ brs-tools/                                  ← monorepo root
 
 ### 8.1 Shipping in v1.0.0
 
-- 3 MCP packages (`brs-gen`, `brs-device`, `brs-docs`) plus 1 shared library (`@roku/device-client`), single fixed version.
+- 3 MCP packages (`brs-gen`, `rokudev-device`, `brs-docs`) plus 1 shared library (`@rokudev/device-client`), single fixed version.
 - 6 base templates: `screensaver`, `video_grid_channel`, `news_channel`, `game_shell`, `blank_scenegraph`, `music_player`.
 - 10 feature modules: Roku Pay subscription, Roku Pay transactional, RAF CSAI, RAF SSAI, three auth flows (`auth.device_link_code`, `auth.oauth_device_grant`, `auth.roku_os_signin`), `analytics.event_pipe`, `deep_link.global`, `accessibility.captions`.
 - BDP debugger client at v1 scope (attach + detach + breakpoints + step/over/out + continue + pause + stack + threads + variables + eval).
@@ -921,7 +921,7 @@ brs-tools/                                  ← monorepo root
 - LSP-as-tool inside `brs-gen`, optional and project-scoped.
 - All existing `roku-*` skills updated to call the unified surface (the 10 skills enumerated in Section 6.2: `roku-dev-loop`, `roku-bsc-lint`, `roku-rooibos-test`, `roku-smoke-test`, `roku-deep-link-test`, `roku-triage`, `roku-perf-trace`, `roku-asset-pipeline`, `roku-ecp-recipes`, `roku-manifest-validator`).
 - 7 new skills: `roku-vibe`, `roku-debug-session`, `roku-module-add`, `roku-module-remove`, `roku-eject`, `roku-channel-store-precheck`, `roku-network-doctor`.
-- `brs-tools` Claude Code plugin (one-shot install).
+- `rokudev-tools` Claude Code plugin (one-shot install).
 - Migration table and per-prototype deprecation releases.
 
 ### 8.2 Deferred to v1.x
@@ -952,10 +952,10 @@ brs-tools/                                  ← monorepo root
 | Module merger conflicts accumulate as the catalog grows. | Strict per-module file namespace (§3.2.2); explicit conflict matrix (§3.2.3); manifest-key strategies (§3.2.4); init-order topological sort with cycle detection (§3.2.5); wiring contract validation (§3.2.6); combinatorial merger test (see below). |
 | **Combinatorial module compatibility regression.** With 10 v1 modules there are 45 pairs and ~120 size-3 subsets. Without test coverage, "modules don't conflict" is a hope. | CI generates every legal `(template, module-subset)` combination up to subset size 3 (template × subset cardinality is bounded; ~6 templates × ~120 subsets ≤ ~720 combinations) and asserts each merges, lints clean, and zips. Combinations declared incompatible via the conflict matrix are excluded. New modules must extend the matrix or adjust file namespaces, not the test. |
 | Network detection false positives on multi-VLAN corp networks (HSRP/VRRP virtual MACs). | Fingerprint is a tuple (gateway MAC + /24 subnet + DNS suffix + VPN-iface presence) per §4.2. Remaining false positives are escapable via per-call `force: true`. |
-| Plaintext dev_password leaks via accidental commit, clipboard, log paste, Spotlight indexing, or Time Machine backup. | 0600 perms enforced; `BRS_NO_PLAINTEXT=1` opt-in for env-only mode; `.gitignore` template includes `~/.config/brs/`; `brs setup` adds Spotlight exclusion best-effort and warns about Time Machine; passwords never logged. |
+| Plaintext dev_password leaks via accidental commit, clipboard, log paste, Spotlight indexing, or Time Machine backup. | 0600 perms enforced; `ROKUDEV_NO_PLAINTEXT=1` opt-in for env-only mode; `.gitignore` template includes `~/.config/rokudev/`; `brs setup` adds Spotlight exclusion best-effort and warns about Time Machine; passwords never logged. |
 | Internal-only features (templates that depend on internal feeds, RAF test ad servers) leak into the public package. | All internal-only behavior gated behind `[features.internal]` config flags (§2.5); `pnpm check:no-internal` lint runs at publish time and fails the release if any internal-only path is reachable without a `features.internal.*` guard. |
 | Three prototype repos remain in active use after v1, splitting the user base. | Final deprecation release with prominent README banner; migration table; plugin auto-detects and warns on old MCPs in user config. |
-| Telnet 8085 / BDP 8081 are unauthenticated; channel logs and runtime state are exposed on shared LANs. | Roku-platform constraint, not a `brs-tools` defect. `roku-network-doctor` warns when `unknown` network classification is paired with a long-running stream or debug session. |
+| Telnet 8085 / BDP 8081 are unauthenticated; channel logs and runtime state are exposed on shared LANs. | Roku-platform constraint, not a `rokudev-tools` defect. `roku-network-doctor` warns when `unknown` network classification is paired with a long-running stream or debug session. |
 | Orphan BrighterScript LSP processes accumulate after `brs-gen` crashes. | Idle timeout, parent-PID watchdog, startup reaper, periodic 60s reaper sweep on `~/.cache/brs/lsp-pids/` (§5.4). |
 | `pnpm` not available in external CI environments. | Document `corepack enable` activation path; provide a `scripts/ci-bootstrap.sh` that uses `corepack` or falls back to `npm i -g pnpm@<pin>`; npm-script-only invocations work via `pnpm exec` or via direct `node` for the published binaries. |
 
@@ -974,7 +974,7 @@ The following items are intentionally left open for the implementation phase. Th
 
 The following items are decisions, not open questions. They are stated here so they appear in release notes, README, and `--version` output.
 
-- **No telemetry in v1.** `brs-gen`, `brs-device`, `brs-docs`, the `brs` CLI, and the Claude Code plugin emit no telemetry. No hosted backend exists. No HTTP requests are made except to Roku devices the user has registered, GitHub for `brs docs refresh`, and the configured corp doc mirror when `internal.use_corp_doc_mirror` is set. The `brs --version` output reads "telemetry: none" as a load-bearing string; CI asserts the line is present.
+- **No telemetry in v1.** `brs-gen`, `rokudev-device`, `brs-docs`, the `brs` CLI, and the Claude Code plugin emit no telemetry. No hosted backend exists. No HTTP requests are made except to Roku devices the user has registered, GitHub for `brs docs refresh`, and the configured corp doc mirror when `internal.use_corp_doc_mirror` is set. The `brs --version` output reads "telemetry: none" as a load-bearing string; CI asserts the line is present.
 - **Plaintext password storage** is documented in the README, in `brs setup` first-run output, and in `brs devices add`'s confirmation prompt. Users are explicitly informed of the choice at every storage point.
 - **Public export surface of `roku-device-client`** (per §2.3) is part of the SemVer guarantee; `_internal/` is not.
 
@@ -985,7 +985,7 @@ The following items are decisions, not open questions. They are stated here so t
 | AppSpec | The declarative input to `brs-gen`. Versioned (`spec_version`), validated by Zod schemas. The current shape is `spec_version: 2`; legacy `spec_version: 1` shapes from the prototype `brs-mcp` are accepted via in-memory promotion (§3.5). |
 | Base template | A hand-authored, device-tested project skeleton for a particular kind of channel (`video_grid_channel`, etc.). |
 | Feature module | A composable, additive contribution declared in the AppSpec (manifest deltas, files, wiring contract, config schema, conflict matrix). |
-| Provenance manifest | `.brs-tools/provenance.json` recording which template, modules, and versions produced which files. Enables `roku-module-add` and `roku-module-remove`. |
+| Provenance manifest | `.rokudev-tools/provenance.json` recording which template, modules, and versions produced which files. Enables `roku-module-add` and `roku-module-remove`. |
 | BDP | BrightScript Debug Protocol. Roku's binary debug protocol; primary port 8081 with 8086 as a fallback on some firmwares (see §4.5.1). Distinct from the telnet debug console on 8085. The v1 client supports a defined subset (§4.5). |
 | ECP | External Control Protocol. Roku's HTTP control surface on port 8060. |
 | Telnet (8085) | The BrightScript debug console (read/write text). Used by `log_tail` and `log_stream_*`. One client at a time. Distinct from BDP. |

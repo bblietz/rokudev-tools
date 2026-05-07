@@ -5,7 +5,7 @@ export type MultipartPart =
   | { kind: 'file'; name: string; filename: string; contentType: string; body: Buffer };
 
 export function buildBoundary(): string {
-  return `----brs${randomBytes(8).toString('hex')}`;
+  return `----rokudev${randomBytes(8).toString('hex')}`;
 }
 
 export function buildMultipart(parts: MultipartPart[], boundary: string): Buffer {
