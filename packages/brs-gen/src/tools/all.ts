@@ -4,3 +4,4 @@ import './list-modules.js';
 import './get-module-schema.js';
 import './generate-app.js';
 import './package-app.js';
+import './validate-manifest.js';
