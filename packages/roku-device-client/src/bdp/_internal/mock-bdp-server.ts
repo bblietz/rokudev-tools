@@ -98,7 +98,7 @@ export type MockBdpServer = {
 // Implementation
 // ---------------------------------------------------------------------------
 
-export async function startMockBdpServer(): Promise<MockBdpServer> {
+export async function startMockBdpServer(opts: { port?: number } = {}): Promise<MockBdpServer> {
   // Map from request kind -> handler (holds a covariant cast: see onRequest).
   const handlers = new Map<
     BdpRequest['kind'],
@@ -182,8 +182,8 @@ export async function startMockBdpServer(): Promise<MockBdpServer> {
     sock.on('error', () => sockets.delete(sock));
   });
 
-  // Listen on an OS-assigned port on localhost.
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  // Listen on the requested port (0 = OS-assigned) on localhost.
+  await new Promise<void>((resolve) => server.listen(opts.port ?? 0, '127.0.0.1', resolve));
   const { port } = server.address() as net.AddressInfo;
 
   return {

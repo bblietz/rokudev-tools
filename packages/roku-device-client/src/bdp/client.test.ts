@@ -304,6 +304,68 @@ describe('BdpClient.send', () => {
 });
 
 // ---------------------------------------------------------------------------
+// T9: connectWithFallback
+// ---------------------------------------------------------------------------
+
+describe('BdpClient.connectWithFallback', () => {
+  // -------------------------------------------------------------------------
+  // T9-1: Fallback fires on ECONNREFUSED and succeeds on the fallback port
+  // -------------------------------------------------------------------------
+
+  it('falls back to the fallback port when the primary port is refused', async () => {
+    // serverA listens on an OS-assigned port. We pass it as _fallbackPort.
+    // For _primaryPort we use port 1 (unbound, guaranteed ECONNREFUSED).
+    const serverA = await startMockBdpServer();
+    teardowns.push(() => serverA.stop());
+
+    const client = await BdpClient.connectWithFallback(
+      '127.0.0.1',
+      SUPPORTED_BDP_VERSIONS,
+      {
+        _primaryPort: 1,           // always ECONNREFUSED
+        _fallbackPort: serverA.port,
+      },
+    );
+    teardowns.push(() => client.close());
+
+    // We successfully connected via the fallback port.
+    expect(client.bdpVersion).toEqual({ major: 3, minor: 0, patch: 0 });
+  });
+
+  // -------------------------------------------------------------------------
+  // T9-2: Fallback does NOT fire on BDP_VERSION_UNSUPPORTED
+  // -------------------------------------------------------------------------
+
+  it('does not fall back when the primary port rejects with BDP_VERSION_UNSUPPORTED', async () => {
+    // The primary server speaks version 99.0.0 -- outside SUPPORTED_BDP_VERSIONS.
+    // The fallback would be port 1 (ECONNREFUSED) -- but we expect the error
+    // to propagate before the fallback is attempted.
+    const serverB = await startMockBdpServer();
+    teardowns.push(() => serverB.stop());
+    serverB.setHandshakeVersion({ major: 99, minor: 0, patch: 0 });
+
+    await expect(
+      BdpClient.connectWithFallback(
+        '127.0.0.1',
+        SUPPORTED_BDP_VERSIONS,
+        {
+          _primaryPort: serverB.port,
+          _fallbackPort: 1,       // would be ECONNREFUSED if reached
+        },
+      ),
+    ).rejects.toMatchObject({
+      ok: false,
+      code: 'BDP_VERSION_UNSUPPORTED',
+      stage: 'debug',
+      details: {
+        device_version: { major: 99, minor: 0, patch: 0 },
+        supported_range: SUPPORTED_BDP_VERSIONS,
+      },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // T8-12: Async event delivery
 // ---------------------------------------------------------------------------
 

@@ -168,6 +168,65 @@ export class BdpClient {
   }
 
   // ---------------------------------------------------------------------------
+  // Static factory: port-fallback variant
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Attempt to connect to port 8081. If the TCP connection is refused
+   * (ECONNREFUSED), fall back to port 8086. Any other error is re-thrown
+   * immediately without trying the fallback port.
+   *
+   * Per spec §4.5.1: some Roku firmwares serve BDP on 8086 rather than 8081.
+   *
+   * @param host               - Device IP or hostname.
+   * @param supportedVersions  - Version range the client accepts.
+   * @param opts.handshakeTimeoutMs - How long to wait for handshake bytes (default 5000).
+   * @param opts._primaryPort  - Override the primary port (test hook only, default 8081).
+   * @param opts._fallbackPort - Override the fallback port (test hook only, default 8086).
+   *
+   * @throws Failure(BDP_ATTACH_FAILED) if both ports are refused or handshake fails.
+   * @throws Failure(BDP_VERSION_UNSUPPORTED) if the device speaks an unsupported version.
+   */
+  static async connectWithFallback(
+    host: string,
+    supportedVersions: BdpVersionRange,
+    opts: {
+      handshakeTimeoutMs?: number;
+      /** Test hook: override primary port (default 8081). Do not use in production. */
+      _primaryPort?: number;
+      /** Test hook: override fallback port (default 8086). Do not use in production. */
+      _fallbackPort?: number;
+    } = {},
+  ): Promise<BdpClient> {
+    const primaryPort = opts._primaryPort ?? 8081;
+    const fallbackPort = opts._fallbackPort ?? 8086;
+    const connectOpts = { handshakeTimeoutMs: opts.handshakeTimeoutMs };
+
+    try {
+      return await BdpClient.connect(
+        host,
+        primaryPort as 8081 | 8086,
+        supportedVersions,
+        connectOpts,
+      );
+    } catch (e: unknown) {
+      const failure = e as { code?: string; details?: { cause_code?: string } };
+      if (
+        failure.code === 'BDP_ATTACH_FAILED' &&
+        failure.details?.cause_code === 'ECONNREFUSED'
+      ) {
+        return BdpClient.connect(
+          host,
+          fallbackPort as 8081 | 8086,
+          supportedVersions,
+          connectOpts,
+        );
+      }
+      throw e;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
 
