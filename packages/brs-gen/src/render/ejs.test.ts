@@ -37,6 +37,15 @@ describe('renderTemplateFiles', () => {
     expect(out[0].content).toBe('<color>&hFF00FFFF</color>');
   });
 
+  it('does NOT auto-escape <%= %> output (escape override is active)', async () => {
+    // This test exercises the `escape: (v) => String(v)` override directly.
+    // Without the override, EJS default HTML-escaping would mangle a
+    // BrightScript hex literal into '&amp;hFF00FFFF'.
+    const files = [{ path: 'comp.xml', bytes: Buffer.from('<color><%= "&hFF00FFFF" %></color>') }];
+    const out = await renderTemplateFiles(files, spec as any, meta);
+    expect(out[0].content).toBe('<color>&hFF00FFFF</color>');
+  });
+
   it('.ejs suffix is stripped from the output path', async () => {
     const files = [{ path: 'manifest.ejs', bytes: Buffer.from('title=<%= spec.app.name %>\n') }];
     const out = await renderTemplateFiles(files, spec as any, meta);
