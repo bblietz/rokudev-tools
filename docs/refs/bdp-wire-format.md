@@ -507,12 +507,40 @@ After version extraction (three UInt32LE fields concatenated as `"major.minor.pa
 - Protocol `>= 3.0.0`: enables `watchPacketLength` mode; `packet_length` field is present in all response/update frames.
 - Protocol `< 3.0.0`: `packet_length` field absent; update_type at byte 8, not byte 12.
 - Feature flags by version (client-side):
-  - `supportsConditionalBreakpoints`: set if version >= threshold (exact version TBD in T2)
-  - `supportsBreakpointVerification`: set if version >= threshold (exact version TBD in T2)
+  - `supportsConditionalBreakpoints`: set if version >= threshold (exact value not yet extracted; see §7 item 1)
+  - `supportsBreakpointVerification`: set if version >= threshold (exact value not yet extracted; see §7 item 1)
 
-### 3.3 Section D2 - populated in T2
+### 3.3 Version-scheme assumption (D2)
 
-The exact per-feature version thresholds will be extracted from `DebugProtocolClient.ts` feature flag comparisons and appended here in Task 2.
+**Actual scheme (from T1 source study):** The BDP handshake carries a **semver triple** -- three independent `UInt32LE` fields (`major`, `minor`, `patch`) -- not a single integer. This contradicts the plan's default assumption of "integer protocol version". The truth from `roku-debug` @ `2a5249edee59221b48895441b4046b6f7f76921d` (tag `v0.23.6`) is the three-field layout documented in §1.2.
+
+**Rationale for the original assumption:** The plan note "integer protocol version" was the default-if-unanswered prior. T1's study of `DebugProtocolClient.ts` and `Constants.ts` confirmed the triple structure. No non-triple scheme has been observed.
+
+**Corrected `BdpVersionRange` type:**
+
+The range must represent a semver triple at both ends, not a bare `number`. The type and constant are:
+
+```typescript
+/** A semver triple used to express a protocol version bound. */
+export type BdpVersion = { major: number; minor: number; patch: number };
+
+/** Inclusive range of BDP protocol versions this client supports. */
+export type BdpVersionRange = { min: BdpVersion; max: BdpVersion };
+
+/** Supported protocol versions as of @rokudev/device-client v1. */
+export const SUPPORTED_BDP_VERSIONS: BdpVersionRange = {
+  min: { major: 1, minor: 0, patch: 0 },
+  max: { major: 3, minor: 2, patch: 0 },
+};
+```
+
+The `max` bound `3.2.0` is taken directly from `roku-debug`'s `supportedVersionRange = '<=3.2.0'` (§3.1 item 5).
+
+**Version comparison rule:** Compare `major` first, then `minor`, then `patch` (standard semver precedence). A device version is within range when `version >= min && version <= max` under this ordering.
+
+**Implication for framing:** Protocol `>= 3.0.0` activates `watchPacketLength` mode (§3.2). The `BdpVersion` struct makes this threshold check unambiguous: `major >= 3`.
+
+**Verification gate:** T27 runs the real-device handshake smoke test. If the device returns unexpected fields (e.g., a fourth version component, or a string-encoded version), the types and codec are revised before the v1 tag. The `SUPPORTED_BDP_VERSIONS` constant is also subject to revision if T27 reveals the device firmware has moved beyond `3.2.0`.
 
 ---
 
