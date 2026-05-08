@@ -37,18 +37,21 @@ describe('get_module_schema tool', () => {
   });
   afterEach(() => _resetCatalog());
 
-  it('returns schema, example_config, and wiring', async () => {
+  it('returns id, version, spec_compat, config_schema, example_config, and wiring', async () => {
     const result = await handler({ module_id: 'stub_label' });
     const parsed = JSON.parse((result as any).content[0].text);
-    expect(parsed.schema).toEqual({
+    expect(parsed.id).toBe('stub_label');
+    expect(parsed.version).toBe('0.1.0');
+    expect(parsed.spec_compat).toBe('>=1');
+    expect(parsed.config_schema).toEqual({
       type: 'object',
       additionalProperties: false,
       required: ['text'],
       properties: { text: { type: 'string' } },
     });
     expect(parsed.example_config).toEqual({ text: 'hello' });
-    expect(parsed.exports).toEqual([{ kind: 'scene_node', name: 'StubLabel' }]);
-    expect(parsed.requires).toEqual([]);
+    expect(parsed.wiring.exports).toEqual([{ kind: 'scene_node', name: 'StubLabel' }]);
+    expect(parsed.wiring.requires).toEqual([]);
   });
 
   it('throws UNKNOWN_MODULE on missing id', async () => {

@@ -36,11 +36,11 @@ describe('list_modules tool', () => {
   });
   afterEach(() => _resetCatalog());
 
-  it('returns modules sorted by id with id/version/description', async () => {
+  it('returns modules sorted by id with id/version/spec_compat/description', async () => {
     const result = await handler({});
     const parsed = JSON.parse((result as any).content[0].text);
     expect(parsed.modules.map((m: any) => m.id)).toEqual(['alpha', 'zebra']);
-    expect(parsed.modules[0]).toEqual({ id: 'alpha', version: '0.1.0', description: 'a' });
-    expect(parsed.modules[1]).toEqual({ id: 'zebra', version: '1.0.0', description: 'z' });
+    expect(parsed.modules[0]).toEqual({ id: 'alpha', version: '0.1.0', spec_compat: '>=1', description: 'a' });
+    expect(parsed.modules[1]).toEqual({ id: 'zebra', version: '1.0.0', spec_compat: '>=1', description: 'z' });
   });
 });
