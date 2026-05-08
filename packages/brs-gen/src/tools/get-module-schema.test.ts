@@ -38,7 +38,7 @@ describe('get_module_schema tool', () => {
   afterEach(() => _resetCatalog());
 
   it('returns id, version, spec_compat, config_schema, example_config, and wiring', async () => {
-    const result = await handler({ module_id: 'stub_label' });
+    const result = await handler({ id: 'stub_label' });
     const parsed = JSON.parse((result as any).content[0].text);
     expect(parsed.id).toBe('stub_label');
     expect(parsed.version).toBe('0.1.0');
@@ -55,8 +55,35 @@ describe('get_module_schema tool', () => {
   });
 
   it('throws UNKNOWN_MODULE on missing id', async () => {
-    await expect(handler({ module_id: 'does_not_exist' })).rejects.toMatchObject({
+    await expect(handler({ id: 'does_not_exist' })).rejects.toMatchObject({
       code: 'UNKNOWN_MODULE',
     });
+  });
+
+  it('synthesizes example for type-array (nullable) string', async () => {
+    setCatalogForTests({
+      templates: new Map(),
+      modules: new Map([
+        ['nullable_mod', {
+          module: { id: 'nullable_mod', version: '0.1.0', spec_compat: '>=1', description: 'n' },
+          module_config_schema: {
+            type: 'object',
+            required: ['label'],
+            properties: { label: { type: ['string', 'null'] } },
+          },
+          module_files: { add: [] },
+          module_wiring: { exports: [], requires: [], init_calls: [] },
+          module_ordering: { before: [], after: [] },
+          module_conflicts: { exclusive_with: [] },
+        } as any],
+      ]),
+      warnings: [],
+    });
+    const tools = new Map<string, ToolDef>();
+    registerAllTools(tools);
+    const tool = tools.get('get_module_schema')!;
+    const raw = await tool.handler({ id: 'nullable_mod' });
+    const result = JSON.parse((raw as any).content[0].text);
+    expect(result.example_config).toEqual({ label: 'hello' });
   });
 });

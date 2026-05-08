@@ -5,8 +5,9 @@ import { getCatalog } from './_catalog-singleton.js';
 /**
  * Synthesize a minimal example object that satisfies the JSON Schema `required` set.
  * Walks `required` and picks a canonical value per property type:
- *   string -> 'hello', number/integer -> 0, boolean -> false, array -> [], object -> {}.
- * Nested objects recurse. Used so MCP clients can show a runnable example config.
+ *   string -> 'hello', integer/number -> 0, boolean -> false, array -> [], object -> {}.
+ * For type arrays (e.g. ['string','null']), picks the first non-'null' type.
+ * Nested object properties recurse into their own `required`/`properties`.
  */
 function synthesizeExample(schema: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -16,12 +17,14 @@ function synthesizeExample(schema: Record<string, unknown>): Record<string, unkn
   for (const key of required) {
     const prop = props[key];
     if (!prop || typeof prop !== 'object') { out[key] = null; continue; }
-    const t = prop['type'];
-    if (t === 'string') out[key] = 'hello';
-    else if (t === 'integer' || t === 'number') out[key] = 0;
-    else if (t === 'boolean') out[key] = false;
-    else if (t === 'array') out[key] = [];
-    else if (t === 'object') out[key] = synthesizeExample(prop);
+    const rawT = prop['type'];
+    const types: unknown[] = Array.isArray(rawT) ? rawT : [rawT];
+    const primary = (types.find((x) => x !== 'null') ?? types[0]);
+    if (primary === 'string') out[key] = 'hello';
+    else if (primary === 'integer' || primary === 'number') out[key] = 0;
+    else if (primary === 'boolean') out[key] = false;
+    else if (primary === 'array') out[key] = [];
+    else if (primary === 'object') out[key] = synthesizeExample(prop);
     else out[key] = null;
   }
   return out;
@@ -34,16 +37,16 @@ registerToolsModule((tools) => {
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['module_id'],
-      properties: { module_id: { type: 'string' } },
+      required: ['id'],
+      properties: { id: { type: 'string', minLength: 1 } },
     },
     handler: async (args) => {
       const cat = getCatalog();
-      const id = String(args['module_id'] ?? '');
+      const id = String(args['id'] ?? '');
       const m = cat.modules.get(id);
       if (!m) {
         throw fail('UNKNOWN_MODULE', `No module with id '${id}'`,
-          { stage: 'validate', module_id: id, available: [...cat.modules.keys()].sort() });
+          { stage: 'validate', id, available: [...cat.modules.keys()].sort() });
       }
       return {
         content: [{
