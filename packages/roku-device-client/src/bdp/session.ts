@@ -24,7 +24,15 @@
 import { fail } from '../errors/index.js';
 import { BdpClient } from './client.js';
 import { SUPPORTED_BDP_VERSIONS as _defaultVersions } from './messages.js';
-import type { BdpVersion, BdpVersionRange, BdpBreakpointEntry, BdpThreadEntry, BdpStackFrame, BdpVariable, BdpStopReason } from './messages.js';
+import type {
+  BdpVersion,
+  BdpVersionRange,
+  BdpBreakpointEntry,
+  BdpThreadEntry,
+  BdpStackFrame,
+  BdpVariable,
+  BdpStopReason,
+} from './messages.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -220,12 +228,20 @@ export class BdpSession {
     });
 
     if (res.kind !== 'breakpoints_added') {
-      throw fail('BDP_BREAKPOINT_INVALID', `Unexpected response kind '${res.kind}' for add_breakpoints`, { file, line });
+      throw fail(
+        'BDP_BREAKPOINT_INVALID',
+        `Unexpected response kind '${res.kind}' for add_breakpoints`,
+        { file, line },
+      );
     }
 
     const entry = res.entries[0] as BdpBreakpointEntry | undefined;
     if (entry === undefined) {
-      throw fail('BDP_BREAKPOINT_INVALID', 'Device returned no breakpoint entries', { file, line, reason: 'empty_response' });
+      throw fail('BDP_BREAKPOINT_INVALID', 'Device returned no breakpoint entries', {
+        file,
+        line,
+        reason: 'empty_response',
+      });
     }
 
     if (entry.errorCode !== 0) {
@@ -284,7 +300,9 @@ export class BdpSession {
     const res = await this.client.send({ kind: 'list_breakpoints' });
 
     if (res.kind !== 'breakpoints_list') {
-      throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for list_breakpoints`, { session_state: this._state });
+      throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for list_breakpoints`, {
+        session_state: this._state,
+      });
     }
 
     // Build a reverse lookup: id -> cache entry.
@@ -402,7 +420,9 @@ export class BdpSession {
     this.guardLive();
     const res = await this.client.send({ kind: 'threads' });
     if (res.kind !== 'threads') {
-      throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for threads`, { session_state: this._state });
+      throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for threads`, {
+        session_state: this._state,
+      });
     }
     return res.threads;
   }
@@ -426,7 +446,9 @@ export class BdpSession {
     try {
       const res = await this.client.send({ kind: 'stack_trace', threadId });
       if (res.kind !== 'stack_trace') {
-        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for stack_trace`, { session_state: this._state });
+        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for stack_trace`, {
+          session_state: this._state,
+        });
       }
       return res.frames;
     } catch (e: unknown) {
@@ -470,7 +492,9 @@ export class BdpSession {
         ...(opts?.varPath !== undefined ? { varPath: opts.varPath } : {}),
       });
       if (res.kind !== 'variables') {
-        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for variables`, { session_state: this._state });
+        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for variables`, {
+          session_state: this._state,
+        });
       }
       return res.variables;
     } catch (e: unknown) {
@@ -515,11 +539,15 @@ export class BdpSession {
         opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {},
       );
       if (res.kind !== 'eval') {
-        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for eval`, { session_state: this._state });
+        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for eval`, {
+          session_state: this._state,
+        });
       }
       return {
         success: res.success,
-        ...(res.runtimeStopReason !== undefined ? { runtimeStopReason: res.runtimeStopReason } : {}),
+        ...(res.runtimeStopReason !== undefined
+          ? { runtimeStopReason: res.runtimeStopReason }
+          : {}),
         compileErrors: res.compileErrors,
         runtimeErrors: res.runtimeErrors,
         otherErrors: res.otherErrors,
@@ -542,11 +570,9 @@ export class BdpSession {
    */
   private guardLive(): void {
     if (this._state !== 'live') {
-      throw fail(
-        'BDP_THREAD_LOST',
-        `BDP session is in state '${this._state}'`,
-        { session_state: this._state },
-      );
+      throw fail('BDP_THREAD_LOST', `BDP session is in state '${this._state}'`, {
+        session_state: this._state,
+      });
     }
   }
 

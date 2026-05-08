@@ -68,11 +68,13 @@ function call(name: string, args: Record<string, unknown> = {}): Promise<unknown
   return def.handler(args);
 }
 
-function fakeSession(opts: {
-  bdpVersion?: { major: number; minor: number; patch: number };
-  breakpoints?: Array<{ file: string; line: number }>;
-  state?: string;
-} = {}) {
+function fakeSession(
+  opts: {
+    bdpVersion?: { major: number; minor: number; patch: number };
+    breakpoints?: Array<{ file: string; line: number }>;
+    state?: string;
+  } = {},
+) {
   return {
     bdpVersion: opts.bdpVersion ?? { major: 3, minor: 0, patch: 0 },
     state: opts.state ?? 'live',
@@ -207,7 +209,10 @@ describe('debug_attach BDP_VERSION_UNSUPPORTED', () => {
   it('propagates failure with full details when BdpSession.attach throws', async () => {
     const err = fail('BDP_VERSION_UNSUPPORTED', 'device uses BDP v1.0.0; client requires >=3.0.0', {
       device_version: { major: 1, minor: 0, patch: 0 },
-      supported_range: { min: { major: 3, minor: 0, patch: 0 }, max: { major: 3, minor: 99, patch: 99 } },
+      supported_range: {
+        min: { major: 3, minor: 0, patch: 0 },
+        max: { major: 3, minor: 99, patch: 99 },
+      },
     });
     mocks.attach.mockRejectedValue(err);
 
@@ -229,7 +234,10 @@ describe('debug_attach failure-then-retry', () => {
   it('first attach fails; second attach to same host succeeds (no BDP_ATTACH_BUSY)', async () => {
     const err = fail('BDP_VERSION_UNSUPPORTED', 'unsupported', {
       device_version: { major: 1, minor: 0, patch: 0 },
-      supported_range: { min: { major: 3, minor: 0, patch: 0 }, max: { major: 3, minor: 99, patch: 99 } },
+      supported_range: {
+        min: { major: 3, minor: 0, patch: 0 },
+        max: { major: 3, minor: 99, patch: 99 },
+      },
     });
     mocks.attach.mockRejectedValueOnce(err);
 
@@ -307,7 +315,11 @@ describe('debug_detach with breakpoints', () => {
     const details = r2['details'] as Record<string, unknown>;
     const invalidated = details['invalidated_breakpoints'] as Array<Record<string, unknown>>;
     expect(invalidated).toHaveLength(1);
-    expect(invalidated[0]).toMatchObject({ file: 'pkg:/source/main.brs', line: 99, reason: 'channel_exited' });
+    expect(invalidated[0]).toMatchObject({
+      file: 'pkg:/source/main.brs',
+      line: 99,
+      reason: 'channel_exited',
+    });
   });
 });
 

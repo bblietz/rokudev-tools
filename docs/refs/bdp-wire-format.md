@@ -3,6 +3,7 @@
 **Source:** `rokucommunity/roku-debug` @ `2a5249edee59221b48895441b4046b6f7f76921d` (tag `v0.23.6`, released 2026-04-30). License: MIT. Re-implemented from scratch in `@rokudev/device-client`; this doc is the authoritative wire-format reference for that work.
 
 **Key source files studied:**
+
 - `src/debugProtocol/Constants.ts`
 - `src/debugProtocol/ProtocolUtil.ts`
 - `src/debugProtocol/events/ProtocolEvent.ts`
@@ -24,44 +25,47 @@ BDP runs over a **plain TCP socket** to port **8081** (the "control port"). A se
 The handshake exchange does NOT follow the standard frame layout. It uses a raw null-terminated magic string.
 
 **HandshakeRequest** (client -> device):
+
 ```
 [magic_string] [NUL]
 ```
 
-| Field  | Width    | Type   | Description                                          |
-|--------|----------|--------|------------------------------------------------------|
-| magic  | variable | UTF-8Z | The ASCII string `bsdebug` followed by a NUL byte    |
+| Field | Width    | Type   | Description                                       |
+| ----- | -------- | ------ | ------------------------------------------------- |
+| magic | variable | UTF-8Z | The ASCII string `bsdebug` followed by a NUL byte |
 
 The constant is documented as the 64-bit little-endian encoding of `b'bsdebug\0'`.
 `REQUEST_ID` for the handshake is the sentinel value `4294967295` (= `0xFFFFFFFF`, max UInt32).
 
 **HandshakeResponse** (device -> client, protocol < v3.0.0):
+
 ```
 [magic_string][NUL] [major:4] [minor:4] [patch:4]
 ```
 
-| Field | Width    | Type     | Description                                 |
-|-------|----------|----------|---------------------------------------------|
-| magic | variable | UTF-8Z   | Echo of the magic string sent by client     |
-| major | 4        | UInt32LE | Protocol major version                      |
-| minor | 4        | UInt32LE | Protocol minor version                      |
-| patch | 4        | UInt32LE | Protocol patch version                      |
+| Field | Width    | Type     | Description                             |
+| ----- | -------- | -------- | --------------------------------------- |
+| magic | variable | UTF-8Z   | Echo of the magic string sent by client |
+| major | 4        | UInt32LE | Protocol major version                  |
+| minor | 4        | UInt32LE | Protocol minor version                  |
+| patch | 4        | UInt32LE | Protocol patch version                  |
 
 Versions >= 3.0.0 use the V3 handshake response instead (see below). If the device returns a version >= 3.0.0 here, the client will reject the connection.
 
 **HandshakeV3Response** (device -> client, protocol >= v3.0.0):
+
 ```
 [magic_string][NUL] [major:4] [minor:4] [patch:4] [remaining_packet_length:4] [revision_timestamp:8]
 ```
 
-| Field                    | Width    | Type       | Description                                                     |
-|--------------------------|----------|------------|-----------------------------------------------------------------|
-| magic                    | variable | UTF-8Z     | Echo of the magic string sent by client                         |
-| major                    | 4        | UInt32LE   | Protocol major version                                          |
-| minor                    | 4        | UInt32LE   | Protocol minor version                                          |
-| patch                    | 4        | UInt32LE   | Protocol patch version                                          |
-| remaining_packet_length  | 4        | UInt32LE   | Byte count from this field's end to end of packet               |
-| revision_timestamp       | 8        | BigUInt64LE| Milliseconds since Unix epoch (device firmware build timestamp) |
+| Field                   | Width    | Type        | Description                                                     |
+| ----------------------- | -------- | ----------- | --------------------------------------------------------------- |
+| magic                   | variable | UTF-8Z      | Echo of the magic string sent by client                         |
+| major                   | 4        | UInt32LE    | Protocol major version                                          |
+| minor                   | 4        | UInt32LE    | Protocol minor version                                          |
+| patch                   | 4        | UInt32LE    | Protocol patch version                                          |
+| remaining_packet_length | 4        | UInt32LE    | Byte count from this field's end to end of packet               |
+| revision_timestamp      | 8        | BigUInt64LE | Milliseconds since Unix epoch (device firmware build timestamp) |
 
 Total required buffer: `remaining_packet_length + (offset of remaining_packet_length field)`. The read offset is advanced to the full end of the packet.
 
@@ -73,12 +77,12 @@ All requests after the handshake share this header layout. The header is **prepe
 [packet_length:4] [request_id:4] [command:4] [payload...]
 ```
 
-| Field         | Offset | Width | Type     | Description                                            |
-|---------------|--------|-------|----------|--------------------------------------------------------|
-| packet_length | 0      | 4     | UInt32LE | Total packet size in bytes, including this field        |
-| request_id    | 4      | 4     | UInt32LE | Monotonically increasing client-assigned request ID     |
-| command       | 8      | 4     | UInt32LE | Command discriminator (see §2 for values)               |
-| payload       | 12     | var   | -        | Command-specific payload (may be zero bytes)            |
+| Field         | Offset | Width | Type     | Description                                         |
+| ------------- | ------ | ----- | -------- | --------------------------------------------------- |
+| packet_length | 0      | 4     | UInt32LE | Total packet size in bytes, including this field    |
+| request_id    | 4      | 4     | UInt32LE | Monotonically increasing client-assigned request ID |
+| command       | 8      | 4     | UInt32LE | Command discriminator (see §2 for values)           |
+| payload       | 12     | var   | -        | Command-specific payload (may be zero bytes)        |
 
 The `packet_length` value equals the final write offset plus 4 (the field itself is counted in the total).
 
@@ -96,20 +100,20 @@ For protocol < v3.0.0, there is **no** `packet_length` field; the frame begins a
 [request_id:4] [error_code:4] [payload...]
 ```
 
-| Field         | Offset (v3+) | Width | Type     | Description                                          |
-|---------------|--------------|-------|----------|------------------------------------------------------|
-| packet_length | 0            | 4     | UInt32LE | Total packet size in bytes (v3+ only)                |
-| request_id    | 4 (v3+) / 0  | 4     | UInt32LE | Echoes the request's request_id                      |
-| error_code    | 8 (v3+) / 4  | 4     | UInt32LE | See ErrorCode enum §4                                |
-| payload       | 12 (v3+) / 8 | var   | -        | Command-specific response payload                    |
+| Field         | Offset (v3+) | Width | Type     | Description                           |
+| ------------- | ------------ | ----- | -------- | ------------------------------------- |
+| packet_length | 0            | 4     | UInt32LE | Total packet size in bytes (v3+ only) |
+| request_id    | 4 (v3+) / 0  | 4     | UInt32LE | Echoes the request's request_id       |
+| error_code    | 8 (v3+) / 4  | 4     | UInt32LE | See ErrorCode enum §4                 |
+| payload       | 12 (v3+) / 8 | var   | -        | Command-specific response payload     |
 
 **Optional error detail** (appended after `error_code` when `error_code != OK` and extra bytes remain):
 
-| Field             | Width | Type     | Condition                                                |
-|-------------------|-------|----------|----------------------------------------------------------|
-| error_flags       | 4     | UInt32LE | Bitfield: bit 0 = INVALID_VALUE_IN_PATH, bit 1 = MISSING_KEY_IN_PATH |
-| invalid_path_index| 4     | UInt32LE | Only present if INVALID_VALUE_IN_PATH flag set           |
-| missing_key_index | 4     | UInt32LE | Only present if MISSING_KEY_IN_PATH flag set             |
+| Field              | Width | Type     | Condition                                                            |
+| ------------------ | ----- | -------- | -------------------------------------------------------------------- |
+| error_flags        | 4     | UInt32LE | Bitfield: bit 0 = INVALID_VALUE_IN_PATH, bit 1 = MISSING_KEY_IN_PATH |
+| invalid_path_index | 4     | UInt32LE | Only present if INVALID_VALUE_IN_PATH flag set                       |
+| missing_key_index  | 4     | UInt32LE | Only present if MISSING_KEY_IN_PATH flag set                         |
 
 ### 1.5 Standard update frame (device -> client, async)
 
@@ -125,13 +129,13 @@ For protocol < v3.0.0, `packet_length` is absent:
 [request_id:4] [error_code:4] [update_type:4] [payload...]
 ```
 
-| Field         | Offset (v3+) | Width | Type     | Description                                         |
-|---------------|--------------|-------|----------|-----------------------------------------------------|
-| packet_length | 0            | 4     | UInt32LE | Total packet size in bytes (v3+ only)               |
-| request_id    | 4 (v3+) / 0  | 4     | UInt32LE | Always 0 for updates                                |
-| error_code    | 8 (v3+) / 4  | 4     | UInt32LE | See ErrorCode enum §4                               |
-| update_type   | 12 (v3+) / 8 | 4     | UInt32LE | See UpdateTypeCode enum §2.5                        |
-| payload       | 16 (v3+) / 12| var   | -        | Update-specific payload                             |
+| Field         | Offset (v3+)  | Width | Type     | Description                           |
+| ------------- | ------------- | ----- | -------- | ------------------------------------- |
+| packet_length | 0             | 4     | UInt32LE | Total packet size in bytes (v3+ only) |
+| request_id    | 4 (v3+) / 0   | 4     | UInt32LE | Always 0 for updates                  |
+| error_code    | 8 (v3+) / 4   | 4     | UInt32LE | See ErrorCode enum §4                 |
+| update_type   | 12 (v3+) / 8  | 4     | UInt32LE | See UpdateTypeCode enum §2.5          |
+| payload       | 16 (v3+) / 12 | var   | -        | Update-specific payload               |
 
 ### 1.6 Request/response/update disambiguation
 
@@ -151,11 +155,11 @@ For v3+ framing, the receiver reads 4 bytes (`packet_length`) at offset 0, waits
 
 See §1.2 for full byte layout. Summary:
 
-| Direction      | Packet              | command / discriminator |
-|----------------|---------------------|-------------------------|
-| client -> dev  | HandshakeRequest    | n/a (no command field)  |
-| dev -> client  | HandshakeResponse   | n/a (version < 3.0.0)   |
-| dev -> client  | HandshakeV3Response | n/a (version >= 3.0.0)  |
+| Direction     | Packet              | command / discriminator |
+| ------------- | ------------------- | ----------------------- |
+| client -> dev | HandshakeRequest    | n/a (no command field)  |
+| dev -> client | HandshakeResponse   | n/a (version < 3.0.0)   |
+| dev -> client | HandshakeV3Response | n/a (version >= 3.0.0)  |
 
 No `command` field exists in the handshake; framing relies on the known magic prefix.
 
@@ -163,19 +167,19 @@ No `command` field exists in the handshake; framing relies on the known magic pr
 
 These are **command-only requests** (no response-specific payload beyond the common fields). Each carries only the standard 12-byte request header.
 
-| Command       | CommandCode | Response payload beyond common fields |
-|---------------|-------------|---------------------------------------|
-| Stop          | 1           | none (GenericResponse / 8 bytes pre-v3)|
-| Continue      | 2           | none                                  |
-| ExitChannel   | 122         | none                                  |
+| Command     | CommandCode | Response payload beyond common fields   |
+| ----------- | ----------- | --------------------------------------- |
+| Stop        | 1           | none (GenericResponse / 8 bytes pre-v3) |
+| Continue    | 2           | none                                    |
+| ExitChannel | 122         | none                                    |
 
 **StepRequest** (CommandCode 6) adds a payload:
 
 Request payload (after common 12-byte header):
-| Field       | Width | Type     | Description                          |
+| Field | Width | Type | Description |
 |-------------|-------|----------|--------------------------------------|
-| thread_index| 4     | UInt32LE | Index of the thread to step          |
-| step_type   | 1     | UInt8    | StepTypeCode (see §4)                |
+| thread_index| 4 | UInt32LE | Index of the thread to step |
+| step_type | 1 | UInt8 | StepTypeCode (see §4) |
 
 Total request size: 17 bytes.
 
@@ -184,7 +188,7 @@ Response: `GenericResponse` (common fields only, 8 bytes pre-v3, 12 bytes v3+).
 **StepTypeCode values:**
 
 | Name | Code |
-|------|------|
+| ---- | ---- |
 | None | 0    |
 | Line | 1    |
 | Out  | 2    |
@@ -198,45 +202,45 @@ Request payload: none (12-byte header only).
 
 **ThreadsResponse** payload (after common response header):
 
-| Field       | Width | Type     | Description                      |
-|-------------|-------|----------|----------------------------------|
-| num_threads | 4     | UInt32LE | Number of thread entries         |
+| Field       | Width | Type     | Description              |
+| ----------- | ----- | -------- | ------------------------ |
+| num_threads | 4     | UInt32LE | Number of thread entries |
 
 Followed by `num_threads` thread entries, each:
 
-| Field              | Width | Type     | Description                                      |
-|--------------------|-------|----------|--------------------------------------------------|
-| flags              | 1     | UInt8    | bit 0 = isPrimary, bit 1 = isDetached            |
-| stop_reason        | 4     | UInt32LE | StopReasonCode (32-bit for historical reasons)   |
-| stop_reason_detail | var   | UTF-8Z   | Null-terminated human-readable detail string     |
-| line_number        | 4     | UInt32LE | 1-based line number where thread stopped         |
-| function_name      | var   | UTF-8Z   | Null-terminated function name                    |
-| file_path          | var   | UTF-8Z   | Null-terminated file path                        |
-| code_snippet       | var   | UTF-8Z   | Null-terminated source code text at stop point   |
+| Field              | Width | Type     | Description                                    |
+| ------------------ | ----- | -------- | ---------------------------------------------- |
+| flags              | 1     | UInt8    | bit 0 = isPrimary, bit 1 = isDetached          |
+| stop_reason        | 4     | UInt32LE | StopReasonCode (32-bit for historical reasons) |
+| stop_reason_detail | var   | UTF-8Z   | Null-terminated human-readable detail string   |
+| line_number        | 4     | UInt32LE | 1-based line number where thread stopped       |
+| function_name      | var   | UTF-8Z   | Null-terminated function name                  |
+| file_path          | var   | UTF-8Z   | Null-terminated file path                      |
+| code_snippet       | var   | UTF-8Z   | Null-terminated source code text at stop point |
 
 #### StackTraceRequest (CommandCode 4)
 
 Request payload (after common 12-byte header):
 
-| Field        | Width | Type     | Description              |
-|--------------|-------|----------|--------------------------|
+| Field        | Width | Type     | Description                |
+| ------------ | ----- | -------- | -------------------------- |
 | thread_index | 4     | UInt32LE | Index of the target thread |
 
 Total request size: 16 bytes.
 
 **StackTraceResponse** payload (after common response header):
 
-| Field      | Width | Type     | Description              |
-|------------|-------|----------|--------------------------|
-| stack_size | 4     | UInt32LE | Number of stack entries  |
+| Field      | Width | Type     | Description             |
+| ---------- | ----- | -------- | ----------------------- |
+| stack_size | 4     | UInt32LE | Number of stack entries |
 
 Followed by `stack_size` stack entries, each (protocol < v3.0.0, also v3.0.0):
 
-| Field         | Width | Type     | Notes                                                        |
-|---------------|-------|----------|--------------------------------------------------------------|
-| line_number   | 4     | UInt32LE | 1-based line number                                          |
+| Field         | Width | Type     | Notes                                                                    |
+| ------------- | ----- | -------- | ------------------------------------------------------------------------ |
+| line_number   | 4     | UInt32LE | 1-based line number                                                      |
 | file_path     | var   | UTF-8Z   | NOTE: device sends filePath BEFORE functionName (reversed from spec doc) |
-| function_name | var   | UTF-8Z   | Null-terminated function name                                |
+| function_name | var   | UTF-8Z   | Null-terminated function name                                            |
 
 No column number field exists in either StackTraceResponse or StackTraceV3Response.
 
@@ -246,15 +250,15 @@ No column number field exists in either StackTraceResponse or StackTraceV3Respon
 
 Request payload (after common 12-byte header):
 
-| Field                 | Width | Type          | Description                                                          |
-|-----------------------|-------|---------------|----------------------------------------------------------------------|
-| variable_request_flags| 1     | UInt8         | Bitfield: 1=GetChildKeys, 2=CaseSensitivityOptions, 4=GetVirtualKeys, 8=VirtualPathIncluded |
-| thread_index          | 4     | UInt32LE      | Thread index                                                         |
-| stack_frame_index     | 4     | UInt32LE      | Stack frame index (from StackTrace response)                         |
-| variable_path_len     | 4     | UInt32LE      | Number of path segments                                              |
-| variable_path         | var   | UTF-8Z x N    | variable_path_len null-terminated strings (path components)         |
-| force_case_insensitive| var   | UInt8 x N     | One UInt8 per path entry; present only if CaseSensitivityOptions flag set |
-| is_virtual            | var   | UInt8 x N     | One UInt8 per path entry; present only if VirtualPathIncluded flag set |
+| Field                  | Width | Type       | Description                                                                                 |
+| ---------------------- | ----- | ---------- | ------------------------------------------------------------------------------------------- |
+| variable_request_flags | 1     | UInt8      | Bitfield: 1=GetChildKeys, 2=CaseSensitivityOptions, 4=GetVirtualKeys, 8=VirtualPathIncluded |
+| thread_index           | 4     | UInt32LE   | Thread index                                                                                |
+| stack_frame_index      | 4     | UInt32LE   | Stack frame index (from StackTrace response)                                                |
+| variable_path_len      | 4     | UInt32LE   | Number of path segments                                                                     |
+| variable_path          | var   | UTF-8Z x N | variable_path_len null-terminated strings (path components)                                 |
+| force_case_insensitive | var   | UInt8 x N  | One UInt8 per path entry; present only if CaseSensitivityOptions flag set                   |
+| is_virtual             | var   | UInt8 x N  | One UInt8 per path entry; present only if VirtualPathIncluded flag set                      |
 
 **VariablesResponse** payload (after common response header): see §5 for complete variable serialization.
 
@@ -262,24 +266,24 @@ Request payload (after common 12-byte header):
 
 Request payload (after common 12-byte header):
 
-| Field            | Width | Type     | Description                          |
-|------------------|-------|----------|--------------------------------------|
-| thread_index     | 4     | UInt32LE | Thread to execute in                 |
-| stack_frame_index| 4     | UInt32LE | Stack frame context                  |
-| source_code      | var   | UTF-8Z   | BrightScript expression to evaluate  |
+| Field             | Width | Type     | Description                         |
+| ----------------- | ----- | -------- | ----------------------------------- |
+| thread_index      | 4     | UInt32LE | Thread to execute in                |
+| stack_frame_index | 4     | UInt32LE | Stack frame context                 |
+| source_code       | var   | UTF-8Z   | BrightScript expression to evaluate |
 
 **ExecuteV3Response** payload (after common response header):
 
-| Field              | Width | Type     | Description                                  |
-|--------------------|-------|----------|----------------------------------------------|
-| execute_success    | 1     | UInt8    | Non-zero = success                           |
-| runtime_stop_code  | 1     | UInt8    | StopReasonCode of any runtime halt           |
-| compile_error_count| 4     | UInt32LE | Number of compile errors                     |
-| compile_errors     | var   | UTF-8Z x N | N null-terminated compile error strings   |
-| runtime_error_count| 4     | UInt32LE | Number of runtime errors                     |
-| runtime_errors     | var   | UTF-8Z x N | N null-terminated runtime error strings   |
-| other_error_count  | 4     | UInt32LE | Number of other errors                       |
-| other_errors       | var   | UTF-8Z x N | N null-terminated other error strings     |
+| Field               | Width | Type       | Description                             |
+| ------------------- | ----- | ---------- | --------------------------------------- |
+| execute_success     | 1     | UInt8      | Non-zero = success                      |
+| runtime_stop_code   | 1     | UInt8      | StopReasonCode of any runtime halt      |
+| compile_error_count | 4     | UInt32LE   | Number of compile errors                |
+| compile_errors      | var   | UTF-8Z x N | N null-terminated compile error strings |
+| runtime_error_count | 4     | UInt32LE   | Number of runtime errors                |
+| runtime_errors      | var   | UTF-8Z x N | N null-terminated runtime error strings |
+| other_error_count   | 4     | UInt32LE   | Number of other errors                  |
+| other_errors        | var   | UTF-8Z x N | N null-terminated other error strings   |
 
 ### 2.4 AddBreakpoints / RemoveBreakpoints / ListBreakpoints
 
@@ -287,17 +291,17 @@ Request payload (after common 12-byte header):
 
 Request payload (after common 12-byte header):
 
-| Field           | Width | Type     | Description                            |
-|-----------------|-------|----------|----------------------------------------|
-| num_breakpoints | 4     | UInt32LE | Number of breakpoint entries           |
+| Field           | Width | Type     | Description                  |
+| --------------- | ----- | -------- | ---------------------------- |
+| num_breakpoints | 4     | UInt32LE | Number of breakpoint entries |
 
 Followed by `num_breakpoints` breakpoint entries, each:
 
-| Field        | Width | Type     | Description                                                    |
-|--------------|-------|----------|----------------------------------------------------------------|
-| file_path    | var   | UTF-8Z   | File location (e.g., `pkg:/source/main.brs`)                   |
-| line_number  | 4     | UInt32LE | 1-based line number                                            |
-| ignore_count | 4     | UInt32LE | Number of hits to ignore before breaking (0 = break every time)|
+| Field        | Width | Type     | Description                                                     |
+| ------------ | ----- | -------- | --------------------------------------------------------------- |
+| file_path    | var   | UTF-8Z   | File location (e.g., `pkg:/source/main.brs`)                    |
+| line_number  | 4     | UInt32LE | 1-based line number                                             |
+| ignore_count | 4     | UInt32LE | Number of hits to ignore before breaking (0 = break every time) |
 
 **AddBreakpointsResponse** is identical in structure to **ListBreakpointsResponse** (see below).
 
@@ -305,19 +309,19 @@ Followed by `num_breakpoints` breakpoint entries, each:
 
 Request payload (after common 12-byte header):
 
-| Field           | Width | Type     | Description                       |
-|-----------------|-------|----------|-----------------------------------|
-| flags           | 4     | UInt32LE | Reserved, always 0                |
-| num_breakpoints | 4     | UInt32LE | Number of breakpoint entries      |
+| Field           | Width | Type     | Description                  |
+| --------------- | ----- | -------- | ---------------------------- |
+| flags           | 4     | UInt32LE | Reserved, always 0           |
+| num_breakpoints | 4     | UInt32LE | Number of breakpoint entries |
 
 Followed by `num_breakpoints` conditional breakpoint entries, each:
 
-| Field                 | Width | Type     | Description                                              |
-|-----------------------|-------|----------|----------------------------------------------------------|
-| file_path             | var   | UTF-8Z   | File location                                            |
-| line_number           | 4     | UInt32LE | 1-based line number                                      |
-| ignore_count          | 4     | UInt32LE | Skip count (conditional: only decrements if expr is true)|
-| conditional_expression| var   | UTF-8Z   | BrightScript boolean expression; empty string = unconditional |
+| Field                  | Width | Type     | Description                                                   |
+| ---------------------- | ----- | -------- | ------------------------------------------------------------- |
+| file_path              | var   | UTF-8Z   | File location                                                 |
+| line_number            | 4     | UInt32LE | 1-based line number                                           |
+| ignore_count           | 4     | UInt32LE | Skip count (conditional: only decrements if expr is true)     |
+| conditional_expression | var   | UTF-8Z   | BrightScript boolean expression; empty string = unconditional |
 
 #### ListBreakpointsRequest (CommandCode 8)
 
@@ -327,17 +331,17 @@ Request payload: none (12-byte header only).
 
 Payload (after common response header):
 
-| Field           | Width | Type     | Description                       |
-|-----------------|-------|----------|-----------------------------------|
-| num_breakpoints | 4     | UInt32LE | Number of breakpoint entries      |
+| Field           | Width | Type     | Description                  |
+| --------------- | ----- | -------- | ---------------------------- |
+| num_breakpoints | 4     | UInt32LE | Number of breakpoint entries |
 
 Followed by `num_breakpoints` breakpoint entries, each:
 
-| Field         | Width | Type     | Condition             | Description                           |
-|---------------|-------|----------|-----------------------|---------------------------------------|
-| breakpoint_id | 4     | UInt32LE | always present        | > 0 = active breakpoint; 0 = error   |
-| error_code    | 4     | UInt32LE | always present        | 0 = OK, 5 = INVALID_ARGS             |
-| ignore_count  | 4     | UInt32LE | only if breakpoint_id > 0 | Current ignore count remaining    |
+| Field         | Width | Type     | Condition                 | Description                        |
+| ------------- | ----- | -------- | ------------------------- | ---------------------------------- |
+| breakpoint_id | 4     | UInt32LE | always present            | > 0 = active breakpoint; 0 = error |
+| error_code    | 4     | UInt32LE | always present            | 0 = OK, 5 = INVALID_ARGS           |
+| ignore_count  | 4     | UInt32LE | only if breakpoint_id > 0 | Current ignore count remaining     |
 
 Valid breakpoints: 12 bytes each. Error breakpoints: 8 bytes each.
 
@@ -345,10 +349,10 @@ Valid breakpoints: 12 bytes each. Error breakpoints: 8 bytes each.
 
 Request payload (after common 12-byte header):
 
-| Field          | Width | Type          | Description                         |
-|----------------|-------|---------------|-------------------------------------|
-| num_breakpoints| 4     | UInt32LE      | Number of breakpoint IDs            |
-| breakpoint_ids | var   | UInt32LE x N  | N breakpoint IDs to remove          |
+| Field           | Width | Type         | Description                |
+| --------------- | ----- | ------------ | -------------------------- |
+| num_breakpoints | 4     | UInt32LE     | Number of breakpoint IDs   |
+| breakpoint_ids  | var   | UInt32LE x N | N breakpoint IDs to remove |
 
 **RemoveBreakpointsResponse** is identical in structure to **ListBreakpointsResponse**.
 
@@ -356,29 +360,29 @@ Request payload (after common 12-byte header):
 
 Request payload (after common 12-byte header):
 
-| Field           | Width | Type     | Description                       |
-|-----------------|-------|----------|-----------------------------------|
-| num_breakpoints | 4     | UInt32LE | Number of exception filter entries|
+| Field           | Width | Type     | Description                        |
+| --------------- | ----- | -------- | ---------------------------------- |
+| num_breakpoints | 4     | UInt32LE | Number of exception filter entries |
 
 Followed by `num_breakpoints` exception filter entries, each:
 
-| Field                | Width | Type     | Description                                     |
-|----------------------|-------|----------|-------------------------------------------------|
-| filter_type_id       | 4     | UInt32LE | 1 = caught exceptions, 2 = uncaught exceptions  |
-| condition_expression | var   | UTF-8Z   | BrightScript boolean condition or empty string  |
+| Field                | Width | Type     | Description                                    |
+| -------------------- | ----- | -------- | ---------------------------------------------- |
+| filter_type_id       | 4     | UInt32LE | 1 = caught exceptions, 2 = uncaught exceptions |
+| condition_expression | var   | UTF-8Z   | BrightScript boolean condition or empty string |
 
 **SetExceptionBreakpointsResponse** payload (after common response header):
 
-| Field           | Width | Type     | Description                         |
-|-----------------|-------|----------|-------------------------------------|
-| num_breakpoints | 4     | UInt32LE | Number of filter entries            |
+| Field           | Width | Type     | Description              |
+| --------------- | ----- | -------- | ------------------------ |
+| num_breakpoints | 4     | UInt32LE | Number of filter entries |
 
 Followed by `num_breakpoints` entries, each:
 
-| Field     | Width | Type     | Description                             |
-|-----------|-------|----------|-----------------------------------------|
-| filter    | 4     | UInt32LE | Filter type ID echoed from request      |
-| error_code| 4     | UInt32LE | 0 = OK, 5 = INVALID_ARGS               |
+| Field      | Width | Type     | Description                        |
+| ---------- | ----- | -------- | ---------------------------------- |
+| filter     | 4     | UInt32LE | Filter type ID echoed from request |
+| error_code | 4     | UInt32LE | 0 = OK, 5 = INVALID_ARGS           |
 
 ### 2.5 Update events (async, server-pushed)
 
@@ -386,27 +390,27 @@ Async updates always have `request_id = 0` in the frame header. The `update_type
 
 **UpdateTypeCode values:**
 
-| Name                    | Code |
-|-------------------------|------|
-| Undefined               | 0    |
-| IOPortOpened            | 1    |
-| AllThreadsStopped       | 2    |
-| ThreadAttached          | 3    |
-| BreakpointError         | 4    |
-| CompileError            | 5    |
-| BreakpointVerified      | 6    |
-| ProtocolError           | 7    |
-| ExceptionBreakpointError| 8    |
+| Name                     | Code |
+| ------------------------ | ---- |
+| Undefined                | 0    |
+| IOPortOpened             | 1    |
+| AllThreadsStopped        | 2    |
+| ThreadAttached           | 3    |
+| BreakpointError          | 4    |
+| CompileError             | 5    |
+| BreakpointVerified       | 6    |
+| ProtocolError            | 7    |
+| ExceptionBreakpointError | 8    |
 
 #### AllThreadsStopped (UpdateTypeCode 2)
 
 Payload (after common 16-byte update header):
 
-| Field              | Width | Type    | Description                                   |
-|--------------------|-------|---------|-----------------------------------------------|
-| thread_index       | 4     | Int32LE | Index of primary thread that triggered stop   |
-| stop_reason        | 1     | UInt8   | StopReasonCode (see §4)                       |
-| stop_reason_detail | var   | UTF-8Z  | Human-readable detail                         |
+| Field              | Width | Type    | Description                                 |
+| ------------------ | ----- | ------- | ------------------------------------------- |
+| thread_index       | 4     | Int32LE | Index of primary thread that triggered stop |
+| stop_reason        | 1     | UInt8   | StopReasonCode (see §4)                     |
+| stop_reason_detail | var   | UTF-8Z  | Human-readable detail                       |
 
 Minimum buffer: 16 bytes.
 
@@ -414,11 +418,11 @@ Minimum buffer: 16 bytes.
 
 Payload (after common 16-byte update header):
 
-| Field              | Width | Type    | Description                      |
-|--------------------|-------|---------|----------------------------------|
-| thread_index       | 4     | Int32LE | Index of newly attached thread   |
-| stop_reason        | 1     | UInt8   | StopReasonCode                   |
-| stop_reason_detail | var   | UTF-8Z  | Human-readable detail            |
+| Field              | Width | Type    | Description                    |
+| ------------------ | ----- | ------- | ------------------------------ |
+| thread_index       | 4     | Int32LE | Index of newly attached thread |
+| stop_reason        | 1     | UInt8   | StopReasonCode                 |
+| stop_reason_detail | var   | UTF-8Z  | Human-readable detail          |
 
 Minimum buffer: 12 bytes (as declared in the source).
 
@@ -426,63 +430,63 @@ Minimum buffer: 12 bytes (as declared in the source).
 
 Payload (after common 16-byte update header):
 
-| Field | Width | Type    | Description                                                     |
-|-------|-------|---------|-----------------------------------------------------------------|
-| port  | 4     | Int32LE | TCP port the client should connect to for stdout/stderr output  |
+| Field | Width | Type    | Description                                                    |
+| ----- | ----- | ------- | -------------------------------------------------------------- |
+| port  | 4     | Int32LE | TCP port the client should connect to for stdout/stderr output |
 
 #### CompileError (UpdateTypeCode 5)
 
 Payload (after common 16-byte update header):
 
-| Field        | Width | Type     | Description                                  |
-|--------------|-------|----------|----------------------------------------------|
-| flags        | 4     | UInt32LE | Reserved, always 0                           |
-| error_message| var   | UTF-8Z   | Compile error description                    |
-| file_path    | var   | UTF-8Z   | Source file (`pkg:/` or `lib:/<name>/`)      |
-| line_number  | 4     | UInt32LE | 1-based line number                          |
-| library_name | var   | UTF-8Z   | Library name or empty string                 |
+| Field         | Width | Type     | Description                             |
+| ------------- | ----- | -------- | --------------------------------------- |
+| flags         | 4     | UInt32LE | Reserved, always 0                      |
+| error_message | var   | UTF-8Z   | Compile error description               |
+| file_path     | var   | UTF-8Z   | Source file (`pkg:/` or `lib:/<name>/`) |
+| line_number   | 4     | UInt32LE | 1-based line number                     |
+| library_name  | var   | UTF-8Z   | Library name or empty string            |
 
 #### BreakpointError (UpdateTypeCode 4)
 
 Payload (after common 16-byte update header):
 
-| Field               | Width | Type          | Description                      |
-|---------------------|-------|---------------|----------------------------------|
-| flags               | 4     | UInt32LE      | Reserved, always 0               |
-| breakpoint_id       | 4     | UInt32LE      | Affected breakpoint ID           |
-| compile_error_count | 4     | UInt32LE      | Number of compile errors         |
-| compile_errors      | var   | UTF-8Z x N    | N null-terminated compile error strings |
-| runtime_error_count | 4     | UInt32LE      | Number of runtime errors         |
-| runtime_errors      | var   | UTF-8Z x N    | N null-terminated runtime error strings |
-| other_error_count   | 4     | UInt32LE      | Number of other errors           |
-| other_errors        | var   | UTF-8Z x N    | N null-terminated other error strings |
+| Field               | Width | Type       | Description                             |
+| ------------------- | ----- | ---------- | --------------------------------------- |
+| flags               | 4     | UInt32LE   | Reserved, always 0                      |
+| breakpoint_id       | 4     | UInt32LE   | Affected breakpoint ID                  |
+| compile_error_count | 4     | UInt32LE   | Number of compile errors                |
+| compile_errors      | var   | UTF-8Z x N | N null-terminated compile error strings |
+| runtime_error_count | 4     | UInt32LE   | Number of runtime errors                |
+| runtime_errors      | var   | UTF-8Z x N | N null-terminated runtime error strings |
+| other_error_count   | 4     | UInt32LE   | Number of other errors                  |
+| other_errors        | var   | UTF-8Z x N | N null-terminated other error strings   |
 
 #### BreakpointVerified (UpdateTypeCode 6)
 
 Payload (after common 16-byte update header):
 
-| Field            | Width | Type          | Description                         |
-|------------------|-------|---------------|-------------------------------------|
-| flags            | 4     | UInt32LE      | Reserved, always 0                  |
-| breakpoint_count | 4     | UInt32LE      | Number of verified breakpoints      |
-| breakpoint_ids   | var   | UInt32LE x N  | N verified breakpoint IDs           |
+| Field            | Width | Type         | Description                    |
+| ---------------- | ----- | ------------ | ------------------------------ |
+| flags            | 4     | UInt32LE     | Reserved, always 0             |
+| breakpoint_count | 4     | UInt32LE     | Number of verified breakpoints |
+| breakpoint_ids   | var   | UInt32LE x N | N verified breakpoint IDs      |
 
 #### ExceptionBreakpointError (UpdateTypeCode 8)
 
 Payload (after common 16-byte update header):
 
-| Field               | Width | Type          | Description                      |
-|---------------------|-------|---------------|----------------------------------|
-| flags               | 4     | UInt32LE      | Reserved, always 0               |
-| filter_id           | 4     | UInt32LE      | Exception filter ID              |
-| compile_error_count | 4     | UInt32LE      | Number of compile errors         |
-| compile_errors      | var   | UTF-8Z x N    | Compile error strings            |
-| runtime_error_count | 4     | UInt32LE      | Number of runtime errors         |
-| runtime_errors      | var   | UTF-8Z x N    | Runtime error strings            |
-| other_error_count   | 4     | UInt32LE      | Number of other errors           |
-| other_errors        | var   | UTF-8Z x N    | Other error strings              |
-| line_number         | 4     | Int32LE       | Source code line number          |
-| file_path           | var   | UTF-8Z        | Null-terminated file path        |
+| Field               | Width | Type       | Description               |
+| ------------------- | ----- | ---------- | ------------------------- |
+| flags               | 4     | UInt32LE   | Reserved, always 0        |
+| filter_id           | 4     | UInt32LE   | Exception filter ID       |
+| compile_error_count | 4     | UInt32LE   | Number of compile errors  |
+| compile_errors      | var   | UTF-8Z x N | Compile error strings     |
+| runtime_error_count | 4     | UInt32LE   | Number of runtime errors  |
+| runtime_errors      | var   | UTF-8Z x N | Runtime error strings     |
+| other_error_count   | 4     | UInt32LE   | Number of other errors    |
+| other_errors        | var   | UTF-8Z x N | Other error strings       |
+| line_number         | 4     | Int32LE    | Source code line number   |
+| file_path           | var   | UTF-8Z     | Null-terminated file path |
 
 #### ProtocolError (UpdateTypeCode 7)
 
@@ -548,51 +552,51 @@ The `max` bound `3.2.0` is taken directly from `roku-debug`'s `supportedVersionR
 
 ### StopReasonCode (used in AllThreadsStopped, ThreadAttached, Threads response, Execute response)
 
-| Name               | Code | Description                                      |
-|--------------------|------|--------------------------------------------------|
-| Undefined          | 0    | Unknown / unset                                  |
-| NotStopped         | 1    | Thread is currently running (not stopped)        |
-| NormalExit         | 2    | Thread exited normally                           |
-| StopStatement      | 3    | Hit a `STOP` statement in BrightScript           |
-| Break              | 4    | Hit a breakpoint                                 |
-| RuntimeError       | 5    | Uncaught runtime error                           |
-| CaughtRuntimeError | 6    | Runtime error caught by try/catch                |
+| Name               | Code | Description                               |
+| ------------------ | ---- | ----------------------------------------- |
+| Undefined          | 0    | Unknown / unset                           |
+| NotStopped         | 1    | Thread is currently running (not stopped) |
+| NormalExit         | 2    | Thread exited normally                    |
+| StopStatement      | 3    | Hit a `STOP` statement in BrightScript    |
+| Break              | 4    | Hit a breakpoint                          |
+| RuntimeError       | 5    | Uncaught runtime error                    |
+| CaughtRuntimeError | 6    | Runtime error caught by try/catch         |
 
 ### ErrorCode (used in response and update headers)
 
-| Name               | Code | Description                                            |
-|--------------------|------|--------------------------------------------------------|
-| OK                 | 0    | Success                                                |
-| OTHER_ERR          | 1    | Unclassified error                                     |
-| UNDEFINED_COMMAND  | 2    | Unknown command code                                   |
-| CANT_CONTINUE      | 3    | Cannot continue (e.g., channel has exited)             |
-| NOT_STOPPED        | 4    | Command requires stopped state but thread is running   |
-| INVALID_ARGS       | 5    | Invalid argument(s) in request                         |
-| THREAD_DETACHED    | 6    | Thread has detached                                    |
-| EXECUTION_TIMEOUT  | 7    | Execute command timed out                              |
+| Name              | Code | Description                                          |
+| ----------------- | ---- | ---------------------------------------------------- |
+| OK                | 0    | Success                                              |
+| OTHER_ERR         | 1    | Unclassified error                                   |
+| UNDEFINED_COMMAND | 2    | Unknown command code                                 |
+| CANT_CONTINUE     | 3    | Cannot continue (e.g., channel has exited)           |
+| NOT_STOPPED       | 4    | Command requires stopped state but thread is running |
+| INVALID_ARGS      | 5    | Invalid argument(s) in request                       |
+| THREAD_DETACHED   | 6    | Thread has detached                                  |
+| EXECUTION_TIMEOUT | 7    | Execute command timed out                            |
 
 ### CommandCode
 
-| Name                       | Code |
-|----------------------------|------|
-| Stop                       | 1    |
-| Continue                   | 2    |
-| Threads                    | 3    |
-| StackTrace                 | 4    |
-| Variables                  | 5    |
-| Step                       | 6    |
-| AddBreakpoints             | 7    |
-| ListBreakpoints            | 8    |
-| RemoveBreakpoints          | 9    |
-| Execute                    | 10   |
-| AddConditionalBreakpoints  | 11   |
-| SetExceptionBreakpoints    | 12   |
-| ExitChannel                | 122  |
+| Name                      | Code |
+| ------------------------- | ---- |
+| Stop                      | 1    |
+| Continue                  | 2    |
+| Threads                   | 3    |
+| StackTrace                | 4    |
+| Variables                 | 5    |
+| Step                      | 6    |
+| AddBreakpoints            | 7    |
+| ListBreakpoints           | 8    |
+| RemoveBreakpoints         | 9    |
+| Execute                   | 10   |
+| AddConditionalBreakpoints | 11   |
+| SetExceptionBreakpoints   | 12   |
+| ExitChannel               | 122  |
 
 ### StepTypeCode
 
 | Name | Code |
-|------|------|
+| ---- | ---- |
 | None | 0    |
 | Line | 1    |
 | Out  | 2    |
@@ -606,9 +610,9 @@ Variable data is carried in **VariablesResponse** (response to CommandCode 5).
 
 ### 5.1 Top-level response payload
 
-| Field        | Width | Type     | Description                  |
-|--------------|-------|----------|------------------------------|
-| num_variables| 4     | UInt32LE | Number of variable entries   |
+| Field         | Width | Type     | Description                |
+| ------------- | ----- | -------- | -------------------------- |
+| num_variables | 4     | UInt32LE | Number of variable entries |
 
 Followed by `num_variables` variable entries (see §5.2).
 
@@ -616,33 +620,33 @@ Followed by `num_variables` variable entries (see §5.2).
 
 Each variable starts with:
 
-| Field             | Width | Type | Description                                              |
-|-------------------|-------|------|----------------------------------------------------------|
-| flags             | 1     | UInt8| Bitfield (see §5.3)                                      |
-| variable_type_code| 1     | UInt8| VariableTypeCode (see §5.4)                              |
+| Field              | Width | Type  | Description                 |
+| ------------------ | ----- | ----- | --------------------------- |
+| flags              | 1     | UInt8 | Bitfield (see §5.3)         |
+| variable_type_code | 1     | UInt8 | VariableTypeCode (see §5.4) |
 
 Then conditionally:
 
-| Field        | Width | Type     | Condition                     | Description                         |
-|--------------|-------|----------|-------------------------------|-------------------------------------|
-| name         | var   | UTF-8Z   | if `isNameHere` flag set      | Variable name                       |
-| ref_count    | 4     | UInt32LE | if `isRefCounted` flag set    | Reference count                     |
-| key_type_code| 1     | UInt8    | if `isContainer` flag set     | VariableTypeCode of key type        |
-| child_count  | 4     | UInt32LE | if `isContainer` flag set     | Number of children                  |
-| value        | var   | see §5.5 | if `isValueHere` flag set     | Encoded value (type-dependent)      |
+| Field         | Width | Type     | Condition                  | Description                    |
+| ------------- | ----- | -------- | -------------------------- | ------------------------------ |
+| name          | var   | UTF-8Z   | if `isNameHere` flag set   | Variable name                  |
+| ref_count     | 4     | UInt32LE | if `isRefCounted` flag set | Reference count                |
+| key_type_code | 1     | UInt8    | if `isContainer` flag set  | VariableTypeCode of key type   |
+| child_count   | 4     | UInt32LE | if `isContainer` flag set  | Number of children             |
+| value         | var   | see §5.5 | if `isValueHere` flag set  | Encoded value (type-dependent) |
 
 ### 5.3 Variable flags (UInt8 bitfield)
 
-| Flag                | Bit mask | Description                                                        |
-|---------------------|----------|--------------------------------------------------------------------|
-| isChildKey          | 0x01     | This entry is a child of the preceding non-child variable          |
-| isConst             | 0x02     | Variable is constant/immutable                                     |
-| isContainer         | 0x04     | Container type; key_type_code and child_count fields follow        |
-| isNameHere          | 0x08     | Name field follows in the stream                                   |
-| isRefCounted        | 0x10     | ref_count field follows in the stream                              |
-| isValueHere         | 0x20     | Value field follows (encoding depends on variable_type_code)       |
-| isKeysCaseSensitive | 0x40     | Container keys are case-sensitive                                  |
-| isVirtual           | 0x80     | Virtual variable (synthetic, not a real BrightScript variable)     |
+| Flag                | Bit mask | Description                                                    |
+| ------------------- | -------- | -------------------------------------------------------------- |
+| isChildKey          | 0x01     | This entry is a child of the preceding non-child variable      |
+| isConst             | 0x02     | Variable is constant/immutable                                 |
+| isContainer         | 0x04     | Container type; key_type_code and child_count fields follow    |
+| isNameHere          | 0x08     | Name field follows in the stream                               |
+| isRefCounted        | 0x10     | ref_count field follows in the stream                          |
+| isValueHere         | 0x20     | Value field follows (encoding depends on variable_type_code)   |
+| isKeysCaseSensitive | 0x40     | Container keys are case-sensitive                              |
+| isVirtual           | 0x80     | Virtual variable (synthetic, not a real BrightScript variable) |
 
 **Expandable indication:** There is no separate `expandable` flag. A variable is expandable when `isContainer` is set AND `child_count > 0`. The caller can request child variables by issuing a new `VariablesRequest` with the variable's name appended to the path.
 
@@ -650,42 +654,42 @@ Then conditionally:
 
 ### 5.4 VariableTypeCode
 
-| Type name       | Code | Notes                                |
-|-----------------|------|--------------------------------------|
-| AssociativeArray| 1    | Container; key_type_code = String(13)|
-| Array           | 2    | Container; key_type_code = Integer(7)|
-| Boolean         | 3    |                                      |
-| Double          | 4    |                                      |
-| Float           | 5    |                                      |
-| Function        | 6    |                                      |
-| Integer         | 7    |                                      |
-| Interface       | 8    |                                      |
-| Invalid         | 9    | BrightScript `invalid`               |
-| List            | 10   | Container                            |
-| LongInteger     | 11   |                                      |
-| Object          | 12   |                                      |
-| String          | 13   |                                      |
-| Subroutine      | 14   |                                      |
-| SubtypedObject  | 15   | Two UTF-8Z strings joined by `"; "`  |
-| Uninitialized   | 16   | No value                             |
-| Unknown         | 17   | No value                             |
+| Type name        | Code | Notes                                 |
+| ---------------- | ---- | ------------------------------------- |
+| AssociativeArray | 1    | Container; key_type_code = String(13) |
+| Array            | 2    | Container; key_type_code = Integer(7) |
+| Boolean          | 3    |                                       |
+| Double           | 4    |                                       |
+| Float            | 5    |                                       |
+| Function         | 6    |                                       |
+| Integer          | 7    |                                       |
+| Interface        | 8    |                                       |
+| Invalid          | 9    | BrightScript `invalid`                |
+| List             | 10   | Container                             |
+| LongInteger      | 11   |                                       |
+| Object           | 12   |                                       |
+| String           | 13   |                                       |
+| Subroutine       | 14   |                                       |
+| SubtypedObject   | 15   | Two UTF-8Z strings joined by `"; "`   |
+| Uninitialized    | 16   | No value                              |
+| Unknown          | 17   | No value                              |
 
 ### 5.5 Value encoding by type
 
-| VariableType(s)                                        | Width | Type       | Notes                                                                |
-|--------------------------------------------------------|-------|------------|----------------------------------------------------------------------|
-| String                                                 | var   | UTF-8Z     | Null-terminated string                                               |
-| Object                                                 | var   | UTF-8Z     | Type/object identifier string                                        |
-| Function                                               | var   | UTF-8Z     | Function name string                                                 |
-| Interface                                              | var   | UTF-8Z     | Interface name string                                                |
-| Subroutine                                             | var   | UTF-8Z     | Subroutine name string                                               |
-| SubtypedObject                                         | var   | UTF-8Z x 2 | Two sequential null-terminated strings (typename, subtype)           |
-| Boolean                                                | 1     | UInt8      | 0 = false, non-zero = true                                           |
-| Integer                                                | 4     | Int32LE    | Signed 32-bit integer                                                |
-| LongInteger                                            | 8     | BigInt64LE | Signed 64-bit integer                                                |
-| Float                                                  | 4     | FloatLE    | IEEE 754 single-precision float                                      |
-| Double                                                 | 8     | DoubleLE   | IEEE 754 double-precision float                                      |
-| Array, AssociativeArray, List, Uninitialized, Unknown, Invalid | 0 | -    | No value bytes; presence indicated by `isValueHere` never being set  |
+| VariableType(s)                                                | Width | Type       | Notes                                                               |
+| -------------------------------------------------------------- | ----- | ---------- | ------------------------------------------------------------------- |
+| String                                                         | var   | UTF-8Z     | Null-terminated string                                              |
+| Object                                                         | var   | UTF-8Z     | Type/object identifier string                                       |
+| Function                                                       | var   | UTF-8Z     | Function name string                                                |
+| Interface                                                      | var   | UTF-8Z     | Interface name string                                               |
+| Subroutine                                                     | var   | UTF-8Z     | Subroutine name string                                              |
+| SubtypedObject                                                 | var   | UTF-8Z x 2 | Two sequential null-terminated strings (typename, subtype)          |
+| Boolean                                                        | 1     | UInt8      | 0 = false, non-zero = true                                          |
+| Integer                                                        | 4     | Int32LE    | Signed 32-bit integer                                               |
+| LongInteger                                                    | 8     | BigInt64LE | Signed 64-bit integer                                               |
+| Float                                                          | 4     | FloatLE    | IEEE 754 single-precision float                                     |
+| Double                                                         | 8     | DoubleLE   | IEEE 754 double-precision float                                     |
+| Array, AssociativeArray, List, Uninitialized, Unknown, Invalid | 0     | -          | No value bytes; presence indicated by `isValueHere` never being set |
 
 ### 5.6 roSGNode
 

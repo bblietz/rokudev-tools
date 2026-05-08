@@ -52,7 +52,11 @@ describe('BdpClient constants', () => {
 describe('BdpClient.connect', () => {
   it('handshakes and connects, exposing bdpVersion', async () => {
     const server = await startServer();
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     expect(client.bdpVersion).toEqual({ major: 3, minor: 0, patch: 0 });
@@ -92,7 +96,9 @@ describe('BdpClient.connect', () => {
     });
 
     await expect(
-      BdpClient.connect('127.0.0.1', port as 8081, SUPPORTED_BDP_VERSIONS, { handshakeTimeoutMs: 100 }),
+      BdpClient.connect('127.0.0.1', port as 8081, SUPPORTED_BDP_VERSIONS, {
+        handshakeTimeoutMs: 100,
+      }),
     ).rejects.toMatchObject({
       ok: false,
       code: 'BDP_ATTACH_FAILED',
@@ -181,7 +187,11 @@ describe('BdpClient.send', () => {
       ],
     }));
 
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const res = await client.send({ kind: 'threads' });
@@ -199,7 +209,11 @@ describe('BdpClient.send', () => {
     server.onRequest('pause', () => ({ kind: 'paused' }));
     server.onRequest('threads', () => ({ kind: 'threads', threads: [] }));
 
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const [r1, r2] = await Promise.all([
@@ -215,7 +229,11 @@ describe('BdpClient.send', () => {
     const server = await startServer();
     server.onRequest('pause', () => ({ kind: 'paused' }));
 
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const res = await client.send({ kind: 'pause' });
@@ -226,12 +244,14 @@ describe('BdpClient.send', () => {
     const server = await startServer();
     server.onRequest('variables', () => ({
       kind: 'variables',
-      variables: [
-        { name: 'count', type: 'Integer', value: 42 },
-      ],
+      variables: [{ name: 'count', type: 'Integer', value: 42 }],
     }));
 
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const res = await client.send({ kind: 'variables', threadId: 0, frameIdx: 0 });
@@ -251,12 +271,14 @@ describe('BdpClient.send', () => {
     const server = await startServer();
     // No handler registered -- server will silently drop the request.
 
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
-    await expect(
-      client.send({ kind: 'threads' }, { timeoutMs: 80 }),
-    ).rejects.toMatchObject({
+    await expect(client.send({ kind: 'threads' }, { timeoutMs: 80 })).rejects.toMatchObject({
       ok: false,
       code: 'BDP_THREAD_LOST',
       stage: 'debug',
@@ -272,7 +294,11 @@ describe('BdpClient.send', () => {
     const server = await startServer();
     // Do not register any handler -- the server will drop requests.
 
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const pendingPromise = client.send({ kind: 'threads' }, { timeoutMs: 5000 });
@@ -293,7 +319,11 @@ describe('BdpClient.send', () => {
 
   it('rejects immediately with BDP_THREAD_LOST when called on an already-closed client', async () => {
     const server = await startServer();
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     client.close();
 
     await expect(client.send({ kind: 'pause' })).rejects.toMatchObject({
@@ -318,14 +348,10 @@ describe('BdpClient.connectWithFallback', () => {
     const serverA = await startMockBdpServer();
     teardowns.push(() => serverA.stop());
 
-    const client = await BdpClient.connectWithFallback(
-      '127.0.0.1',
-      SUPPORTED_BDP_VERSIONS,
-      {
-        _primaryPort: 1,           // always ECONNREFUSED
-        _fallbackPort: serverA.port,
-      },
-    );
+    const client = await BdpClient.connectWithFallback('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+      _primaryPort: 1, // always ECONNREFUSED
+      _fallbackPort: serverA.port,
+    });
     teardowns.push(() => client.close());
 
     // We successfully connected via the fallback port.
@@ -345,14 +371,10 @@ describe('BdpClient.connectWithFallback', () => {
     serverB.setHandshakeVersion({ major: 99, minor: 0, patch: 0 });
 
     await expect(
-      BdpClient.connectWithFallback(
-        '127.0.0.1',
-        SUPPORTED_BDP_VERSIONS,
-        {
-          _primaryPort: serverB.port,
-          _fallbackPort: 1,       // would be ECONNREFUSED if reached
-        },
-      ),
+      BdpClient.connectWithFallback('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: serverB.port,
+        _fallbackPort: 1, // would be ECONNREFUSED if reached
+      }),
     ).rejects.toMatchObject({
       ok: false,
       code: 'BDP_VERSION_UNSUPPORTED',
@@ -372,7 +394,11 @@ describe('BdpClient.connectWithFallback', () => {
 describe('BdpClient.onEvent', () => {
   it('delivers async compile_error events to registered listeners', async () => {
     const server = await startServer();
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const received = await new Promise<BdpUpdateEvent>((resolve) => {
@@ -396,7 +422,11 @@ describe('BdpClient.onEvent', () => {
 
   it('delivers async stopped events to registered listeners', async () => {
     const server = await startServer();
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const received = await new Promise<BdpUpdateEvent>((resolve) => {
@@ -418,7 +448,11 @@ describe('BdpClient.onEvent', () => {
 
   it('delivers events to multiple listeners', async () => {
     const server = await startServer();
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const events: BdpUpdateEvent[] = [];
@@ -436,7 +470,11 @@ describe('BdpClient.onEvent', () => {
 
   it('delivers io_port_opened events correctly', async () => {
     const server = await startServer();
-    const client = await BdpClient.connect('127.0.0.1', server.port as 8081 | 8086, SUPPORTED_BDP_VERSIONS);
+    const client = await BdpClient.connect(
+      '127.0.0.1',
+      server.port as 8081 | 8086,
+      SUPPORTED_BDP_VERSIONS,
+    );
     teardowns.push(() => client.close());
 
     const received = await new Promise<BdpUpdateEvent>((resolve) => {

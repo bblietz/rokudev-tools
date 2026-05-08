@@ -3,7 +3,12 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { registerAllTools, type ToolDef } from '../src/tools/_register.js';
-import { _resetSessions, registerSession, bindHost, reserveHost } from '../src/util/debug-session-registry.js';
+import {
+  _resetSessions,
+  registerSession,
+  bindHost,
+  reserveHost,
+} from '../src/util/debug-session-registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -139,7 +144,11 @@ describe('rokudev-device e2e: BDP + telnet concurrency', () => {
   //   - DebugSessionRegistry's sessions / sessionsByHost (Plan 2 T19)
   //   - log.ts's sessions Map (Plan 1 T31)
 
-  let mocks: { LogStreamOpen: ReturnType<typeof vi.fn>; checkReachable: ReturnType<typeof vi.fn>; BdpSessionAttach: ReturnType<typeof vi.fn> };
+  let mocks: {
+    LogStreamOpen: ReturnType<typeof vi.fn>;
+    checkReachable: ReturnType<typeof vi.fn>;
+    BdpSessionAttach: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mocks = {

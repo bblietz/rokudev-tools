@@ -162,9 +162,13 @@ export function isUpdateEventPacket(requestId: number): boolean {
 // String helpers (NUL-terminated UTF-8)
 // ---------------------------------------------------------------------------
 
-function readNullTerminatedString(buf: Buffer, offset: number): { value: string; nextOffset: number } {
+function readNullTerminatedString(
+  buf: Buffer,
+  offset: number,
+): { value: string; nextOffset: number } {
   const end = buf.indexOf(0x00, offset);
-  if (end === -1) throw new Error(`BDP wire-codec: NUL terminator not found starting at offset ${offset}`);
+  if (end === -1)
+    throw new Error(`BDP wire-codec: NUL terminator not found starting at offset ${offset}`);
   const value = buf.toString('utf8', offset, end);
   return { value, nextOffset: end + 1 };
 }
@@ -325,7 +329,10 @@ function encodeVariableValue(typeCode: number, value: BdpVariable['value']): Buf
       const sepIdx = combined.indexOf('; ');
       const [typeName, subType] =
         sepIdx >= 0 ? [combined.slice(0, sepIdx), combined.slice(sepIdx + 2)] : [combined, ''];
-      return Buffer.concat([writeNullTerminatedString(typeName), writeNullTerminatedString(subType)]);
+      return Buffer.concat([
+        writeNullTerminatedString(typeName),
+        writeNullTerminatedString(subType),
+      ]);
     }
 
     case VariableTypeCode.Boolean: {
@@ -367,7 +374,10 @@ function encodeVariableValue(typeCode: number, value: BdpVariable['value']): Buf
   }
 }
 
-function decodeVariable(buf: Buffer, offset: number): { variable: BdpVariable; nextOffset: number } {
+function decodeVariable(
+  buf: Buffer,
+  offset: number,
+): { variable: BdpVariable; nextOffset: number } {
   const flags = buf.readUInt8(offset++);
   const typeCode = buf.readUInt8(offset++);
   const typeName = VariableTypeCodeToName[typeCode] ?? 'Unknown';
@@ -575,7 +585,17 @@ function decodeThreadEntry(
   offset = o4;
 
   return {
-    entry: { id, isPrimary, isDetached, stopReason, stopReasonDetail, line, functionName, file, codeSnippet },
+    entry: {
+      id,
+      isPrimary,
+      isDetached,
+      stopReason,
+      stopReasonDetail,
+      line,
+      functionName,
+      file,
+      codeSnippet,
+    },
     nextOffset: offset,
   };
 }
@@ -758,9 +778,7 @@ function stepTypeCodeToGranularity(code: number): 'line' | 'over' | 'out' {
   }
 }
 
-function encodeVariablesRequest(
-  req: Extract<BdpRequest, { kind: 'variables' }>,
-): Buffer {
+function encodeVariablesRequest(req: Extract<BdpRequest, { kind: 'variables' }>): Buffer {
   const varPath = req.varPath ?? [];
   const getChildKeys = req.getChildKeys === true;
   const getVirtualKeys = req.getVirtualKeys === true;
@@ -950,7 +968,11 @@ function decodeVariablesRequest(payload: Buffer): Extract<BdpRequest, { kind: 'v
     offset = nextOffset;
   }
 
-  const result: Extract<BdpRequest, { kind: 'variables' }> = { kind: 'variables', threadId, frameIdx };
+  const result: Extract<BdpRequest, { kind: 'variables' }> = {
+    kind: 'variables',
+    threadId,
+    frameIdx,
+  };
   if (varPath.length > 0) result.varPath = varPath;
   if (variableRequestFlags & 0x01) result.getChildKeys = true;
   if (variableRequestFlags & 0x04) result.getVirtualKeys = true;
@@ -994,13 +1016,17 @@ function decodeAddConditionalBreakpointsRequest(
     const line = payload.readUInt32LE(offset);
     const ignoreCount = payload.readUInt32LE(offset + 4);
     offset += 8;
-    const { value: conditionalExpression, nextOffset: o2 } = readNullTerminatedString(payload, offset);
+    const { value: conditionalExpression, nextOffset: o2 } = readNullTerminatedString(
+      payload,
+      offset,
+    );
     offset = o2;
-    const bp: { file: string; line: number; ignoreCount?: number; conditionalExpression: string } = {
-      file,
-      line,
-      conditionalExpression,
-    };
+    const bp: { file: string; line: number; ignoreCount?: number; conditionalExpression: string } =
+      {
+        file,
+        line,
+        conditionalExpression,
+      };
     if (ignoreCount !== 0) bp.ignoreCount = ignoreCount;
     breakpoints.push(bp);
   }
@@ -1168,14 +1194,14 @@ function encodeResponseBody(res: BdpResponse): Buffer {
 
     default: {
       const exhaustive: never = res;
-      throw new Error(`BDP wire-codec: unhandled response kind: ${(exhaustive as BdpResponse).kind}`);
+      throw new Error(
+        `BDP wire-codec: unhandled response kind: ${(exhaustive as BdpResponse).kind}`,
+      );
     }
   }
 }
 
-function encodeEvalResponse(
-  res: Extract<BdpResponse, { kind: 'eval' }>,
-): Buffer {
+function encodeEvalResponse(res: Extract<BdpResponse, { kind: 'eval' }>): Buffer {
   const parts: Buffer[] = [];
 
   // [execute_success:1][runtime_stop_code:1]
@@ -1293,7 +1319,8 @@ export function decodeResponseAs<K extends BdpResponse['kind']>(
   kind: K,
   payload: Buffer,
 ): { res: Extract<BdpResponse, { kind: K }>; errorCode: number } {
-  if (payload.length < 4) throw new Error('BDP wire-codec: response payload too short (decodeResponseAs)');
+  if (payload.length < 4)
+    throw new Error('BDP wire-codec: response payload too short (decodeResponseAs)');
   const errorCode = payload.readUInt32LE(0);
   // Body starts at offset 4 (after the error_code field).
   const res = decodeResponseBody(kind as string, payload, 4) as Extract<BdpResponse, { kind: K }>;
@@ -1392,7 +1419,10 @@ function decodeResponseBody(kind: string, payload: Buffer, bodyOffset: number): 
   }
 }
 
-function decodeEvalResponse(payload: Buffer, offset: number): Extract<BdpResponse, { kind: 'eval' }> {
+function decodeEvalResponse(
+  payload: Buffer,
+  offset: number,
+): Extract<BdpResponse, { kind: 'eval' }> {
   const success = payload.readUInt8(offset) !== 0;
   const runtimeStopCode = payload.readUInt8(offset + 1);
   offset += 2;
@@ -1544,7 +1574,9 @@ function encodeUpdateEventBody(event: BdpUpdateEvent): Buffer {
 
     default: {
       const exhaustive: never = event;
-      throw new Error(`BDP wire-codec: unhandled update event kind: ${(exhaustive as BdpUpdateEvent).kind}`);
+      throw new Error(
+        `BDP wire-codec: unhandled update event kind: ${(exhaustive as BdpUpdateEvent).kind}`,
+      );
     }
   }
 }
@@ -1566,7 +1598,11 @@ export function decodeUpdateEvent(packetType: number, payload: Buffer): BdpUpdat
   return decodeUpdateEventBody(updateType, payload, 8);
 }
 
-function decodeUpdateEventBody(updateType: number, payload: Buffer, offset: number): BdpUpdateEvent {
+function decodeUpdateEventBody(
+  updateType: number,
+  payload: Buffer,
+  offset: number,
+): BdpUpdateEvent {
   switch (updateType) {
     case UpdateTypeCode.AllThreadsStopped: {
       const threadId = payload.readInt32LE(offset);
@@ -1641,7 +1677,15 @@ function decodeUpdateEventBody(updateType: number, payload: Buffer, offset: numb
       const { values: otherErrors, nextOffset: o3 } = decodeStringList(payload, o2);
       const line = payload.readInt32LE(o3);
       const { value: file } = readNullTerminatedString(payload, o3 + 4);
-      return { kind: 'exception_breakpoint_error', filterId, compileErrors, runtimeErrors, otherErrors, line, file };
+      return {
+        kind: 'exception_breakpoint_error',
+        filterId,
+        compileErrors,
+        runtimeErrors,
+        otherErrors,
+        line,
+        file,
+      };
     }
 
     default:

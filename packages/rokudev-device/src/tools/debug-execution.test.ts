@@ -26,7 +26,11 @@ function call(name: string, args: Record<string, unknown> = {}): Promise<unknown
 }
 
 function registerFakeSession(
-  stubs: { resume?: ReturnType<typeof vi.fn>; step?: ReturnType<typeof vi.fn>; pause?: ReturnType<typeof vi.fn> } = {},
+  stubs: {
+    resume?: ReturnType<typeof vi.fn>;
+    step?: ReturnType<typeof vi.fn>;
+    pause?: ReturnType<typeof vi.fn>;
+  } = {},
 ): string {
   const session = {
     resume: stubs.resume ?? vi.fn().mockResolvedValue(undefined),
@@ -48,11 +52,11 @@ function registerFakeSession(
 describe('debug execution tool registration', () => {
   it('registers all 5 tools with expected shapes', () => {
     const expected: Record<string, string[]> = {
-      debug_continue:   ['session_id', 'thread_id'],
-      debug_step:       ['session_id', 'thread_id'],
-      debug_step_over:  ['session_id', 'thread_id'],
-      debug_step_out:   ['session_id', 'thread_id'],
-      debug_pause:      ['session_id'],
+      debug_continue: ['session_id', 'thread_id'],
+      debug_step: ['session_id', 'thread_id'],
+      debug_step_over: ['session_id', 'thread_id'],
+      debug_step_out: ['session_id', 'thread_id'],
+      debug_pause: ['session_id'],
     };
 
     for (const [name, required] of Object.entries(expected)) {
@@ -78,7 +82,10 @@ describe('debug_continue happy path', () => {
     const resume = vi.fn().mockResolvedValue(undefined);
     const sid = registerFakeSession({ resume });
 
-    const result = (await call('debug_continue', { session_id: sid, thread_id: 1 })) as Record<string, unknown>;
+    const result = (await call('debug_continue', { session_id: sid, thread_id: 1 })) as Record<
+      string,
+      unknown
+    >;
 
     expect(resume).toHaveBeenCalledWith(1);
     expect(result).toEqual({ ok: true, session_id: sid });
@@ -90,7 +97,10 @@ describe('debug_step happy path', () => {
     const step = vi.fn().mockResolvedValue(undefined);
     const sid = registerFakeSession({ step });
 
-    const result = (await call('debug_step', { session_id: sid, thread_id: 1 })) as Record<string, unknown>;
+    const result = (await call('debug_step', { session_id: sid, thread_id: 1 })) as Record<
+      string,
+      unknown
+    >;
 
     expect(step).toHaveBeenCalledWith(1, 'line');
     expect(result).toEqual({ ok: true, session_id: sid });
@@ -102,7 +112,10 @@ describe('debug_step_over happy path', () => {
     const step = vi.fn().mockResolvedValue(undefined);
     const sid = registerFakeSession({ step });
 
-    const result = (await call('debug_step_over', { session_id: sid, thread_id: 1 })) as Record<string, unknown>;
+    const result = (await call('debug_step_over', { session_id: sid, thread_id: 1 })) as Record<
+      string,
+      unknown
+    >;
 
     expect(step).toHaveBeenCalledWith(1, 'over');
     expect(result).toEqual({ ok: true, session_id: sid });
@@ -114,7 +127,10 @@ describe('debug_step_out happy path', () => {
     const step = vi.fn().mockResolvedValue(undefined);
     const sid = registerFakeSession({ step });
 
-    const result = (await call('debug_step_out', { session_id: sid, thread_id: 1 })) as Record<string, unknown>;
+    const result = (await call('debug_step_out', { session_id: sid, thread_id: 1 })) as Record<
+      string,
+      unknown
+    >;
 
     expect(step).toHaveBeenCalledWith(1, 'out');
     expect(result).toEqual({ ok: true, session_id: sid });
@@ -140,13 +156,13 @@ describe('debug_pause happy path', () => {
 
 describe('BDP_THREAD_LOST pass-through', () => {
   it('debug_continue re-throws BDP_THREAD_LOST from session.resume', async () => {
-    const err = fail('BDP_THREAD_LOST', 'thread terminated', { session_state: 'thread_terminated_other' });
+    const err = fail('BDP_THREAD_LOST', 'thread terminated', {
+      session_state: 'thread_terminated_other',
+    });
     const resume = vi.fn().mockRejectedValue(err);
     const sid = registerFakeSession({ resume });
 
-    await expect(
-      call('debug_continue', { session_id: sid, thread_id: 1 }),
-    ).rejects.toMatchObject({
+    await expect(call('debug_continue', { session_id: sid, thread_id: 1 })).rejects.toMatchObject({
       ok: false,
       code: 'BDP_THREAD_LOST',
       details: { session_state: 'thread_terminated_other' },
@@ -154,13 +170,13 @@ describe('BDP_THREAD_LOST pass-through', () => {
   });
 
   it('debug_step re-throws BDP_THREAD_LOST from session.step', async () => {
-    const err = fail('BDP_THREAD_LOST', 'thread terminated', { session_state: 'thread_terminated_other' });
+    const err = fail('BDP_THREAD_LOST', 'thread terminated', {
+      session_state: 'thread_terminated_other',
+    });
     const step = vi.fn().mockRejectedValue(err);
     const sid = registerFakeSession({ step });
 
-    await expect(
-      call('debug_step', { session_id: sid, thread_id: 1 }),
-    ).rejects.toMatchObject({
+    await expect(call('debug_step', { session_id: sid, thread_id: 1 })).rejects.toMatchObject({
       ok: false,
       code: 'BDP_THREAD_LOST',
       details: { session_state: 'thread_terminated_other' },
@@ -168,13 +184,13 @@ describe('BDP_THREAD_LOST pass-through', () => {
   });
 
   it('debug_pause re-throws BDP_THREAD_LOST from session.pause', async () => {
-    const err = fail('BDP_THREAD_LOST', 'thread terminated', { session_state: 'thread_terminated_other' });
+    const err = fail('BDP_THREAD_LOST', 'thread terminated', {
+      session_state: 'thread_terminated_other',
+    });
     const pause = vi.fn().mockRejectedValue(err);
     const sid = registerFakeSession({ pause });
 
-    await expect(
-      call('debug_pause', { session_id: sid }),
-    ).rejects.toMatchObject({
+    await expect(call('debug_pause', { session_id: sid })).rejects.toMatchObject({
       ok: false,
       code: 'BDP_THREAD_LOST',
       details: { session_state: 'thread_terminated_other' },
@@ -212,8 +228,9 @@ describe('unknown session_id', () => {
   });
 
   it('debug_pause throws BDP_THREAD_LOST for unknown session', async () => {
-    await expect(
-      call('debug_pause', { session_id: 'nonexistent' }),
-    ).rejects.toMatchObject({ ok: false, code: 'BDP_THREAD_LOST' });
+    await expect(call('debug_pause', { session_id: 'nonexistent' })).rejects.toMatchObject({
+      ok: false,
+      code: 'BDP_THREAD_LOST',
+    });
   });
 });

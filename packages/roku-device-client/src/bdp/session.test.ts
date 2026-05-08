@@ -17,8 +17,12 @@ const BDP_WIRE_ERROR_INVALID_THREAD = 6;
 describe('BdpSession', () => {
   let server: MockBdpServer;
 
-  beforeEach(async () => { server = await startMockBdpServer(); });
-  afterEach(async () => { await server.stop(); });
+  beforeEach(async () => {
+    server = await startMockBdpServer();
+  });
+  afterEach(async () => {
+    await server.stop();
+  });
 
   // -------------------------------------------------------------------------
   // attach
@@ -26,7 +30,9 @@ describe('BdpSession', () => {
 
   describe('attach', () => {
     it('returns a session with host, bdpVersion, state="live"', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       expect(session.host).toBe('127.0.0.1');
       expect(session.bdpVersion).toEqual({ major: 3, minor: 0, patch: 0 });
       expect(session.state).toBe('live');
@@ -36,14 +42,19 @@ describe('BdpSession', () => {
     it('propagates BDP_VERSION_UNSUPPORTED from BdpClient', async () => {
       server.setHandshakeVersion({ major: 99, minor: 0, patch: 0 });
       await expect(
-        BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any),
+        BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+          _primaryPort: server.port,
+        } as any),
       ).rejects.toMatchObject({ ok: false, code: 'BDP_VERSION_UNSUPPORTED' });
     });
 
     it('propagates BDP_ATTACH_FAILED when connect fails', async () => {
       // both ports refused
       await expect(
-        BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: 1, _fallbackPort: 2 } as any),
+        BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+          _primaryPort: 1,
+          _fallbackPort: 2,
+        } as any),
       ).rejects.toMatchObject({ ok: false, code: 'BDP_ATTACH_FAILED' });
     });
   });
@@ -54,10 +65,12 @@ describe('BdpSession', () => {
 
   describe('detach', () => {
     it('sets state to connection_lost and is idempotent', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       expect(session.state).toBe('connection_lost');
-      session.detach();   // idempotent
+      session.detach(); // idempotent
       expect(session.state).toBe('connection_lost');
     });
   });
@@ -68,7 +81,9 @@ describe('BdpSession', () => {
 
   describe('state', () => {
     it('transitions to connection_lost when underlying client closes (mock server stops)', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       expect(session.state).toBe('live');
       await server.stop();
       // wait a tick for socket close to propagate
@@ -83,7 +98,9 @@ describe('BdpSession', () => {
 
   describe('onStopped', () => {
     it('fires registered listeners on a Stopped update event', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const events: Array<{ threadId: number; reason: string }> = [];
       session.onStopped((e) => events.push({ threadId: e.threadId, reason: e.reason }));
       // Emit a stopped event from the mock; the event kind in BdpUpdateEvent is 'stopped'.
@@ -100,21 +117,39 @@ describe('BdpSession', () => {
     });
 
     it('fires multiple registered listeners', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const callCounts = [0, 0];
-      session.onStopped(() => { callCounts[0]!++; });
-      session.onStopped(() => { callCounts[1]!++; });
-      server.emitEvent({ kind: 'stopped', threadId: 0, stopReason: 'break', stopReasonDetail: '' } as any);
+      session.onStopped(() => {
+        callCounts[0]!++;
+      });
+      session.onStopped(() => {
+        callCounts[1]!++;
+      });
+      server.emitEvent({
+        kind: 'stopped',
+        threadId: 0,
+        stopReason: 'break',
+        stopReasonDetail: '',
+      } as any);
       await new Promise((r) => setTimeout(r, 50));
       expect(callCounts).toEqual([1, 1]);
       session.detach();
     });
 
     it('surfaces file and line from the stopped event when present', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const events: Array<{ threadId: number; reason: string; file?: string; line?: number }> = [];
       session.onStopped((e) => events.push(e));
-      server.emitEvent({ kind: 'stopped', threadId: 2, stopReason: 'runtime_error', stopReasonDetail: 'div by zero' } as any);
+      server.emitEvent({
+        kind: 'stopped',
+        threadId: 2,
+        stopReason: 'runtime_error',
+        stopReasonDetail: 'div by zero',
+      } as any);
       await new Promise((r) => setTimeout(r, 50));
       expect(events[0]!.threadId).toBe(2);
       expect(events[0]!.reason).toBe('runtime_error');
@@ -133,7 +168,9 @@ describe('BdpSession', () => {
         entries: [{ breakpointId: 42, errorCode: 0 }],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const result = await session.setBreakpoint('main.brs', 10);
 
       expect(result).toEqual({ id: 42 });
@@ -148,7 +185,9 @@ describe('BdpSession', () => {
         entries: [{ breakpointId: 0, errorCode: 5 }],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
 
       await expect(session.setBreakpoint('main.brs', 99)).rejects.toMatchObject({
         ok: false,
@@ -167,7 +206,9 @@ describe('BdpSession', () => {
     });
 
     it('rejects with BDP_THREAD_LOST after detach', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
 
       await expect(session.setBreakpoint('main.brs', 1)).rejects.toMatchObject({
@@ -188,7 +229,9 @@ describe('BdpSession', () => {
         entries: [{ breakpointId: 7, errorCode: 0 }],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await session.setBreakpoint('scene.brs', 5);
       expect(session.currentBreakpoints()).toHaveLength(1);
 
@@ -199,7 +242,9 @@ describe('BdpSession', () => {
     });
 
     it('rejects with BDP_THREAD_LOST after detach', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
 
       await expect(session.clearBreakpoint(1)).rejects.toMatchObject({
@@ -226,7 +271,9 @@ describe('BdpSession', () => {
         ],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await session.setBreakpoint('main.brs', 10);
       await session.setBreakpoint('util.brs', 20);
 
@@ -249,7 +296,9 @@ describe('BdpSession', () => {
         ],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const list = await session.listBreakpoints();
 
       // Unknown id must be skipped; result is empty.
@@ -259,7 +308,9 @@ describe('BdpSession', () => {
     });
 
     it('rejects with BDP_THREAD_LOST after detach', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
 
       await expect(session.listBreakpoints()).rejects.toMatchObject({
@@ -276,7 +327,9 @@ describe('BdpSession', () => {
         entries: [{ breakpointId: 55, errorCode: 0 }],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await session.setBreakpoint('main.brs', 15);
 
       // Detach transitions state to connection_lost.
@@ -307,7 +360,9 @@ describe('BdpSession', () => {
         return { kind: 'continued' };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await expect(session.resume(1)).resolves.toBeUndefined();
       expect(capturedThreadId).toBe(1);
       session.detach();
@@ -321,7 +376,9 @@ describe('BdpSession', () => {
         errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await expect(session.resume(1)).rejects.toMatchObject({
         ok: false,
         code: 'BDP_THREAD_LOST',
@@ -331,7 +388,9 @@ describe('BdpSession', () => {
     });
 
     it('throws BDP_THREAD_LOST after detach (guardLive)', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.resume(1)).rejects.toMatchObject({
         ok: false,
@@ -348,7 +407,9 @@ describe('BdpSession', () => {
         return { kind: 'stepped' };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await expect(session.step(1, 'over')).resolves.toBeUndefined();
       expect(capturedReq).toEqual({ threadId: 1, granularity: 'over' });
       session.detach();
@@ -361,7 +422,9 @@ describe('BdpSession', () => {
         return { kind: 'stepped' };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await session.step(2, 'line');
       expect(capturedGranularity).toBe('line');
       session.detach();
@@ -374,7 +437,9 @@ describe('BdpSession', () => {
         return { kind: 'stepped' };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await session.step(0, 'out');
       expect(capturedGranularity).toBe('out');
       session.detach();
@@ -386,7 +451,9 @@ describe('BdpSession', () => {
         errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await expect(session.step(1, 'over')).rejects.toMatchObject({
         ok: false,
         code: 'BDP_THREAD_LOST',
@@ -396,7 +463,9 @@ describe('BdpSession', () => {
     });
 
     it('throws BDP_THREAD_LOST after detach (guardLive)', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.step(1, 'over')).rejects.toMatchObject({
         ok: false,
@@ -413,14 +482,18 @@ describe('BdpSession', () => {
         return { kind: 'paused' };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await expect(session.pause()).resolves.toBeUndefined();
       expect(pauseCalled).toBe(true);
       session.detach();
     });
 
     it('throws BDP_THREAD_LOST after detach (guardLive)', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.pause()).rejects.toMatchObject({
         ok: false,
@@ -431,7 +504,9 @@ describe('BdpSession', () => {
 
   describe('execution control state guard (all three methods)', () => {
     it('all three execution methods throw BDP_THREAD_LOST after detach', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.resume(1)).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
       await expect(session.step(1, 'over')).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
@@ -473,7 +548,9 @@ describe('BdpSession', () => {
         ],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const result = await session.threads();
 
       expect(result).toHaveLength(2);
@@ -502,7 +579,9 @@ describe('BdpSession', () => {
     });
 
     it('throws BDP_THREAD_LOST after detach (state guard)', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.threads()).rejects.toMatchObject({
         ok: false,
@@ -524,7 +603,9 @@ describe('BdpSession', () => {
         };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const frames = await session.stackTrace(1);
 
       expect(frames).toHaveLength(2);
@@ -548,7 +629,9 @@ describe('BdpSession', () => {
         };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await session.stackTrace(3);
       expect(capturedThreadId).toBe(3);
       session.detach();
@@ -562,7 +645,9 @@ describe('BdpSession', () => {
         errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await expect(session.stackTrace(2)).rejects.toMatchObject({
         ok: false,
         code: 'BDP_THREAD_LOST',
@@ -572,7 +657,9 @@ describe('BdpSession', () => {
     });
 
     it('throws BDP_THREAD_LOST after detach (state guard)', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.stackTrace(1)).rejects.toMatchObject({
         ok: false,
@@ -599,7 +686,9 @@ describe('BdpSession', () => {
         };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const vars = await session.variables(1, 0);
 
       expect(vars).toHaveLength(2);
@@ -610,7 +699,9 @@ describe('BdpSession', () => {
     });
 
     it('propagates getChildKeys, getVirtualKeys, and varPath options', async () => {
-      let capturedReq: { getChildKeys?: boolean; getVirtualKeys?: boolean; varPath?: string[] } | undefined;
+      let capturedReq:
+        | { getChildKeys?: boolean; getVirtualKeys?: boolean; varPath?: string[] }
+        | undefined;
       server.onRequest('variables', (req) => {
         capturedReq = {
           ...(req.getChildKeys !== undefined ? { getChildKeys: req.getChildKeys } : {}),
@@ -620,8 +711,14 @@ describe('BdpSession', () => {
         return { kind: 'variables', variables: [] };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
-      await session.variables(1, 0, { getChildKeys: true, getVirtualKeys: false, varPath: ['root', 'child'] });
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
+      await session.variables(1, 0, {
+        getChildKeys: true,
+        getVirtualKeys: false,
+        varPath: ['root', 'child'],
+      });
 
       expect(capturedReq).toBeDefined();
       // Wire codec sets flag bits: bit 0 = getChildKeys (true), bit 2 = getVirtualKeys (false/absent).
@@ -636,7 +733,9 @@ describe('BdpSession', () => {
     it('returns empty array when device reports no variables', async () => {
       server.onRequest('variables', (_req) => ({ kind: 'variables', variables: [] }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const vars = await session.variables(0, 0);
       expect(vars).toHaveLength(0);
       session.detach();
@@ -648,7 +747,9 @@ describe('BdpSession', () => {
         errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await expect(session.variables(1, 0)).rejects.toMatchObject({
         ok: false,
         code: 'BDP_THREAD_LOST',
@@ -658,7 +759,9 @@ describe('BdpSession', () => {
     });
 
     it('throws BDP_THREAD_LOST after detach (state guard)', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.variables(1, 0)).rejects.toMatchObject({
         ok: false,
@@ -686,7 +789,9 @@ describe('BdpSession', () => {
         };
       });
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const result = await session.eval(1, 0, 'm.foo = 42');
 
       expect(result.success).toBe(true);
@@ -707,7 +812,9 @@ describe('BdpSession', () => {
         otherErrors: [],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const result = await session.eval(1, 0, 'invalid bs code');
 
       expect(result.success).toBe(false);
@@ -727,7 +834,9 @@ describe('BdpSession', () => {
         otherErrors: [],
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       const result = await session.eval(1, 0, 'x = 1 / 0');
 
       expect(result.success).toBe(false);
@@ -740,9 +849,12 @@ describe('BdpSession', () => {
 
     it('honors timeoutMs -- rejects with BDP_THREAD_LOST when server never responds', async () => {
       // No handler registered: server will not respond and the request times out.
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
-      await expect(session.eval(1, 0, 'expr', { timeoutMs: 50 }))
-        .rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
+      await expect(session.eval(1, 0, 'expr', { timeoutMs: 50 })).rejects.toMatchObject({
+        code: 'BDP_THREAD_LOST',
+      });
       session.detach();
     });
 
@@ -758,7 +870,9 @@ describe('BdpSession', () => {
         errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
       }));
 
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       await expect(session.eval(1, 0, 'expr')).rejects.toMatchObject({
         ok: false,
         code: 'BDP_THREAD_LOST',
@@ -768,7 +882,9 @@ describe('BdpSession', () => {
     });
 
     it('throws BDP_THREAD_LOST after detach (state guard)', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.eval(1, 0, 'expr')).rejects.toMatchObject({
         ok: false,
@@ -779,7 +895,9 @@ describe('BdpSession', () => {
 
   describe('variables and eval after detach (combined state guard)', () => {
     it('both methods throw BDP_THREAD_LOST after detach', async () => {
-      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, {
+        _primaryPort: server.port,
+      } as any);
       session.detach();
       await expect(session.variables(1, 0)).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
       await expect(session.eval(1, 0, 'expr')).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });

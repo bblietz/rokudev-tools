@@ -38,14 +38,10 @@ registerToolsModule((tools) => {
         if (file.endsWith('.bs')) {
           const mapPath = await findSourceMap(file, projectRoot);
           if (!mapPath) {
-            throw fail(
-              'BDP_NO_SOURCE_MAP',
-              `no .brs.map found for ${file}`,
-              {
-                file,
-                hint: 'set sourceMap: true in bsconfig.json and re-build',
-              },
-            );
+            throw fail('BDP_NO_SOURCE_MAP', `no .brs.map found for ${file}`, {
+              file,
+              hint: 'set sourceMap: true in bsconfig.json and re-build',
+            });
           }
           const resolver = await SourceMapResolver.fromMapFile(mapPath);
           try {
@@ -79,8 +75,7 @@ registerToolsModule((tools) => {
     'debug_clear_breakpoint',
     tool({
       name: 'debug_clear_breakpoint',
-      description:
-        'Clear (remove) a breakpoint by its ID from the active BDP debug session.',
+      description: 'Clear (remove) a breakpoint by its ID from the active BDP debug session.',
       inputSchema: {
         type: 'object',
         properties: {

@@ -4,11 +4,9 @@
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 
-const proc = spawn(
-  process.execPath,
-  [resolve('packages/rokudev-device/dist/index.js')],
-  { stdio: ['pipe', 'pipe', 'inherit'] },
-);
+const proc = spawn(process.execPath, [resolve('packages/rokudev-device/dist/index.js')], {
+  stdio: ['pipe', 'pipe', 'inherit'],
+});
 
 let nextId = 1;
 let buf = '';

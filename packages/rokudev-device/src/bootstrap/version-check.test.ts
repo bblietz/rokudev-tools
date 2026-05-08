@@ -80,10 +80,19 @@ describe('checkSiblings', () => {
     expect(result.failure.details).toHaveProperty('installed_version', '1.0.0');
   });
 
-  it('returns ok:true (no-op) when sibling is not resolvable', async () => {
+  it('returns ok:true (no-op) when sibling cannot be loaded', async () => {
     await writePackageJson(tmpDir, '0.1.0');
     await writeAnchorFile(tmpDir);
-    // Intentionally do NOT create the sibling node_modules
+    // Write a malformed sibling package.json so JSON.parse throws.
+    // version-check.ts wraps both require.resolve and JSON.parse in the same
+    // try/catch, so this exercises the same "swallow and return ok:true"
+    // behaviour as a totally-missing sibling. Under Vitest, vite-node's
+    // resolver always finds the workspace's @rokudev/device-client, so we
+    // cannot reliably force require.resolve itself to fail; forcing a parse
+    // failure on a fixture sibling tests the catch branch deterministically.
+    const siblingDir = join(tmpDir, 'node_modules', '@rokudev', 'device-client');
+    await mkdir(siblingDir, { recursive: true });
+    await writeFile(join(siblingDir, 'package.json'), '{not valid json');
 
     const result = await checkSiblings(pathToFileURL(join(tmpDir, 'index.js')).href);
 

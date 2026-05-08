@@ -1,11 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  registerSession, getSession, tryGetSession, hasSession, dropSession, isKnownDetached,
-  reserveHost, bindHost, releaseHost, getHostForSession,
-  rememberBreakpoints, consumeInvalidatedBreakpoints, _resetSessions,
+  registerSession,
+  getSession,
+  tryGetSession,
+  hasSession,
+  dropSession,
+  isKnownDetached,
+  reserveHost,
+  bindHost,
+  releaseHost,
+  getHostForSession,
+  rememberBreakpoints,
+  consumeInvalidatedBreakpoints,
+  _resetSessions,
 } from './debug-session-registry.js';
 
-beforeEach(() => { _resetSessions(); });
+beforeEach(() => {
+  _resetSessions();
+});
 
 describe('DebugSessionRegistry', () => {
   // Use a fake BdpSession placeholder; the registry only stores the reference.
@@ -22,7 +34,11 @@ describe('DebugSessionRegistry', () => {
       getSession('not-a-real-id');
       expect.fail('should have thrown');
     } catch (e: any) {
-      expect(e).toMatchObject({ ok: false, code: 'BDP_THREAD_LOST', details: { session_state: 'connection_lost' } });
+      expect(e).toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+        details: { session_state: 'connection_lost' },
+      });
     }
   });
 
@@ -52,7 +68,7 @@ describe('DebugSessionRegistry', () => {
 
   it('isKnownDetached returns true for recently-dropped id, false for never-issued', () => {
     const id = registerSession(fakeSession);
-    expect(isKnownDetached(id)).toBe(false);   // not yet dropped
+    expect(isKnownDetached(id)).toBe(false); // not yet dropped
     dropSession(id);
     expect(isKnownDetached(id)).toBe(true);
     expect(isKnownDetached('never-existed')).toBe(false);
@@ -66,8 +82,8 @@ describe('DebugSessionRegistry', () => {
       ids.push(id);
       dropSession(id);
     }
-    expect(isKnownDetached(ids[0]!)).toBe(false);   // oldest evicted
-    expect(isKnownDetached(ids[256]!)).toBe(true);  // newest still present
+    expect(isKnownDetached(ids[0]!)).toBe(false); // oldest evicted
+    expect(isKnownDetached(ids[256]!)).toBe(true); // newest still present
   });
 
   it('reserveHost stores host->pending; second reservation throws BDP_ATTACH_BUSY', () => {

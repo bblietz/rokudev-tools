@@ -13,16 +13,8 @@
  */
 
 import net from 'node:net';
-import {
-  encodeFrame,
-  decodeFrame,
-  HANDSHAKE_MAGIC,
-} from '../frame.js';
-import {
-  decodeRequest,
-  encodeResponseAs,
-  encodeUpdateEvent,
-} from '../wire-codec.js';
+import { encodeFrame, decodeFrame, HANDSHAKE_MAGIC } from '../frame.js';
+import { decodeRequest, encodeResponseAs, encodeUpdateEvent } from '../wire-codec.js';
 import type { BdpRequest, BdpResponse, BdpUpdateEvent } from '../messages.js';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +39,11 @@ const HANDSHAKE_REQUEST_LENGTH = 8;
  *
  * remaining_packet_length = 8 (the timestamp only).
  */
-function encodeHandshakeV3Response(version: { major: number; minor: number; patch: number }): Buffer {
+function encodeHandshakeV3Response(version: {
+  major: number;
+  minor: number;
+  patch: number;
+}): Buffer {
   const buf = Buffer.allocUnsafe(32);
   // magic (7 bytes) + NUL
   buf.write(HANDSHAKE_MAGIC, 0, 'utf8');
@@ -120,7 +116,9 @@ export async function startMockBdpServer(opts: { port?: number } = {}): Promise<
   // Map from request kind -> handler (holds a covariant cast: see onRequest).
   const handlers = new Map<
     BdpRequest['kind'],
-    (req: BdpRequest) => BdpResponse | MockResponseWrapper | Promise<BdpResponse | MockResponseWrapper>
+    (
+      req: BdpRequest,
+    ) => BdpResponse | MockResponseWrapper | Promise<BdpResponse | MockResponseWrapper>
   >();
 
   // Handshake version advertised to clients. Default: v3.0.0.
@@ -183,16 +181,23 @@ export async function startMockBdpServer(opts: { port?: number } = {}): Promise<
           }
 
           // Unwrap MockResponseWrapper if the handler returned one.
-          const res: BdpResponse = 'errorCode' in handlerResult && 'response' in handlerResult
-            ? (handlerResult as MockResponseWrapper).response
-            : (handlerResult as BdpResponse);
-          const wireErrorCode: number = 'errorCode' in handlerResult && 'response' in handlerResult
-            ? (handlerResult as MockResponseWrapper).errorCode
-            : 0;
+          const res: BdpResponse =
+            'errorCode' in handlerResult && 'response' in handlerResult
+              ? (handlerResult as MockResponseWrapper).response
+              : (handlerResult as BdpResponse);
+          const wireErrorCode: number =
+            'errorCode' in handlerResult && 'response' in handlerResult
+              ? (handlerResult as MockResponseWrapper).errorCode
+              : 0;
 
           let encoded: { packetType: number; payload: Buffer };
           try {
-            encoded = encodeResponseAs(res.kind, res as Parameters<typeof encodeResponseAs>[1], requestId, wireErrorCode);
+            encoded = encodeResponseAs(
+              res.kind,
+              res as Parameters<typeof encodeResponseAs>[1],
+              requestId,
+              wireErrorCode,
+            );
           } catch {
             continue;
           }
@@ -217,7 +222,12 @@ export async function startMockBdpServer(opts: { port?: number } = {}): Promise<
 
     onRequest<K extends BdpRequest['kind']>(kind: K, handler: RequestHandler<K>): void {
       // Cast to the widened handler type stored in the map.
-      handlers.set(kind, handler as (req: BdpRequest) => BdpResponse | MockResponseWrapper | Promise<BdpResponse | MockResponseWrapper>);
+      handlers.set(
+        kind,
+        handler as (
+          req: BdpRequest,
+        ) => BdpResponse | MockResponseWrapper | Promise<BdpResponse | MockResponseWrapper>,
+      );
     },
 
     setHandshakeVersion(version: { major: number; minor: number; patch: number }): void {

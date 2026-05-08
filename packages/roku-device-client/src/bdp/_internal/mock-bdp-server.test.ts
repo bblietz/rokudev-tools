@@ -193,16 +193,19 @@ describe('mock BDP server', () => {
       expect(req.threadId).toBe(2);
       return {
         kind: 'stack_trace',
-        frames: [
-          { idx: 0, file: 'pkg:/source/main.brs', line: 5, functionName: 'main' },
-        ],
+        frames: [{ idx: 0, file: 'pkg:/source/main.brs', line: 5, functionName: 'main' }],
       };
     });
 
     const sock = await connectSocket(server.port);
     try {
       await doHandshake(sock);
-      const { res } = await sendAndReceive(sock, { kind: 'stack_trace', threadId: 2 }, 7, 'stack_trace');
+      const { res } = await sendAndReceive(
+        sock,
+        { kind: 'stack_trace', threadId: 2 },
+        7,
+        'stack_trace',
+      );
       expect(res.kind).toBe('stack_trace');
       if (res.kind === 'stack_trace') {
         expect(res.frames).toHaveLength(1);
@@ -401,8 +404,14 @@ describe('mock BDP server', () => {
       const frame1 = frames[0]!;
       const frame2 = frames[1]!;
       // Frame 1 has requestId=1 (pause -> paused), frame 2 has requestId=2 (threads -> threads).
-      const r1 = { res: decodeResponseAs('paused', frame1.payload).res, requestId: frame1.packetType };
-      const r2 = { res: decodeResponseAs('threads', frame2.payload).res, requestId: frame2.packetType };
+      const r1 = {
+        res: decodeResponseAs('paused', frame1.payload).res,
+        requestId: frame1.packetType,
+      };
+      const r2 = {
+        res: decodeResponseAs('threads', frame2.payload).res,
+        requestId: frame2.packetType,
+      };
       expect(r1.requestId).toBe(1);
       expect(r1.res.kind).toBe('paused');
       expect(r2.requestId).toBe(2);

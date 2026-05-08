@@ -1,10 +1,10 @@
 import { BdpSession, fail } from '@rokudev/device-client';
 
 const sessions = new Map<string, BdpSession>();
-const sessionsByHost = new Map<string, string>();   // host -> session_id (or '<pending>' during reserveHost)
+const sessionsByHost = new Map<string, string>(); // host -> session_id (or '<pending>' during reserveHost)
 const lastBreakpointsByHost = new Map<string, Array<{ file: string; line: number }>>();
-const detachedIds = new Map<string, number>();      // id -> detach timestamp; bounded by DETACHED_MAX
-const DETACHED_MAX = 256;                            // FIFO eviction when this many detached ids are tracked
+const detachedIds = new Map<string, number>(); // id -> detach timestamp; bounded by DETACHED_MAX
+const DETACHED_MAX = 256; // FIFO eviction when this many detached ids are tracked
 
 export function registerSession(s: BdpSession): string {
   const id = `bdp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -14,13 +14,18 @@ export function registerSession(s: BdpSession): string {
 
 export function getSession(id: string): BdpSession {
   const s = sessions.get(id);
-  if (!s) throw fail('BDP_THREAD_LOST', `unknown session_id ${id}`, { session_state: 'connection_lost' });
+  if (!s)
+    throw fail('BDP_THREAD_LOST', `unknown session_id ${id}`, { session_state: 'connection_lost' });
   return s;
 }
 
 // Non-throwing read helpers used by debug_detach (idempotent) and debug_session_state (introspection).
-export function tryGetSession(id: string): BdpSession | null { return sessions.get(id) ?? null; }
-export function hasSession(id: string): boolean { return sessions.has(id); }
+export function tryGetSession(id: string): BdpSession | null {
+  return sessions.get(id) ?? null;
+}
+export function hasSession(id: string): boolean {
+  return sessions.has(id);
+}
 
 export function dropSession(id: string): boolean {
   const existed = sessions.delete(id);
@@ -35,7 +40,9 @@ export function dropSession(id: string): boolean {
   return existed;
 }
 
-export function isKnownDetached(id: string): boolean { return detachedIds.has(id); }
+export function isKnownDetached(id: string): boolean {
+  return detachedIds.has(id);
+}
 
 export function reserveHost(host: string): void {
   if (sessionsByHost.has(host)) {
@@ -60,11 +67,16 @@ export function getHostForSession(sessionId: string): string | null {
   return null;
 }
 
-export function rememberBreakpoints(host: string, bps: Array<{ file: string; line: number }>): void {
+export function rememberBreakpoints(
+  host: string,
+  bps: Array<{ file: string; line: number }>,
+): void {
   if (bps.length > 0) lastBreakpointsByHost.set(host, bps);
 }
 
-export function consumeInvalidatedBreakpoints(host: string): Array<{ file: string; line: number; reason: 'channel_exited' | 'line_no_longer_present' }> {
+export function consumeInvalidatedBreakpoints(
+  host: string,
+): Array<{ file: string; line: number; reason: 'channel_exited' | 'line_no_longer_present' }> {
   const list = lastBreakpointsByHost.get(host) ?? [];
   lastBreakpointsByHost.delete(host);
   // v1 only surfaces 'channel_exited'; 'line_no_longer_present' requires server confirmation (deferred).

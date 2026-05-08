@@ -20,9 +20,25 @@
 
 import net from 'node:net';
 import { fail } from '../errors/index.js';
-import { encodeFrame, decodeFrame, encodeHandshakeRequest, decodeHandshakeResponse } from './frame.js';
-import { encodeRequest, decodeResponseAs, decodeUpdateEvent, isUpdateEventPacket } from './wire-codec.js';
-import type { BdpRequest, BdpResponse, BdpUpdateEvent, BdpVersion, BdpVersionRange } from './messages.js';
+import {
+  encodeFrame,
+  decodeFrame,
+  encodeHandshakeRequest,
+  decodeHandshakeResponse,
+} from './frame.js';
+import {
+  encodeRequest,
+  decodeResponseAs,
+  decodeUpdateEvent,
+  isUpdateEventPacket,
+} from './wire-codec.js';
+import type {
+  BdpRequest,
+  BdpResponse,
+  BdpUpdateEvent,
+  BdpVersion,
+  BdpVersionRange,
+} from './messages.js';
 
 // ---------------------------------------------------------------------------
 // Public constants
@@ -75,7 +91,9 @@ export class BdpClient {
     socket.on('data', (chunk: Buffer) => this.onData(chunk));
     socket.on('close', () => this.handleSocketClose());
     // Suppress unhandled 'error' events -- handleSocketClose() handles cleanup.
-    socket.on('error', () => { /* close path handles cleanup */ });
+    socket.on('error', () => {
+      /* close path handles cleanup */
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -204,7 +222,9 @@ export class BdpClient {
     const primaryPort = opts._primaryPort ?? 8081;
     const fallbackPort = opts._fallbackPort ?? 8086;
     const connectOpts = {
-      ...(opts.handshakeTimeoutMs !== undefined ? { handshakeTimeoutMs: opts.handshakeTimeoutMs } : {}),
+      ...(opts.handshakeTimeoutMs !== undefined
+        ? { handshakeTimeoutMs: opts.handshakeTimeoutMs }
+        : {}),
     };
 
     try {
@@ -216,16 +236,8 @@ export class BdpClient {
       );
     } catch (e: unknown) {
       const failure = e as { code?: string; details?: { cause_code?: string } };
-      if (
-        failure.code === 'BDP_ATTACH_FAILED' &&
-        failure.details?.cause_code === 'ECONNREFUSED'
-      ) {
-        return BdpClient.connect(
-          host,
-          fallbackPort as 8081 | 8086,
-          supportedVersions,
-          connectOpts,
-        );
+      if (failure.code === 'BDP_ATTACH_FAILED' && failure.details?.cause_code === 'ECONNREFUSED') {
+        return BdpClient.connect(host, fallbackPort as 8081 | 8086, supportedVersions, connectOpts);
       }
       throw e;
     }
@@ -388,7 +400,9 @@ export class BdpClient {
     for (const entry of this.pending.values()) {
       clearTimeout(entry.timer);
       entry.reject(
-        fail('BDP_THREAD_LOST', 'BDP socket closed unexpectedly', { session_state: 'connection_lost' }),
+        fail('BDP_THREAD_LOST', 'BDP socket closed unexpectedly', {
+          session_state: 'connection_lost',
+        }),
       );
     }
     this.pending.clear();
@@ -466,7 +480,9 @@ function expectedResponseKind(req: BdpRequest): BdpResponse['kind'] {
     case 'connect':
       // 'connect' uses the handshake frame, not send(). This should never
       // be reached from send() but TypeScript requires exhaustive handling.
-      throw new Error(`BdpClient.send: 'connect' kind is not a valid send() request; use BdpClient.connect()`);
+      throw new Error(
+        `BdpClient.send: 'connect' kind is not a valid send() request; use BdpClient.connect()`,
+      );
     default: {
       const exhaustive: never = req;
       throw new Error(`BdpClient: unknown request kind: ${(exhaustive as BdpRequest).kind}`);
@@ -479,7 +495,7 @@ function isVersionInRange(v: BdpVersion, r: BdpVersionRange): boolean {
 }
 
 function compareVersion(a: BdpVersion, b: BdpVersion): number {
-  return (a.major - b.major) || (a.minor - b.minor) || (a.patch - b.patch);
+  return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
 }
 
 function formatVersion(v: BdpVersion): string {

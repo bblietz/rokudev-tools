@@ -50,9 +50,7 @@ async function setupProject(opts: {
   if (opts.bsconfig !== null) {
     await writeFile(
       join(projDir, 'bsconfig.json'),
-      JSON.stringify(
-        opts.bsconfig ?? { rootDir, stagingFolderPath: 'out/.roku-deploy-staging' },
-      ),
+      JSON.stringify(opts.bsconfig ?? { rootDir, stagingFolderPath: 'out/.roku-deploy-staging' }),
       'utf8',
     );
   }

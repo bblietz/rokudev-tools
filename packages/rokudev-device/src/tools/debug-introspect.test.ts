@@ -56,12 +56,14 @@ function registerFakeSession(
     threads: stubs.threads ?? vi.fn().mockResolvedValue([]),
     stackTrace: stubs.stackTrace ?? vi.fn().mockResolvedValue([]),
     variables: stubs.variables ?? vi.fn().mockResolvedValue([]),
-    eval: stubs.eval ?? vi.fn().mockResolvedValue({
-      success: true,
-      compileErrors: [],
-      runtimeErrors: [],
-      otherErrors: [],
-    }),
+    eval:
+      stubs.eval ??
+      vi.fn().mockResolvedValue({
+        success: true,
+        compileErrors: [],
+        runtimeErrors: [],
+        otherErrors: [],
+      }),
     // Minimal stubs required by session registry typing.
     state: 'live',
     bdpVersion: { major: 3, minor: 0, patch: 0 },
@@ -88,10 +90,10 @@ function fakeResolver(translation: { sourceFile: string; sourceLine: number } | 
 describe('debug introspect tool registration', () => {
   it('registers all 4 tools with expected shapes', () => {
     const expected: Record<string, string[]> = {
-      debug_threads:     ['session_id'],
+      debug_threads: ['session_id'],
       debug_stack_trace: ['session_id', 'thread_id'],
-      debug_variables:   ['session_id', 'thread_id', 'frame_idx'],
-      debug_eval:        ['session_id', 'thread_id', 'frame_idx', 'expression'],
+      debug_variables: ['session_id', 'thread_id', 'frame_idx'],
+      debug_eval: ['session_id', 'thread_id', 'frame_idx', 'expression'],
     };
 
     for (const [name, required] of Object.entries(expected)) {
@@ -181,9 +183,7 @@ describe('debug_threads happy path', () => {
 
 describe('debug_stack_trace with map present', () => {
   it('translates compiled to source coordinates and disposes resolver', async () => {
-    const fakeFrames = [
-      { idx: 0, file: '/main.brs', line: 25, functionName: 'myFunc' },
-    ];
+    const fakeFrames = [{ idx: 0, file: '/main.brs', line: 25, functionName: 'myFunc' }];
     const stackTrace = vi.fn().mockResolvedValue(fakeFrames);
     const sid = registerFakeSession({ stackTrace });
 
@@ -211,7 +211,9 @@ describe('debug_stack_trace with map present', () => {
 
     // Verify findSourceMap was called for the .brs file
     expect(mocks.findSourceMap).toHaveBeenCalledWith('/main.brs', '/project');
-    expect(mocks.resolverFromMapFile).toHaveBeenCalledWith('/project/.roku-deploy-staging/main.brs.map');
+    expect(mocks.resolverFromMapFile).toHaveBeenCalledWith(
+      '/project/.roku-deploy-staging/main.brs.map',
+    );
     expect(resolver.toSource).toHaveBeenCalledWith('/main.brs', 25);
 
     // CRITICAL: resolver.dispose() must be called (finally block)
@@ -225,9 +227,7 @@ describe('debug_stack_trace with map present', () => {
 
 describe('debug_stack_trace without map', () => {
   it('passes compiled coordinates as source when no map found', async () => {
-    const fakeFrames = [
-      { idx: 0, file: '/main.brs', line: 100 },
-    ];
+    const fakeFrames = [{ idx: 0, file: '/main.brs', line: 100 }];
     const stackTrace = vi.fn().mockResolvedValue(fakeFrames);
     const sid = registerFakeSession({ stackTrace });
 
@@ -496,9 +496,10 @@ describe('debug_eval timeout_ms propagation', () => {
 
 describe('unknown session_id throws BDP_THREAD_LOST', () => {
   it('debug_threads throws BDP_THREAD_LOST for unknown session', async () => {
-    await expect(
-      call('debug_threads', { session_id: 'nonexistent' }),
-    ).rejects.toMatchObject({ ok: false, code: 'BDP_THREAD_LOST' });
+    await expect(call('debug_threads', { session_id: 'nonexistent' })).rejects.toMatchObject({
+      ok: false,
+      code: 'BDP_THREAD_LOST',
+    });
   });
 
   it('debug_stack_trace throws BDP_THREAD_LOST for unknown session', async () => {
@@ -515,7 +516,12 @@ describe('unknown session_id throws BDP_THREAD_LOST', () => {
 
   it('debug_eval throws BDP_THREAD_LOST for unknown session', async () => {
     await expect(
-      call('debug_eval', { session_id: 'nonexistent', thread_id: 0, frame_idx: 0, expression: 'x' }),
+      call('debug_eval', {
+        session_id: 'nonexistent',
+        thread_id: 0,
+        frame_idx: 0,
+        expression: 'x',
+      }),
     ).rejects.toMatchObject({ ok: false, code: 'BDP_THREAD_LOST' });
   });
 });
