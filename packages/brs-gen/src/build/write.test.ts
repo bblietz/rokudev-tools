@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdir, rm, readFile, writeFile, stat } from 'node:fs/promises';
+import { mkdir, rm, readFile, writeFile, stat, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -57,5 +57,20 @@ describe('writeProject', () => {
     await writeProject({ outputDir: out, files: sample, overwrite: false });
     expect(await stat(join(out, '.rokudev-tools'))).toBeTruthy();
     expect(await stat(join(out, 'source'))).toBeTruthy();
+  });
+
+  it('cleans up tmp dir when a write error occurs', async () => {
+    const out = join(parent, 'proj');
+    const badFiles = [
+      { path: 'manifest', content: 'title=Hi\n' },
+      { path: 'source/\0broken.bs', content: 'x' }, // NUL byte triggers write error
+    ];
+    // Capture parent entries before and after to confirm no stale tmp dir
+    // survives.
+    await expect(writeProject({ outputDir: out, files: badFiles, overwrite: false }))
+      .rejects.toBeDefined();
+    const entries = await readdir(parent);
+    const strays = entries.filter((e) => e.startsWith('.brs-gen-tmp-'));
+    expect(strays).toEqual([]);
   });
 });

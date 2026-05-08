@@ -31,17 +31,25 @@ export async function writeProject(input: WriteInput): Promise<void> {
   const tmp = join(parent, `.brs-gen-tmp-${randomUUID()}`);
   await mkdir(tmp, { recursive: true });
 
-  for (const f of input.files) {
-    const dest = join(tmp, f.path);
-    await mkdir(dirname(dest), { recursive: true });
-    await writeFile(dest, f.content);
-  }
+  try {
+    for (const f of input.files) {
+      const dest = join(tmp, f.path);
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(dest, f.content);
+    }
 
-  if (await exists(input.outputDir)) {
-    // one final rm (overwrite path), then rename
-    await rm(input.outputDir, { recursive: true, force: true });
+    if (await exists(input.outputDir)) {
+      // one final rm (overwrite path), then rename
+      await rm(input.outputDir, { recursive: true, force: true });
+    }
+    await rename(tmp, input.outputDir);
+    // sanity-guard: if rename failed silently, clean up tmp
+    if (await exists(tmp)) await rm(tmp, { recursive: true, force: true });
+  } catch (e) {
+    // Clean up the tmpdir on any error so repeated failed runs don't leave
+    // orphaned `.brs-gen-tmp-*` dirs. Swallow cleanup failures so the original
+    // error propagates.
+    await rm(tmp, { recursive: true, force: true }).catch(() => { /* ignore */ });
+    throw e;
   }
-  await rename(tmp, input.outputDir);
-  // sanity-guard: if rename failed silently, clean up tmp
-  if (await exists(tmp)) await rm(tmp, { recursive: true, force: true });
 }
