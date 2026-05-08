@@ -89,7 +89,7 @@ Boundary rules:
 ### 1.3 Dependencies
 
 - `@rokudev/device-client` (workspace `*`): for `devPortal.sideload()` only. brs-gen never opens an HTTP socket, telnet socket, or BDP socket directly.
-- `brighterscript` (pinned, e.g. `^0.69.0`): for in-process `Program.validate()` and `Program.build()`.
+- `brighterscript` (exact pin, e.g. `0.69.0` with no caret or tilde): for in-process `Program.validate()` and `Program.build()`. Exact pin is required because §8 byte-equality of compiled output depends on `bsc` being deterministic for a given version. A caret range would let `pnpm install` silently pull a newer minor that perturbs compile output and break the e2e; an exact pin makes upgrades explicit, reviewed, and tied to a regen of the e2e golden file (§10.5). Plan 3's setup tasks (T1 or T2) will pick the exact version against the latest stable release on the day Plan 3 starts.
 - `zod` (pinned, e.g. `^3.23.8`): AppSpec internal schemas. Already used by brs-mcp and the rest of the monorepo.
 - `zod-to-json-schema` (pinned, e.g. `^3.23.0`): conversion for the public `get_*_schema` MCP tools.
 - `ajv` (pinned, e.g. `^8.16.0`): JSON Schema Draft 7 validation for module configs.
@@ -156,6 +156,11 @@ Input:
   sideload?: { device: string; dev_password?: string };  // default unset
 }
 ```
+
+Field semantics:
+
+- `zip: true` produces a zip at `<output_dir>.zip`. `zip: { output_zip: "<path>" }` overrides the default path. `zip: false` (or omitted) skips zipping; the project tree is still written to `output_dir`.
+- `sideload.dev_password` is optional. When omitted, brs-gen resolves the password via the `@rokudev/device-client` precedence chain (per-call > per-device env `ROKUDEV_DEV_PASSWORD_<NAME>` > registry entry > global env `ROKUDEV_ROKU_DEV_PASSWORD`). If no password resolves, the call fails with `DEVICE_NO_PASSWORD`.
 
 Output:
 ```ts
@@ -292,8 +297,19 @@ Fields:
 - `template.id`, `template.version`, `template.spec_compat` (semver range), `template.description`.
 - `template.exports.init_hooks`: closed set of `(scope, phase)` pairs the merger can generate dispatch functions for. Each hook lists the file it lives in and a signature describing what arguments the dispatch function takes.
 - `template.exports.scene_nodes`: scene-graph nodes the template provides. Modules can require these.
-- `template.manifest_defaults`: manifest keys the template provides. Values may be plain strings or single-pair EJS expressions evaluated against the AppSpec at generate time. Module manifest deltas merge into these per the strategy table.
+- `template.manifest_defaults`: manifest keys the template provides. Each value is a complete EJS template string (full `<% %>` and `<%= %>` syntax accepted, not just interpolation), evaluated against `{spec, helpers, meta}` at generate time. The output is the post-render string. Plain values without EJS markers are valid and pass through unchanged. Module manifest deltas merge into these per the strategy table. Examples:
+
+  ```toml
+  [template.manifest_defaults]
+  title              = "<%= spec.app.name %>"                              # interpolation
+  splash_color       = "#000000"                                           # plain
+  major_version      = "<%= spec.app.major_version %>"                     # interpolation
+  bs_const           = "<% if (spec.app.major_version >= 2) { %>V2_API=1<% } %>"  # full EJS
+  ```
 - (Optional) `template.supported_modules.allowlist`: empty or omitted means "all wiring-compatible modules accepted". When non-empty, only listed module ids are accepted.
+- (Optional) `template.suppressed_warnings.codes`: list of warning codes (e.g. `["HOOK_DISPATCH_NOT_INVOKED"]`) the template chooses to suppress. The merger silently drops any matching warning during this template's generations. Used when a template author has reviewed a best-effort warning and confirmed it is a false positive for their template. Codes not in §6 are ignored.
+
+Note on `app.*` manifest keys: `major_version`, `minor_version`, `build_version` are template-only `set` keys (§7) populated from `spec.app.*`. The canonical pattern is to interpolate them in `template.manifest_defaults` exactly as the example above shows; modules cannot contribute to these keys.
 
 ### 3.3 module.toml
 
@@ -338,7 +354,7 @@ exclusive_with = []
 Fields:
 
 - `module.id` (dotted reverse-DNS-style for namespace clarity), `module.version`, `module.spec_compat`, `module.description`.
-- `module.config_schema`: JSON Schema Draft 7. The PRD mandates JSON Schema (not Zod) here so module authors can inspect and document it without reading TypeScript. `additionalProperties: false` is conventional but not required by the loader.
+- `module.config_schema`: JSON Schema Draft 7. The PRD mandates JSON Schema (not Zod) here so module authors can inspect and document it without reading TypeScript. `additionalProperties: false` is conventional but not required by the loader. For Plan 3's stub_label the schema is trivial enough to inline. Plan 5's real modules may externalize complex schemas to a sibling `config.schema.json` file referenced by a `module.config_schema_ref` field; that extension is forward-compatible and out of scope for Plan 3.
 - `module.files.add`: static file paths relative to the module dir; copied verbatim into the project tree at the same relative paths.
 - `module.manifest`: optional manifest deltas; each key must have an entry in the strategy table or it fails at merge time with `UNKNOWN_MANIFEST_KEY`.
 - `module.wiring.exports`: optional things the module makes available to other modules (e.g. helper functions, scene-graph nodes). Empty for v1 modules; reserved for future cross-module composition.
@@ -424,7 +440,7 @@ End-to-end algorithm executed by `generate_app`. Steps 1 through 8 are pure (no 
    6. **Build provenance record.** `{spec_version, template, modules, init_order, manifest_keys, brs_gen_version}`. Sorted keys, sorted arrays, no clock or host.
    7. **Sort the file list by path.** Canonical order for write and zip.
 
-9. **Write project tree to disk.** Atomic via tmpdir + `fs.rename`. Manifest is written from the merged map (sorted lines, `key=value\n`). Existing `output_dir` is rejected with `OUTPUT_DIR_NOT_EMPTY` unless `overwrite: true`; in `overwrite` mode, the tmpdir replaces `output_dir` in one rename. `assets_root` (if provided) is resolved per template asset rules and asset files are copied verbatim. Provenance is written to `.rokudev-tools/provenance.json`.
+9. **Write project tree to disk.** Atomic via tmpdir + `fs.rename`. The tmpdir is created inside `dirname(output_dir)` (not `os.tmpdir()`) so `fs.rename` is guaranteed same-filesystem and atomic on POSIX. Manifest is written from the merged map (sorted lines, `key=value\n`). Existing `output_dir` is rejected with `OUTPUT_DIR_NOT_EMPTY` unless `overwrite: true`; in `overwrite` mode, the tmpdir replaces `output_dir` in one rename. Asset handling for Plan 3: the bundled template files (including its placeholder `images/*.png`) are always written. If `assets_root` is provided, every file under `assets_root` is copied verbatim into `output_dir` at the same relative path, overlaying any same-path bundled file. Real templates in Plan 4 will replace this overlay rule with per-template asset rules (validated by `validate_assets`). Provenance is written to `.rokudev-tools/provenance.json`.
 
 10. **bsc compile (in process).** Construct a `brighterscript` `Program` against the written project. Call `program.validate()`. If any diagnostic has severity `"error"`, abort with `LINT_FAILED` (diagnostics surfaced in `details`). Otherwise call `program.build()` to transpile `.bs` files to `.brs`. Diagnostics with severity `"warning"` flow through as `BSC_LINT_WARNING` warnings in the response. Source maps land under `.rokudev-tools/sourcemaps/<source-path>.brs.map`.
 
@@ -457,7 +473,7 @@ Body is the literal sequence of `init_calls[i].statement` strings, one per line,
 
 The template's source files call the generated dispatch functions at the appropriate point. For `stub_hello`, `source/Main.bs` calls `Modules_OnMainBeforeSceneShow(args)` immediately before showing the main scene. The template author writes this call by hand; the merger does not edit template source.
 
-If the template forgets to call a dispatch function, the modules silently do not run. We catch this at merge time by emitting a warning when a hook has registered modules but the merger cannot prove the call exists (this proof is best-effort: it greps the template source for the dispatch-function name; absence raises `HOOK_DISPATCH_NOT_INVOKED` warning, not error, so templates can opt out).
+If the template forgets to call a dispatch function, the modules silently do not run. We catch this at merge time by emitting a warning when a hook has registered modules but the merger cannot prove the call exists. The proof is best-effort: the merger scans every `.bs`, `.brs`, and `.xml` file in the template's `files/` dir (post-EJS-render) for a literal substring match of the dispatch-function name. The match is line-by-line and treats commented-out occurrences as valid (a `'` BrightScript line comment containing the name still satisfies the check, since the merger does not parse comments). False positives are acceptable; the warning is best-effort. Absence raises `HOOK_DISPATCH_NOT_INVOKED` warning, not error, so templates can opt out by suppressing the warning in their template.toml (`[template.suppressed_warnings] codes = ["HOOK_DISPATCH_NOT_INVOKED"]`).
 
 ### 5.4 Conflict detection
 
@@ -608,7 +624,7 @@ Three tests, all in `tests/determinism.test.ts`:
 
 1. **Pure-merger byte equality.** Render the stub catalog twice in the same process; assert the `EmittedProject` records are deep-equal.
 2. **Wall-clock invariance.** Render once, fast-forward `Date.now`, render again; assert byte-equal output (catches any sneaky `Date.now()` leaks).
-3. **bsc compile byte equality.** Run `bsc` `program.build()` twice over the same input; assert all output files are byte-equal. If this test fails on a `brighterscript` upgrade, we pin the previous version until upstream fixes it.
+3. **bsc compile byte equality.** Run `bsc` `program.build()` twice over the same input; assert all output files are byte-equal. If this test fails on a `brighterscript` upgrade, we pin the previous version until upstream fixes it. The two compiles run in the same process, which catches in-process nondeterminism but not cross-process variance from environment seeds. Plan 5 (which adds real modules with significantly more compile surface) will harden this by also running one compile in a forked child; Plan 3's stub catalog is small enough that in-process suffices.
 
 ### 10.3 Snapshot tests
 
@@ -634,6 +650,8 @@ In `tests/e2e.test.ts`. Spawns the brs-gen MCP server (`dist/index.js`), calls `
 
 Mirrors the rokudev-device e2e harness from Plans 1 and 2.
 
+The golden zip (and golden provenance JSON) are regenerated by a checked-in script `scripts/regen-golden.ts` that calls `generate_app` once and writes the result over the golden files. The script is invoked manually by maintainers when an intentional change to `bsc`, the stub catalog, or the merger is made, accompanied by a commit message that names the cause. CI does NOT auto-regen; a `bsc` upgrade that perturbs output causes the e2e to fail loudly, forcing the maintainer to acknowledge and run the regen script intentionally.
+
 ### 10.6 No real-device verification gate
 
 Plan 3 does not run a T27-style real-device gate. The stub channel is functional but uninteresting; the first plan that ships a real template (Plan 4) adds real-device verification analogous to Plan 2's T27.
@@ -642,7 +660,7 @@ Plan 3 does not run a T27-style real-device gate. The stub channel is functional
 
 ### 11.1 `brighterscript` determinism
 
-Required for the §8 byte-equality guarantee on compiled output. If a future `brighterscript` release introduces nondeterministic output (e.g. parallel-compile reordering), the test in §10.2.3 catches it and we pin to the previous version. This risk is real but mitigated by the test plus the fact that `brighterscript` is widely used and expected to be deterministic.
+Required for the §8 byte-equality guarantee on compiled output. The dependency is pinned to an exact version (§1.3) so `pnpm install` cannot silently pull a perturbing release. If a future `brighterscript` release introduces nondeterministic output (e.g. parallel-compile reordering), the test in §10.2.3 catches it during the maintainer's intentional upgrade pass; we either stay on the previous version or open an upstream issue. This risk is real but mitigated by the exact pin plus the determinism test plus the fact that `brighterscript` is widely used and expected to be deterministic.
 
 ### 11.2 Template-side hook invocation correctness
 
