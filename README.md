@@ -10,6 +10,14 @@ Set `ROKUDEV_DEFAULT_ROKU_HOST` and `ROKUDEV_ROKU_DEV_PASSWORD`, then run:
 
     pnpm build && node scripts/manual-smoke.mjs
 
+## Manual BDP smoke against a real Roku
+
+Set `ROKUDEV_DEFAULT_ROKU_HOST` and `ROKUDEV_ROKU_DEV_PASSWORD`, sideload a channel that's currently running in dev mode, then run:
+
+    pnpm build && node scripts/manual-bdp-smoke.mjs
+
+Exercises `debug_attach`, `debug_threads`, `debug_detach` against the active dev channel. Prints each tool result. Exits cleanly if BDP is reachable; surfaces `BDP_ATTACH_FAILED` if not.
+
 ## What's in v0.1 (Plan 1)
 
 - `@rokudev/device-client` (TS library): RFC 2617 Digest auth, ECP HTTP, dev portal, telnet, SSDP discovery, registry, error taxonomy.
