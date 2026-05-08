@@ -1,6 +1,6 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import semver from 'semver';
 import { fail, DevPortal } from '@rokudev/device-client';
 import { registerToolsModule } from './_register.js';
@@ -17,28 +17,142 @@ import { compileProject } from '../build/compile.js';
 import { packageProject } from '../build/zip.js';
 import type { ModuleToml } from '../catalog/module-toml.js';
 
-// Resolve the packages/brs-gen directory at runtime. Works both from
-// src/tools/ at test/dev time (vite-node) and from dist/tools/ at runtime.
-const pkgRoot = fileURLToPath(new URL('../../', import.meta.url));
-
-// Read the package.json version once at module load so the value is pinned
-// for the lifetime of the server process. Same pattern as bootstrap's
-// readServerVersion but in-module async by walking up from our own file.
-async function readPkgVersion(): Promise<string> {
-  const myDir = dirname(fileURLToPath(import.meta.url));
-  for (const dir of [myDir, resolve(myDir, '..'), resolve(myDir, '../..')]) {
+/**
+ * Walk up from a file:// URL until a package.json is found. Works both from
+ * packages/brs-gen/src/tools/ (vite-node, vitest) and from
+ * packages/brs-gen/dist/tools/ (published), since both sit inside the same
+ * package root. Earlier code used `new URL('../../', import.meta.url)` which
+ * resolved to `packages/brs-gen/dist/` in compiled mode and broke every
+ * subsequent template/module asset read.
+ */
+async function findPkgRoot(fromUrl: string): Promise<string> {
+  let dir = dirname(fileURLToPath(fromUrl));
+  for (let i = 0; i < 8; i++) {
     try {
-      const pkg = JSON.parse(await readFile(resolve(dir, 'package.json'), 'utf8')) as {
-        version?: string;
-      };
-      if (pkg.version) return pkg.version;
+      await stat(join(dir, 'package.json'));
+      return dir;
     } catch {
-      // continue
+      // keep climbing
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`could not locate package.json from ${fromUrl}`);
+}
+
+const pkgRoot = await findPkgRoot(import.meta.url);
+const PKG_VERSION = ((JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8')) as {
+  version?: string;
+}).version) ?? '0.0.0';
+
+/**
+ * Resolve the `spec` argument into a parsed object. Accepts:
+ *   - an object (returned as-is),
+ *   - an inline JSON string (may include a leading BOM / whitespace),
+ *   - a filesystem path to a JSON file.
+ *
+ * Any IO or JSON-parse failure is wrapped in a typed `APP_SPEC_INVALID`
+ * Failure so MCP callers get a stable error shape instead of a raw Node
+ * `SyntaxError` or `ENOENT`.
+ */
+// Return type is `any` to match the original IIFE which yielded the
+// untyped result of `JSON.parse`. Downstream promoteV1ToV2 accepts
+// `AppSpecV1 | AppSpecV2`; Zod wrapper parse is the real type guard.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function resolveSpecInput(raw: unknown): Promise<any> {
+  if (typeof raw !== 'string') return raw;
+  // Strip BOM before the inline-JSON sniff; trim leading/trailing whitespace
+  // so '  { ... }\n' still classifies as inline.
+  const stripped = raw.replace(/^\uFEFF/, '').trim();
+  if (stripped.startsWith('{')) {
+    try {
+      return JSON.parse(stripped);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw fail('APP_SPEC_INVALID', `spec is not valid JSON: ${msg}`, {
+        given: stripped.slice(0, 200),
+      });
     }
   }
-  return '0.0.0';
+  // Treat as filesystem path.
+  let contents: string;
+  try {
+    contents = await readFile(raw, 'utf8');
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e && e.code === 'ENOENT') {
+      throw fail('APP_SPEC_INVALID', `spec file not found: ${raw}`, { given: raw });
+    }
+    const msg = e?.message ?? String(err);
+    throw fail('APP_SPEC_INVALID', `failed to read spec file: ${raw}: ${msg}`, {
+      given: raw,
+    });
+  }
+  try {
+    return JSON.parse(contents);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw fail(
+      'APP_SPEC_INVALID',
+      `spec file contains invalid JSON: ${raw}: ${msg}`,
+      { given_path: raw },
+    );
+  }
 }
-const PKG_VERSION = await readPkgVersion();
+
+/**
+ * Dynamically import a template's strict Zod schema. Tries `schema.ts` first
+ * (vitest / vite-node reads the source tree directly), then `schema.js`
+ * (published `dist/` trees that ship compiled template schemas). Returns
+ * `null` if neither exists so callers can silently skip the strict pass.
+ */
+async function importTemplateSchema(
+  pkgRootPath: string,
+  templateId: string,
+): Promise<{ Schema?: { safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } } } } | null> {
+  for (const ext of ['ts', 'js'] as const) {
+    const p = join(pkgRootPath, 'templates', templateId, `schema.${ext}`);
+    try {
+      await stat(p);
+    } catch {
+      continue;
+    }
+    try {
+      return (await import(pathToFileURL(p).href)) as {
+        Schema?: { safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } } };
+      };
+    } catch {
+      // A schema file exists but cannot be imported (e.g. syntax error). Fall
+      // through to the next extension, then surface as "no schema" to preserve
+      // the prior silent-skip behavior.
+    }
+  }
+  return null;
+}
+
+/**
+ * Count files on disk under `dir`, excluding any entries whose relative path
+ * matches (or is nested under) one of `excludePrefixes`. Used to report the
+ * final `files_written` count that matches what the zip archives: post-compile
+ * tree minus the `.rokudev-tools/{staging,sourcemaps}` trees.
+ */
+async function countFilesOnDisk(
+  dir: string,
+  excludePrefixes: ReadonlyArray<string>,
+): Promise<number> {
+  let count = 0;
+  async function walk(sub: string, relPrefix: string): Promise<void> {
+    for (const ent of await readdir(sub, { withFileTypes: true })) {
+      const rel = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
+      if (excludePrefixes.some((p) => rel === p || rel.startsWith(`${p}/`))) continue;
+      if (ent.isDirectory()) await walk(join(sub, ent.name), rel);
+      else if (ent.isFile()) count++;
+    }
+  }
+  await walk(dir, '');
+  return count;
+}
 
 // Recursive directory walker. Returns entries whose `path` is relative to
 // `dir` using forward slashes so downstream callers (EJS renderer, merger)
@@ -112,16 +226,10 @@ registerToolsModule((tools) => {
     handler: async (args) => {
       const warnings: Array<{ code: string; message: string }> = [];
 
-      // 1. Parse input: string starting with '{' -> inline JSON; other string ->
-      //    filesystem path; object -> passthrough unchanged.
-      const specInput = await (async () => {
-        if (typeof args['spec'] === 'string') {
-          const s = args['spec'].trim();
-          if (s.startsWith('{')) return JSON.parse(s);
-          return JSON.parse(await readFile(args['spec'], 'utf8'));
-        }
-        return args['spec'];
-      })();
+      // 1. Parse input: object passthrough, inline JSON (leading '{', BOM/ws
+      //    tolerated), or filesystem path. All IO / parse failures are wrapped
+      //    in APP_SPEC_INVALID by resolveSpecInput.
+      const specInput = await resolveSpecInput(args['spec']);
 
       // 1a. Reject freeform specs explicitly (Plan 6 lands this path).
       if (specInput && typeof specInput === 'object' && 'freeform' in specInput) {
@@ -152,15 +260,10 @@ registerToolsModule((tools) => {
       const appSpec = parsed.data;
 
       // 4a. Template-strict schema parse. Each template ships a schema.ts
-      //     exporting a strict `Schema`. Dynamic import path mirrors T20.
-      const schemaUrl = new URL(`../../templates/${spec.template}/schema.ts`, import.meta.url);
-      let templateMod: { Schema?: { safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } } } } = {};
-      try {
-        templateMod = (await import(schemaUrl.href)) as typeof templateMod;
-      } catch {
-        // Templates that ship without schema.ts skip the strict pass; not a warning.
-      }
-      if (templateMod.Schema) {
+      //     (source tree) or schema.js (compiled) exporting a strict `Schema`.
+      //     Resolved through pkgRoot so dist/ and src/ both work.
+      const templateMod = await importTemplateSchema(pkgRoot, spec.template);
+      if (templateMod?.Schema) {
         const strict = templateMod.Schema.safeParse(spec);
         if (!strict.success) {
           throw fail(
@@ -276,6 +379,15 @@ registerToolsModule((tools) => {
         });
       }
 
+      // 12a. Count files that will end up in the final artifact (post-compile
+      //      tree minus the excluded tooling dirs). project.files.length is
+      //      pre-compile and includes .bs sources the compile sweep removed,
+      //      so it overcounts.
+      const filesWritten = await countFilesOnDisk(outputDir, [
+        '.rokudev-tools/staging',
+        '.rokudev-tools/sourcemaps',
+      ]);
+
       // 13. Optional zip.
       let zipPath: string | undefined;
       let zipBytes: number | undefined;
@@ -330,7 +442,7 @@ registerToolsModule((tools) => {
       const payload: Record<string, unknown> = {
         ok: true,
         project_dir: outputDir,
-        files_written: project.files.length,
+        files_written: filesWritten,
         manifest_keys: [...project.manifest.keys()].sort(),
         init_order: project.initOrder,
       };

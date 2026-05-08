@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +22,23 @@ async function pathExists(p: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function countRealFiles(
+  dir: string,
+  excludePrefixes: ReadonlyArray<string>,
+): Promise<number> {
+  let count = 0;
+  async function walk(sub: string, relPrefix: string): Promise<void> {
+    for (const ent of await readdir(sub, { withFileTypes: true })) {
+      const rel = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
+      if (excludePrefixes.some((p) => rel === p || rel.startsWith(`${p}/`))) continue;
+      if (ent.isDirectory()) await walk(join(sub, ent.name), rel);
+      else if (ent.isFile()) count++;
+    }
+  }
+  await walk(dir, '');
+  return count;
 }
 
 function getHandler(): ToolDef['handler'] {
@@ -90,6 +107,25 @@ describe('generate_app tool', () => {
       expect(
         await pathExists(join(outputDir, '.rokudev-tools/sourcemaps/source/Main.brs.map')),
       ).toBe(true);
+    });
+
+    it('files_written matches on-disk count excluding staging+sourcemaps', async () => {
+      const handler = getHandler();
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'stub_hello',
+          modules: [{ id: 'stub_label', version_range: '^0.1.0', config: { text: 'hi' } }],
+          app: { name: 'Hi', major_version: 1, minor_version: 0, build_version: 0 },
+        },
+        output_dir: outputDir,
+      });
+      const payload = parsePayload(result);
+      const expected = await countRealFiles(outputDir, [
+        '.rokudev-tools/staging',
+        '.rokudev-tools/sourcemaps',
+      ]);
+      expect(payload['files_written']).toBe(expected);
     });
   });
 
@@ -164,14 +200,50 @@ describe('generate_app tool', () => {
       }
     });
 
-    it('raises a readable error when spec path does not exist', async () => {
+    it('raises APP_SPEC_INVALID when spec path does not exist', async () => {
       const handler = getHandler();
       const missing = join(tmpdir(), `brs-gen-t22-missing-${Date.now()}-${Math.random()}.json`);
       const parent = await freshTmp('missing');
       try {
         await expect(
           handler({ spec: missing, output_dir: join(parent, 'project') }),
-        ).rejects.toThrow(/ENOENT|no such file|cannot.*find/i);
+        ).rejects.toMatchObject({
+          code: 'APP_SPEC_INVALID',
+          details: expect.objectContaining({ given: missing }),
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('inline JSON with syntax error raises APP_SPEC_INVALID', async () => {
+      const handler = getHandler();
+      const parent = await freshTmp('badinline');
+      try {
+        await expect(
+          handler({ spec: '{broken', output_dir: join(parent, 'project') }),
+        ).rejects.toMatchObject({
+          code: 'APP_SPEC_INVALID',
+          message: expect.stringMatching(/spec is not valid JSON/i),
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('spec file with malformed JSON raises APP_SPEC_INVALID', async () => {
+      const parent = await freshTmp('badfile');
+      try {
+        const specPath = join(parent, 'bad.json');
+        await writeFile(specPath, '{broken');
+        const handler = getHandler();
+        await expect(
+          handler({ spec: specPath, output_dir: join(parent, 'project') }),
+        ).rejects.toMatchObject({
+          code: 'APP_SPEC_INVALID',
+          message: expect.stringMatching(/spec file contains invalid JSON/i),
+          details: expect.objectContaining({ given_path: specPath }),
+        });
       } finally {
         await rm(parent, { recursive: true, force: true });
       }
@@ -203,6 +275,27 @@ describe('generate_app tool', () => {
   });
 
   describe('spec input shapes', () => {
+    it('accepts inline JSON with a leading BOM', async () => {
+      const parent = await freshTmp('bom');
+      try {
+        const handler = getHandler();
+        const specString = '\uFEFF' + JSON.stringify({
+          spec_version: 2,
+          template: 'stub_hello',
+          modules: [],
+          app: { name: 'Hi', major_version: 1, minor_version: 0, build_version: 0 },
+        });
+        const result = await handler({
+          spec: specString,
+          output_dir: join(parent, 'project'),
+        });
+        const payload = parsePayload(result);
+        expect(payload['ok']).toBe(true);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
     it('accepts an inline JSON string (leading "{")', async () => {
       const parent = await freshTmp('inline');
       try {
