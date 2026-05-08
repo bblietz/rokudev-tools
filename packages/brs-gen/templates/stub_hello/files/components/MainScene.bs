@@ -1,0 +1,3 @@
+sub init()
+    ' Intentionally empty: stub_hello has no per-scene logic.
+end sub
