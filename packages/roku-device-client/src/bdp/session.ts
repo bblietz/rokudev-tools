@@ -23,7 +23,7 @@
 
 import { fail } from '../errors/index.js';
 import { BdpClient, SUPPORTED_BDP_VERSIONS as _defaultVersions } from './client.js';
-import type { BdpVersion, BdpVersionRange } from './messages.js';
+import type { BdpVersion, BdpVersionRange, BdpBreakpointEntry } from './messages.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -47,6 +47,16 @@ export type BdpStoppedEvent = {
 };
 
 // ---------------------------------------------------------------------------
+// Breakpoint cache key type
+// ---------------------------------------------------------------------------
+
+/** Composite key for breakpoint cache: `${file}:${line}`. */
+type BpKey = string;
+
+/** Shape of each cached breakpoint entry. */
+type BpCacheEntry = { id: number; file: string; line: number };
+
+// ---------------------------------------------------------------------------
 // BdpSession
 // ---------------------------------------------------------------------------
 
@@ -68,6 +78,16 @@ export class BdpSession {
 
   /** Registered onStopped listeners. */
   private stoppedListeners: Array<(e: BdpStoppedEvent) => void> = [];
+
+  /**
+   * Local breakpoint cache keyed by `${file}:${line}`.
+   *
+   * Populated by setBreakpoint(), removed by clearBreakpoint().
+   * Intentionally preserved across detach() so that currentBreakpoints()
+   * returns the last-known snapshot even after the connection is gone
+   * (the MCP detach handler reads this before or after detach() -- both safe).
+   */
+  private breakpoints: Map<BpKey, BpCacheEntry> = new Map();
 
   // Private constructor -- use BdpSession.attach() to create instances.
   private constructor(host: string, client: BdpClient) {
@@ -172,6 +192,131 @@ export class BdpSession {
    */
   onStopped(listener: (e: BdpStoppedEvent) => void): void {
     this.stoppedListeners.push(listener);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Breakpoint methods (T11)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Set a breakpoint at the given (file, line).
+   *
+   * Sends an `add_breakpoints` request with one entry and returns the
+   * assigned breakpoint ID on success. The entry is stored in the local
+   * cache so that `listBreakpoints()` and `currentBreakpoints()` can return
+   * full `{ id, file, line }` triples (the device's `list_breakpoints`
+   * response only carries IDs, not the original file/line).
+   *
+   * @throws Failure(BDP_THREAD_LOST)         if the session is not live.
+   * @throws Failure(BDP_BREAKPOINT_INVALID)  if the device rejects the breakpoint (errorCode != 0).
+   */
+  async setBreakpoint(file: string, line: number): Promise<{ id: number }> {
+    this.guardLive();
+
+    const res = await this.client.send({
+      kind: 'add_breakpoints',
+      breakpoints: [{ file, line }],
+    });
+
+    if (res.kind !== 'breakpoints_added') {
+      throw fail('BDP_BREAKPOINT_INVALID', `Unexpected response kind '${res.kind}' for add_breakpoints`, { file, line });
+    }
+
+    const entry = res.entries[0] as BdpBreakpointEntry | undefined;
+    if (entry === undefined) {
+      throw fail('BDP_BREAKPOINT_INVALID', 'Device returned no breakpoint entries', { file, line, reason: 'empty_response' });
+    }
+
+    if (entry.errorCode !== 0) {
+      throw fail(
+        'BDP_BREAKPOINT_INVALID',
+        `Device rejected breakpoint at ${file}:${line} (errorCode ${entry.errorCode})`,
+        { file, line, reason: `error_code:${entry.errorCode}` },
+      );
+    }
+
+    const key: BpKey = `${file}:${line}`;
+    this.breakpoints.set(key, { id: entry.breakpointId, file, line });
+    return { id: entry.breakpointId };
+  }
+
+  /**
+   * Clear a previously-set breakpoint by its ID.
+   *
+   * Sends a `remove_breakpoints` request and removes the entry from the
+   * local cache on success.
+   *
+   * @throws Failure(BDP_THREAD_LOST) if the session is not live.
+   */
+  async clearBreakpoint(id: number): Promise<void> {
+    this.guardLive();
+
+    await this.client.send({
+      kind: 'remove_breakpoints',
+      ids: [id],
+    });
+
+    // Remove the entry from cache by searching for matching id.
+    for (const [key, entry] of this.breakpoints) {
+      if (entry.id === id) {
+        this.breakpoints.delete(key);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Query the device for active breakpoints and merge with the local cache
+   * to produce `{ id, file, line }` triples.
+   *
+   * The device's `list_breakpoints` response returns only breakpoint IDs
+   * (no file/line). This method merges the device-reported IDs with the
+   * local cache to produce full triples. Entries reported by the device
+   * whose IDs are not in the cache (i.e., set outside this session) are
+   * silently skipped -- we do not fabricate file/line we don't know.
+   *
+   * @throws Failure(BDP_THREAD_LOST) if the session is not live.
+   */
+  async listBreakpoints(): Promise<Array<{ id: number; file: string; line: number }>> {
+    this.guardLive();
+
+    const res = await this.client.send({ kind: 'list_breakpoints' });
+
+    if (res.kind !== 'breakpoints_list') {
+      throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for list_breakpoints`, { session_state: this._state });
+    }
+
+    // Build a reverse lookup: id -> cache entry.
+    const byId = new Map<number, BpCacheEntry>();
+    for (const entry of this.breakpoints.values()) {
+      byId.set(entry.id, entry);
+    }
+
+    const result: Array<{ id: number; file: string; line: number }> = [];
+    for (const entry of res.entries) {
+      const cached = byId.get(entry.breakpointId);
+      if (cached !== undefined) {
+        result.push({ id: cached.id, file: cached.file, line: cached.line });
+      }
+      // Entries not in cache are skipped -- we don't know their file/line.
+    }
+    return result;
+  }
+
+  /**
+   * Return a snapshot of the currently-known active breakpoints from the
+   * local cache.
+   *
+   * CRITICAL: This method does NOT call guardLive(). It is a pure cache read
+   * and is safe to call up to and including the moment detach() returns, so
+   * the MCP detach handler (T20) can always read the snapshot before closing
+   * the connection. The cache is preserved across detach() for this reason.
+   *
+   * Returns `{ file, line }` pairs only (no IDs); callers that need IDs
+   * should use `listBreakpoints()` while the session is still live.
+   */
+  currentBreakpoints(): ReadonlyArray<{ file: string; line: number }> {
+    return Array.from(this.breakpoints.values()).map(({ file, line }) => ({ file, line }));
   }
 
   // ---------------------------------------------------------------------------

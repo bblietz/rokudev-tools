@@ -1,5 +1,6 @@
 /**
- * Tests for BdpSession: lifecycle, state surface, and onStopped event delivery.
+ * Tests for BdpSession: lifecycle, state surface, onStopped event delivery,
+ * and breakpoint methods (T11).
  *
  * These tests use the in-process mock BDP server so no real Roku device is needed.
  */
@@ -113,6 +114,179 @@ describe('BdpSession', () => {
       expect(events[0]!.threadId).toBe(2);
       expect(events[0]!.reason).toBe('runtime_error');
       session.detach();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Breakpoint methods (T11)
+  // -------------------------------------------------------------------------
+
+  describe('setBreakpoint', () => {
+    it('happy path: returns { id } and populates currentBreakpoints()', async () => {
+      server.onRequest('add_breakpoints', (_req) => ({
+        kind: 'breakpoints_added',
+        entries: [{ breakpointId: 42, errorCode: 0 }],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const result = await session.setBreakpoint('main.brs', 10);
+
+      expect(result).toEqual({ id: 42 });
+      expect(session.currentBreakpoints()).toContainEqual({ file: 'main.brs', line: 10 });
+
+      session.detach();
+    });
+
+    it('rejection: throws BDP_BREAKPOINT_INVALID with details when device returns errorCode != 0', async () => {
+      server.onRequest('add_breakpoints', (_req) => ({
+        kind: 'breakpoints_added',
+        entries: [{ breakpointId: 0, errorCode: 5 }],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+
+      await expect(session.setBreakpoint('main.brs', 99)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_BREAKPOINT_INVALID',
+        details: {
+          file: 'main.brs',
+          line: 99,
+          reason: expect.stringContaining('5'),
+        },
+      });
+
+      // Cache must remain empty after rejection.
+      expect(session.currentBreakpoints()).toHaveLength(0);
+
+      session.detach();
+    });
+
+    it('rejects with BDP_THREAD_LOST after detach', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+
+      await expect(session.setBreakpoint('main.brs', 1)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  describe('clearBreakpoint', () => {
+    it('happy path: removes the breakpoint from cache', async () => {
+      server.onRequest('add_breakpoints', (_req) => ({
+        kind: 'breakpoints_added',
+        entries: [{ breakpointId: 7, errorCode: 0 }],
+      }));
+      server.onRequest('remove_breakpoints', (_req) => ({
+        kind: 'breakpoints_removed',
+        entries: [{ breakpointId: 7, errorCode: 0 }],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await session.setBreakpoint('scene.brs', 5);
+      expect(session.currentBreakpoints()).toHaveLength(1);
+
+      await session.clearBreakpoint(7);
+      expect(session.currentBreakpoints()).toHaveLength(0);
+
+      session.detach();
+    });
+
+    it('rejects with BDP_THREAD_LOST after detach', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+
+      await expect(session.clearBreakpoint(1)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  describe('listBreakpoints', () => {
+    it('happy path: merges device-reported ids with local cache', async () => {
+      // Set up two breakpoints.
+      let callCount = 0;
+      server.onRequest('add_breakpoints', (_req) => {
+        callCount++;
+        const id = callCount === 1 ? 10 : 20;
+        return { kind: 'breakpoints_added', entries: [{ breakpointId: id, errorCode: 0 }] };
+      });
+      server.onRequest('list_breakpoints', (_req) => ({
+        kind: 'breakpoints_list',
+        entries: [
+          { breakpointId: 10, errorCode: 0 },
+          { breakpointId: 20, errorCode: 0 },
+        ],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await session.setBreakpoint('main.brs', 10);
+      await session.setBreakpoint('util.brs', 20);
+
+      const list = await session.listBreakpoints();
+
+      expect(list).toHaveLength(2);
+      expect(list).toContainEqual({ id: 10, file: 'main.brs', line: 10 });
+      expect(list).toContainEqual({ id: 20, file: 'util.brs', line: 20 });
+
+      session.detach();
+    });
+
+    it('skips device-reported ids not present in the local cache', async () => {
+      // No setBreakpoint calls -- cache is empty.
+      server.onRequest('list_breakpoints', (_req) => ({
+        kind: 'breakpoints_list',
+        entries: [
+          // id 99 is unknown to this session (set outside this session).
+          { breakpointId: 99, errorCode: 0 },
+        ],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const list = await session.listBreakpoints();
+
+      // Unknown id must be skipped; result is empty.
+      expect(list).toHaveLength(0);
+
+      session.detach();
+    });
+
+    it('rejects with BDP_THREAD_LOST after detach', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+
+      await expect(session.listBreakpoints()).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  describe('currentBreakpoints', () => {
+    it('does NOT throw after detach -- reads from cache without calling guardLive()', async () => {
+      server.onRequest('add_breakpoints', (_req) => ({
+        kind: 'breakpoints_added',
+        entries: [{ breakpointId: 55, errorCode: 0 }],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await session.setBreakpoint('main.brs', 15);
+
+      // Detach transitions state to connection_lost.
+      session.detach();
+      expect(session.state).toBe('connection_lost');
+
+      // currentBreakpoints() must NOT throw even though state is connection_lost.
+      // Cache is preserved across detach() per spec.
+      let result: ReadonlyArray<{ file: string; line: number }>;
+      expect(() => {
+        result = session.currentBreakpoints();
+      }).not.toThrow();
+
+      // Belt-and-suspenders: cache still holds the breakpoint set before detach.
+      expect(result!).toContainEqual({ file: 'main.brs', line: 15 });
     });
   });
 });
