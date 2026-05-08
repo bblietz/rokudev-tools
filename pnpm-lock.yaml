@@ -57,12 +57,21 @@ importers:
       '@types/ejs':
         specifier: ^3.1.5
         version: 3.1.5
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.39
       '@types/semver':
         specifier: ^7.5.8
         version: 7.7.1
       '@types/yazl':
         specifier: ^2.4.5
         version: 2.4.6
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.39)
 
   packages/roku-device-client:
     dependencies:

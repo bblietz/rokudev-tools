@@ -21,3 +21,20 @@ describe('BDP error codes', () => {
     expect(WARNING_CODES).toContain('BDP_FALLBACK_TO_TELNET');
   });
 });
+
+describe('FAILURE_CODES brs-gen coverage', () => {
+  it('includes every brs-gen failure code', () => {
+    for (const c of ['UNKNOWN_TEMPLATE', 'UNKNOWN_MODULE', 'APP_SPEC_INVALID',
+                     'SPEC_VERSION_INCOMPATIBLE', 'MODULE_CONFIG_INVALID',
+                     'MODULE_VERSION_UNAVAILABLE', 'MODULE_CONFLICT',
+                     'FILE_COLLISION', 'INIT_ORDER_CYCLE',
+                     'WIRING_CONTRACT_VIOLATION', 'MANIFEST_KEY_CONFLICT',
+                     'UNKNOWN_MANIFEST_KEY', 'CATALOG_INVALID',
+                     'CATALOG_INTEGRITY', 'OUTPUT_DIR_NOT_EMPTY',
+                     'LINT_FAILED', 'COMPILE_FAILED',
+                     'ASSET_VALIDATION_FAILED', 'MANIFEST_VALIDATION_FAILED',
+                     'NOT_IMPLEMENTED']) {
+      expect(FAILURE_CODES).toHaveProperty(c);
+    }
+  });
+});

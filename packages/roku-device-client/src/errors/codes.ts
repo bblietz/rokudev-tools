@@ -52,7 +52,29 @@ export const FAILURE_CODES = {
   BDP_BREAKPOINT_INVALID: 'debug',
   BDP_NO_SOURCE_MAP: 'debug',
   BDP_THREAD_LOST: 'debug',
-  // (merge, freeform, lint codes added by Plans 3-4)
+  // merge / validate
+  UNKNOWN_TEMPLATE: 'validate',
+  UNKNOWN_MODULE: 'validate',
+  APP_SPEC_INVALID: 'validate',
+  SPEC_VERSION_INCOMPATIBLE: 'validate',
+  MODULE_CONFIG_INVALID: 'validate',
+  MODULE_VERSION_UNAVAILABLE: 'validate',
+  MODULE_CONFLICT: 'merge',
+  FILE_COLLISION: 'merge',
+  INIT_ORDER_CYCLE: 'merge',
+  WIRING_CONTRACT_VIOLATION: 'merge',
+  MANIFEST_KEY_CONFLICT: 'merge',
+  UNKNOWN_MANIFEST_KEY: 'merge',
+  CATALOG_INVALID: 'validate',
+  CATALOG_INTEGRITY: 'merge',
+  // write / package / compile
+  OUTPUT_DIR_NOT_EMPTY: 'write',
+  LINT_FAILED: 'lint',
+  COMPILE_FAILED: 'lint',
+  ASSET_VALIDATION_FAILED: 'validate',
+  MANIFEST_VALIDATION_FAILED: 'validate',
+  // tool-surface
+  NOT_IMPLEMENTED: 'validate',
 } as const;
 export type FailureCode = keyof typeof FAILURE_CODES;
 
@@ -62,5 +84,12 @@ export const WARNING_CODES = [
   'APPSPEC_PROMOTED',
   'BDP_FALLBACK_TO_TELNET',
   'CROSS_PACKAGE_VERSION_MISMATCH',
+  // brs-gen (Plan 3)
+  'ASYMMETRIC_CONFLICT',
+  'MODULE_VERSION_UNPINNED',
+  'BSC_LINT_WARNING',
+  'SPEC_AUTO_PROMOTED',
+  'HOOK_DISPATCH_NOT_INVOKED',
+  'MANIFEST_DRIFT',
 ] as const;
 export type WarningCode = (typeof WARNING_CODES)[number];
