@@ -1,0 +1,9 @@
+' packages/brs-gen/modules/stub_label/files/source/_modules/stub_label/Init.bs
+' Reads the module's merger-emitted config from ModuleConfig_stub_label()
+' and prints its text on channel start. Deliberately simple.
+
+sub StubLabel_init(args as dynamic) as void
+    config = ModuleConfig_stub_label()
+    txt = "stub_label: " + config.text
+    print txt
+end sub

@@ -1,0 +1,32 @@
+[module]
+id = "stub_label"
+version = "0.1.0"
+spec_compat = ">=2"
+description = "Prints a configurable label string at channel start. Used by the brs-gen engine's e2e test to exercise config flow and init wiring."
+
+[module.config_schema]
+type = "object"
+required = ["text"]
+additionalProperties = false
+
+  [module.config_schema.properties]
+  text = { type = "string", minLength = 1 }
+
+[module.files]
+add = ["source/_modules/stub_label/Init.bs"]
+
+[module.wiring]
+exports = []
+requires = [
+  { kind = "init_hook", scope = "Main", phase = "before_scene_show" },
+]
+init_calls = [
+  { hook = "Main.before_scene_show", statement = "StubLabel_init(args)" },
+]
+
+[module.ordering]
+before = []
+after  = []
+
+[module.conflicts]
+exclusive_with = []
