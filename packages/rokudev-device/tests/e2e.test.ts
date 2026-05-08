@@ -105,6 +105,14 @@ describe('rokudev-device e2e: tools/list', () => {
         'log_tail',
         // composite (T32)
         'dev_loop',
+        // debug lifecycle (T20)
+        'debug_attach',
+        'debug_detach',
+        'debug_session_state',
+        // debug breakpoints (T21)
+        'debug_set_breakpoint',
+        'debug_clear_breakpoint',
+        'debug_list_breakpoints',
       ].sort(),
     );
   }, 15_000);
