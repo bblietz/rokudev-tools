@@ -580,4 +580,209 @@ describe('BdpSession', () => {
       });
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Variables (T14)
+  // -------------------------------------------------------------------------
+
+  describe('variables', () => {
+    it('returns BdpVariable[] for a thread/frame', async () => {
+      server.onRequest('variables', (req) => {
+        expect(req.threadId).toBe(1);
+        expect(req.frameIdx).toBe(0);
+        return {
+          kind: 'variables',
+          variables: [
+            { name: 'x', type: 'Integer', value: 42 },
+            { name: 'msg', type: 'String', value: 'hello' },
+          ],
+        };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const vars = await session.variables(1, 0);
+
+      expect(vars).toHaveLength(2);
+      expect(vars[0]).toMatchObject({ name: 'x', type: 'Integer', value: 42 });
+      expect(vars[1]).toMatchObject({ name: 'msg', type: 'String', value: 'hello' });
+
+      session.detach();
+    });
+
+    it('propagates getChildKeys, getVirtualKeys, and varPath options', async () => {
+      let capturedReq: { getChildKeys?: boolean; getVirtualKeys?: boolean; varPath?: string[] } | undefined;
+      server.onRequest('variables', (req) => {
+        capturedReq = {
+          getChildKeys: req.getChildKeys,
+          getVirtualKeys: req.getVirtualKeys,
+          varPath: req.varPath,
+        };
+        return { kind: 'variables', variables: [] };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await session.variables(1, 0, { getChildKeys: true, getVirtualKeys: false, varPath: ['root', 'child'] });
+
+      expect(capturedReq).toBeDefined();
+      // Wire codec sets flag bits: bit 0 = getChildKeys (true), bit 2 = getVirtualKeys (false/absent).
+      // Decoded request only carries `true` for set bits; `false` is represented as absent (undefined).
+      expect(capturedReq!.getChildKeys).toBe(true);
+      expect(capturedReq!.getVirtualKeys).toBeFalsy(); // false opt -> bit not set -> decoded as undefined
+      expect(capturedReq!.varPath).toEqual(['root', 'child']);
+
+      session.detach();
+    });
+
+    it('returns empty array when device reports no variables', async () => {
+      server.onRequest('variables', (_req) => ({ kind: 'variables', variables: [] }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const vars = await session.variables(0, 0);
+      expect(vars).toHaveLength(0);
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST with session_state:thread_terminated_other on dead thread (wire errorCode 6)', async () => {
+      server.onRequest('variables', (_req) => ({
+        response: { kind: 'variables', variables: [] },
+        errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.variables(1, 0)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+        details: { session_state: 'thread_terminated_other' },
+      });
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST after detach (state guard)', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.variables(1, 0)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Eval (T14)
+  // -------------------------------------------------------------------------
+
+  describe('eval', () => {
+    it('returns success=true and empty error arrays on success', async () => {
+      server.onRequest('eval', (req) => {
+        expect(req.expression).toBe('m.foo = 42');
+        expect(req.threadId).toBe(1);
+        expect(req.frameIdx).toBe(0);
+        return {
+          kind: 'eval',
+          success: true,
+          compileErrors: [],
+          runtimeErrors: [],
+          otherErrors: [],
+        };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const result = await session.eval(1, 0, 'm.foo = 42');
+
+      expect(result.success).toBe(true);
+      expect(result.compileErrors).toEqual([]);
+      expect(result.runtimeErrors).toEqual([]);
+      expect(result.otherErrors).toEqual([]);
+      expect(result).not.toHaveProperty('runtimeStopReason');
+
+      session.detach();
+    });
+
+    it('surfaces compile errors when expression is invalid', async () => {
+      server.onRequest('eval', (_req) => ({
+        kind: 'eval',
+        success: false,
+        compileErrors: ['Syntax error at line 1'],
+        runtimeErrors: [],
+        otherErrors: [],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const result = await session.eval(1, 0, 'invalid bs code');
+
+      expect(result.success).toBe(false);
+      expect(result.compileErrors).toContain('Syntax error at line 1');
+      expect(result.runtimeErrors).toHaveLength(0);
+
+      session.detach();
+    });
+
+    it('surfaces runtimeStopReason and runtime errors when execution halts', async () => {
+      server.onRequest('eval', (_req) => ({
+        kind: 'eval',
+        success: false,
+        runtimeStopReason: 'runtime_error' as const,
+        compileErrors: [],
+        runtimeErrors: ['Division by zero'],
+        otherErrors: [],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const result = await session.eval(1, 0, 'x = 1 / 0');
+
+      expect(result.success).toBe(false);
+      expect(result.runtimeStopReason).toBe('runtime_error');
+      expect(result.runtimeErrors).toContain('Division by zero');
+      expect(result.compileErrors).toHaveLength(0);
+
+      session.detach();
+    });
+
+    it('honors timeoutMs -- rejects with BDP_THREAD_LOST when server never responds', async () => {
+      // No handler registered: server will not respond and the request times out.
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.eval(1, 0, 'expr', { timeoutMs: 50 }))
+        .rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST with session_state:thread_terminated_other on dead thread (wire errorCode 6)', async () => {
+      server.onRequest('eval', (_req) => ({
+        response: {
+          kind: 'eval',
+          success: false,
+          compileErrors: [],
+          runtimeErrors: [],
+          otherErrors: [],
+        },
+        errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.eval(1, 0, 'expr')).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+        details: { session_state: 'thread_terminated_other' },
+      });
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST after detach (state guard)', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.eval(1, 0, 'expr')).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  describe('variables and eval after detach (combined state guard)', () => {
+    it('both methods throw BDP_THREAD_LOST after detach', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.variables(1, 0)).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
+      await expect(session.eval(1, 0, 'expr')).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
+    });
+  });
 });

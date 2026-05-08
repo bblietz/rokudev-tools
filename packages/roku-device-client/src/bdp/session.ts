@@ -23,7 +23,7 @@
 
 import { fail } from '../errors/index.js';
 import { BdpClient, SUPPORTED_BDP_VERSIONS as _defaultVersions } from './client.js';
-import type { BdpVersion, BdpVersionRange, BdpBreakpointEntry, BdpThreadEntry, BdpStackFrame } from './messages.js';
+import type { BdpVersion, BdpVersionRange, BdpBreakpointEntry, BdpThreadEntry, BdpStackFrame, BdpVariable, BdpStopReason } from './messages.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -428,6 +428,101 @@ export class BdpSession {
         throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for stack_trace`, { session_state: this._state });
       }
       return res.frames;
+    } catch (e: unknown) {
+      throw this.translateThreadGone(e, threadId);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Variables and eval (T14)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Retrieve the variables in scope for a specific thread and stack frame.
+   *
+   * Sends a `variables` request for `threadId` / `frameIdx` and returns the
+   * decoded `BdpVariable[]`. When `opts.varPath` is provided, the device
+   * returns the children of the container at that path rather than top-level
+   * scope variables.
+   *
+   * `opts.getChildKeys` (flag bit 0) causes child key entries to be included.
+   * `opts.getVirtualKeys` (flag bit 2) includes virtual (synthetic) variables.
+   *
+   * @throws Failure(BDP_THREAD_LOST) with session_state 'thread_terminated_other'
+   *   when the device reports that the targeted thread no longer exists
+   *   (wire error_code indicates INVALID_THREAD).
+   * @throws Failure(BDP_THREAD_LOST) if the session is not live (guardLive).
+   */
+  async variables(
+    threadId: number,
+    frameIdx: number,
+    opts?: { getChildKeys?: boolean; getVirtualKeys?: boolean; varPath?: string[] },
+  ): Promise<BdpVariable[]> {
+    this.guardLive();
+    try {
+      const res = await this.client.send({
+        kind: 'variables',
+        threadId,
+        frameIdx,
+        ...(opts?.getChildKeys !== undefined ? { getChildKeys: opts.getChildKeys } : {}),
+        ...(opts?.getVirtualKeys !== undefined ? { getVirtualKeys: opts.getVirtualKeys } : {}),
+        ...(opts?.varPath !== undefined ? { varPath: opts.varPath } : {}),
+      });
+      if (res.kind !== 'variables') {
+        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for variables`, { session_state: this._state });
+      }
+      return res.variables;
+    } catch (e: unknown) {
+      throw this.translateThreadGone(e, threadId);
+    }
+  }
+
+  /**
+   * Evaluate a BrightScript expression in the context of a specific thread
+   * and stack frame.
+   *
+   * Sends an `eval` (Execute) request. Because user-supplied expressions may
+   * be long-running, `opts.timeoutMs` is forwarded to the underlying
+   * `client.send` call (default 30 s). The returned status indicates whether
+   * compilation and execution succeeded; any variable values produced by the
+   * expression must be retrieved via a subsequent `variables()` call.
+   *
+   * IMPORTANT: eval does NOT return a variable value directly. The Execute
+   * wire command returns success/error status only. To inspect values
+   * produced by an expression, call `variables()` after a successful eval.
+   *
+   * @throws Failure(BDP_THREAD_LOST) with session_state 'thread_terminated_other'
+   *   when the device reports that the targeted thread no longer exists.
+   * @throws Failure(BDP_THREAD_LOST) if the session is not live (guardLive).
+   */
+  async eval(
+    threadId: number,
+    frameIdx: number,
+    expression: string,
+    opts?: { timeoutMs?: number },
+  ): Promise<{
+    success: boolean;
+    runtimeStopReason?: BdpStopReason;
+    compileErrors: string[];
+    runtimeErrors: string[];
+    otherErrors: string[];
+  }> {
+    this.guardLive();
+    try {
+      const res = await this.client.send(
+        { kind: 'eval', threadId, frameIdx, expression },
+        opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {},
+      );
+      if (res.kind !== 'eval') {
+        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for eval`, { session_state: this._state });
+      }
+      return {
+        success: res.success,
+        ...(res.runtimeStopReason !== undefined ? { runtimeStopReason: res.runtimeStopReason } : {}),
+        compileErrors: res.compileErrors,
+        runtimeErrors: res.runtimeErrors,
+        otherErrors: res.otherErrors,
+      };
     } catch (e: unknown) {
       throw this.translateThreadGone(e, threadId);
     }
