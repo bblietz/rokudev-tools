@@ -26,6 +26,11 @@ export function validateWiring(template: TemplateToml, modules: ModuleToml[]): R
             `module ${m.module.id} requires scene_node ${req.name} not exported by template ${templateId}`,
             { stage: 'wiring', module_id: m.module.id, missing: 'scene_node', requested: { name: req.name } }) };
         }
+      } else {
+        // Exhaustiveness guard: if a new RequireEntry.kind is added in module-toml.ts
+        // without a branch here, TypeScript will flag this line at compile time.
+        const _exhaustive: never = req;
+        void _exhaustive;
       }
     }
     for (const call of m.module_wiring.init_calls) {
