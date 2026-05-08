@@ -796,7 +796,7 @@ describe('specific byte-sequence structural validation', () => {
     // payload: [error_code:4][kind_disc:4][num_vars:4][var_entry...]
     // var_entry: [flags:1][type_code:1][name?][value?]
     const varStart = 4 + 4 + 4; // skip error_code + kind_disc + num_vars
-    const flagsByte = payload[varStart];
+    const flagsByte = payload.readUInt8(varStart);
     expect(flagsByte & 0x01).toBe(0x01); // isChildKey bit
   });
 
@@ -816,7 +816,7 @@ describe('specific byte-sequence structural validation', () => {
     };
     const { payload } = encodeResponse(res, 1);
     const varStart = 4 + 4 + 4;
-    const flagsByte = payload[varStart];
+    const flagsByte = payload.readUInt8(varStart);
     expect(flagsByte & 0x04).toBe(0x04); // isContainer bit
   });
 });

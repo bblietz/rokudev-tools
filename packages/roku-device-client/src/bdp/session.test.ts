@@ -613,9 +613,9 @@ describe('BdpSession', () => {
       let capturedReq: { getChildKeys?: boolean; getVirtualKeys?: boolean; varPath?: string[] } | undefined;
       server.onRequest('variables', (req) => {
         capturedReq = {
-          getChildKeys: req.getChildKeys,
-          getVirtualKeys: req.getVirtualKeys,
-          varPath: req.varPath,
+          ...(req.getChildKeys !== undefined ? { getChildKeys: req.getChildKeys } : {}),
+          ...(req.getVirtualKeys !== undefined ? { getVirtualKeys: req.getVirtualKeys } : {}),
+          ...(req.varPath !== undefined ? { varPath: req.varPath } : {}),
         };
         return { kind: 'variables', variables: [] };
       });

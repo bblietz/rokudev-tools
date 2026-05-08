@@ -203,7 +203,9 @@ export class BdpClient {
   ): Promise<BdpClient> {
     const primaryPort = opts._primaryPort ?? 8081;
     const fallbackPort = opts._fallbackPort ?? 8086;
-    const connectOpts = { handshakeTimeoutMs: opts.handshakeTimeoutMs };
+    const connectOpts = {
+      ...(opts.handshakeTimeoutMs !== undefined ? { handshakeTimeoutMs: opts.handshakeTimeoutMs } : {}),
+    };
 
     try {
       return await BdpClient.connect(

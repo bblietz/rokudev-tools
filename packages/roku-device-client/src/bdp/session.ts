@@ -22,7 +22,8 @@
  */
 
 import { fail } from '../errors/index.js';
-import { BdpClient, SUPPORTED_BDP_VERSIONS as _defaultVersions } from './client.js';
+import { BdpClient } from './client.js';
+import { SUPPORTED_BDP_VERSIONS as _defaultVersions } from './messages.js';
 import type { BdpVersion, BdpVersionRange, BdpBreakpointEntry, BdpThreadEntry, BdpStackFrame, BdpVariable, BdpStopReason } from './messages.js';
 
 // ---------------------------------------------------------------------------
