@@ -7,7 +7,7 @@ export function preflightTemplate(given: string, known: ReadonlySet<string>): Re
   return {
     ok: false,
     failure: fail('UNKNOWN_TEMPLATE', `template not in catalog: ${given}`, {
-      given, known: [...known].sort(),
+      stage: 'preflight', given, known: [...known].sort(),
     }),
   };
 }

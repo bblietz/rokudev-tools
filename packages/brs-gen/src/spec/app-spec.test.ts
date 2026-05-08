@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AppSpecV2Wrapper, ModuleReference } from './app-spec.js';
+import { AppSpecV2Wrapper, AppSpecV1Wrapper, ModuleReference } from './app-spec.js';
 
 describe('AppSpecV2Wrapper', () => {
   const base = {
@@ -32,5 +32,21 @@ describe('AppSpecV2Wrapper', () => {
   });
   it('ModuleReference rejects version_range that is not a string', () => {
     expect(ModuleReference.safeParse({ id: 'x', version_range: 1 }).success).toBe(false);
+  });
+});
+
+describe('AppSpecV1Wrapper', () => {
+  const baseV1 = {
+    spec_version: 1 as const,
+    template: 'stub_hello',
+    app: { name: 'Test', major_version: 1, minor_version: 0, build_version: 0 },
+  };
+
+  it('parses a minimal valid v1 spec', () => {
+    expect(AppSpecV1Wrapper.safeParse(baseV1).success).toBe(true);
+  });
+
+  it('rejects missing app.name in v1', () => {
+    expect(AppSpecV1Wrapper.safeParse({ ...baseV1, app: { major_version: 0, minor_version: 0, build_version: 0 } }).success).toBe(false);
   });
 });

@@ -12,5 +12,6 @@ describe('preflightTemplate', () => {
     expect(r.failure.code).toBe('UNKNOWN_TEMPLATE');
     expect(r.failure.details?.known).toEqual(['stub_hello']);
     expect(r.failure.details?.given).toBe('missing');
+    expect(r.failure.details?.stage).toBe('preflight');
   });
 });
