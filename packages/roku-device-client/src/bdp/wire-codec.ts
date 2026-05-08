@@ -1199,6 +1199,9 @@ function encodeEvalResponse(
  * @returns { res, requestId: packetType }
  *
  * @throws For unknown kind discriminators or malformed payloads.
+ *
+ * NOTE: This function uses the self-describing layout (kind_disc embedded in payload).
+ * For real-wire-compatible decoding use decodeResponseAs() instead.
  */
 export function decodeResponse(
   packetType: number,
@@ -1212,6 +1215,80 @@ export function decodeResponse(
   if (!kind) throw new Error(`BDP wire-codec: unknown response kind discriminator ${disc}`);
   const res = decodeResponseBody(kind, payload, 8);
   return { res, requestId: packetType };
+}
+
+// ---------------------------------------------------------------------------
+// Real-wire-compatible response codec (no embedded kind discriminator)
+// ---------------------------------------------------------------------------
+//
+// On the real BDP wire a response payload is:
+//   [error_code:4LE][data...]
+// There is no embedded kind discriminator. The caller (BdpClient) must supply
+// the expected response kind by looking up the request_id in its pending-request map.
+//
+// encodeResponseAs / decodeResponseAs produce and consume this real-wire format.
+// The mock BDP server (T7) uses encodeResponseAs so that test bytes are
+// real-wire-compatible.
+
+/**
+ * Encode a BdpResponse into a real-wire-compatible frame-layer payload.
+ *
+ * Real wire layout: [error_code:4LE][data...]  (no kind discriminator)
+ *
+ * @param kind  - The BdpResponse['kind'] discriminant that determines encoding.
+ * @param res   - The response value to encode.
+ * @param requestId - The request_id to echo back (becomes the frame packetType).
+ * @returns { packetType: requestId, payload: [error_code:4LE][data...] }
+ *
+ * @throws For 'connected' and 'error' kinds (same as encodeResponse).
+ */
+export function encodeResponseAs<K extends BdpResponse['kind']>(
+  kind: K,
+  res: Extract<BdpResponse, { kind: K }>,
+  requestId: number,
+): { packetType: number; payload: Buffer } {
+  if (kind === 'connected') {
+    throw new Error(
+      'BDP wire-codec: connected responses use the handshake frame (decodeHandshakeResponse), not encodeResponseAs',
+    );
+  }
+  if (kind === 'error') {
+    throw new Error(
+      'BDP wire-codec: error responses are client-side sentinels and have no wire encoding',
+    );
+  }
+
+  const header = Buffer.alloc(4); // error_code only (no kind discriminator)
+  header.writeUInt32LE(ERROR_CODE_OK, 0);
+
+  const body = encodeResponseBody(res);
+  return { packetType: requestId, payload: Buffer.concat([header, body]) };
+}
+
+/**
+ * Decode a real-wire response payload into a typed BdpResponse.
+ *
+ * Real wire layout: [error_code:4LE][data...]  (no kind discriminator)
+ * The caller must supply the expected kind (looked up from the pending-request map).
+ *
+ * @param kind    - The expected BdpResponse['kind'] (from the originating request).
+ * @param payload - The payload bytes from decodeFrame.
+ * @returns { res: Extract<BdpResponse, { kind: K }>, requestId: number }
+ *
+ * NOTE: The returned requestId is always the frame's packetType (passed in separately
+ * to BdpClient), but this function receives only the payload. The caller already has
+ * the requestId from decodeFrame's packetType field. We return a plain `res` here.
+ *
+ * @throws For malformed payloads.
+ */
+export function decodeResponseAs<K extends BdpResponse['kind']>(
+  kind: K,
+  payload: Buffer,
+): { res: Extract<BdpResponse, { kind: K }> } {
+  if (payload.length < 4) throw new Error('BDP wire-codec: response payload too short (decodeResponseAs)');
+  // error_code at offset 0 -- we skip it; body starts at offset 4.
+  const res = decodeResponseBody(kind as string, payload, 4) as Extract<BdpResponse, { kind: K }>;
+  return { res };
 }
 
 function decodeResponseBody(kind: string, payload: Buffer, bodyOffset: number): BdpResponse {

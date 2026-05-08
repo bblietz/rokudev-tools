@@ -15,12 +15,12 @@ import {
 } from '../frame.js';
 import {
   encodeRequest,
-  decodeResponse,
+  decodeResponseAs,
   encodeUpdateEvent,
   decodeUpdateEvent,
   isUpdateEventPacket,
 } from '../wire-codec.js';
-import type { BdpThreadEntry } from '../messages.js';
+import type { BdpResponse, BdpThreadEntry } from '../messages.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -58,18 +58,24 @@ function nextChunk(sock: net.Socket): Promise<Buffer> {
 
 /**
  * Send a request frame and wait for the response frame, then decode it.
+ *
+ * `expectedKind` must match the response kind the server will return.
+ * Since the mock server now uses real-wire encoding (no kind discriminator),
+ * the caller must provide the expected kind explicitly.
  */
-async function sendAndReceive(
+async function sendAndReceive<K extends BdpResponse['kind']>(
   sock: net.Socket,
   req: Parameters<typeof encodeRequest>[0],
   requestId: number,
-): Promise<ReturnType<typeof decodeResponse>> {
+  expectedKind: K,
+): Promise<{ res: Extract<BdpResponse, { kind: K }>; requestId: number }> {
   const { packetType, payload } = encodeRequest(req, requestId);
   sock.write(encodeFrame(packetType, payload));
   const buf = await nextChunk(sock);
   const frame = decodeFrame(buf);
   if (!frame) throw new Error('sendAndReceive: incomplete frame in response');
-  return decodeResponse(frame.packetType, frame.payload);
+  const { res } = decodeResponseAs(expectedKind, frame.payload);
+  return { res, requestId: frame.packetType };
 }
 
 // A minimal but complete BdpThreadEntry for use in test handlers.
@@ -156,7 +162,7 @@ describe('mock BDP server', () => {
     const sock = await connectSocket(server.port);
     try {
       await doHandshake(sock);
-      const { res, requestId } = await sendAndReceive(sock, { kind: 'threads' }, 1);
+      const { res, requestId } = await sendAndReceive(sock, { kind: 'threads' }, 1, 'threads');
       expect(requestId).toBe(1);
       expect(res.kind).toBe('threads');
       if (res.kind === 'threads') {
@@ -174,7 +180,7 @@ describe('mock BDP server', () => {
     const sock = await connectSocket(server.port);
     try {
       await doHandshake(sock);
-      const { res, requestId } = await sendAndReceive(sock, { kind: 'pause' }, 42);
+      const { res, requestId } = await sendAndReceive(sock, { kind: 'pause' }, 42, 'paused');
       expect(requestId).toBe(42);
       expect(res.kind).toBe('paused');
     } finally {
@@ -196,7 +202,7 @@ describe('mock BDP server', () => {
     const sock = await connectSocket(server.port);
     try {
       await doHandshake(sock);
-      const { res } = await sendAndReceive(sock, { kind: 'stack_trace', threadId: 2 }, 7);
+      const { res } = await sendAndReceive(sock, { kind: 'stack_trace', threadId: 2 }, 7, 'stack_trace');
       expect(res.kind).toBe('stack_trace');
       if (res.kind === 'stack_trace') {
         expect(res.frames).toHaveLength(1);
@@ -221,7 +227,7 @@ describe('mock BDP server', () => {
       sock.write(encodeFrame(pt1, p1));
 
       // Immediately send a handled pause request
-      const { res, requestId } = await sendAndReceive(sock, { kind: 'pause' }, 11);
+      const { res, requestId } = await sendAndReceive(sock, { kind: 'pause' }, 11, 'paused');
       expect(requestId).toBe(11);
       expect(res.kind).toBe('paused');
     } finally {
@@ -236,7 +242,7 @@ describe('mock BDP server', () => {
     try {
       await doHandshake(sock);
       for (const id of [1, 99, 0xdeadbeef]) {
-        const { requestId } = await sendAndReceive(sock, { kind: 'pause' }, id);
+        const { requestId } = await sendAndReceive(sock, { kind: 'pause' }, id, 'paused');
         expect(requestId).toBe(id);
       }
     } finally {
@@ -390,8 +396,13 @@ describe('mock BDP server', () => {
       }
 
       expect(frames).toHaveLength(2);
-      const r1 = decodeResponse(frames[0]!.packetType, frames[0]!.payload);
-      const r2 = decodeResponse(frames[1]!.packetType, frames[1]!.payload);
+      // The mock now uses real-wire encoding: correlate frames by their requestId
+      // (packetType) to determine which kind to decode with.
+      const frame1 = frames[0]!;
+      const frame2 = frames[1]!;
+      // Frame 1 has requestId=1 (pause -> paused), frame 2 has requestId=2 (threads -> threads).
+      const r1 = { res: decodeResponseAs('paused', frame1.payload).res, requestId: frame1.packetType };
+      const r2 = { res: decodeResponseAs('threads', frame2.payload).res, requestId: frame2.packetType };
       expect(r1.requestId).toBe(1);
       expect(r1.res.kind).toBe('paused');
       expect(r2.requestId).toBe(2);
@@ -407,9 +418,9 @@ describe('mock BDP server', () => {
     const sock = await connectSocket(server.port);
     try {
       await doHandshake(sock);
-      const { requestId: id1 } = await sendAndReceive(sock, { kind: 'pause' }, 100);
-      const { requestId: id2 } = await sendAndReceive(sock, { kind: 'pause' }, 200);
-      const { requestId: id3 } = await sendAndReceive(sock, { kind: 'pause' }, 300);
+      const { requestId: id1 } = await sendAndReceive(sock, { kind: 'pause' }, 100, 'paused');
+      const { requestId: id2 } = await sendAndReceive(sock, { kind: 'pause' }, 200, 'paused');
+      const { requestId: id3 } = await sendAndReceive(sock, { kind: 'pause' }, 300, 'paused');
       expect(id1).toBe(100);
       expect(id2).toBe(200);
       expect(id3).toBe(300);
@@ -446,6 +457,7 @@ describe('mock BDP server', () => {
         sock,
         { kind: 'variables', threadId: 0, frameIdx: 0 },
         5,
+        'variables',
       );
       expect(res.kind).toBe('variables');
       if (res.kind === 'variables') {
@@ -476,7 +488,7 @@ describe('mock BDP server', () => {
     const sock = await connectSocket(server.port);
     try {
       await doHandshake(sock);
-      const { res } = await sendAndReceive(sock, { kind: 'pause' }, 77);
+      const { res } = await sendAndReceive(sock, { kind: 'pause' }, 77, 'paused');
       expect(res.kind).toBe('paused');
     } finally {
       sock.destroy();
@@ -532,6 +544,7 @@ describe('mock BDP server', () => {
           ],
         },
         9,
+        'breakpoints_added',
       );
       expect(res.kind).toBe('breakpoints_added');
       if (res.kind === 'breakpoints_added') {
@@ -567,6 +580,7 @@ describe('mock BDP server', () => {
         sock,
         { kind: 'eval', threadId: 0, frameIdx: 0, expression: 'print m.count' },
         15,
+        'eval',
       );
       expect(res.kind).toBe('eval');
       if (res.kind === 'eval') {

@@ -20,7 +20,7 @@ import {
 } from '../frame.js';
 import {
   decodeRequest,
-  encodeResponse,
+  encodeResponseAs,
   encodeUpdateEvent,
 } from '../wire-codec.js';
 import type { BdpRequest, BdpResponse, BdpUpdateEvent } from '../messages.js';
@@ -47,15 +47,15 @@ const HANDSHAKE_REQUEST_LENGTH = 8;
  *
  * remaining_packet_length = 8 (the timestamp only).
  */
-function encodeHandshakeV3Response(): Buffer {
+function encodeHandshakeV3Response(version: { major: number; minor: number; patch: number }): Buffer {
   const buf = Buffer.allocUnsafe(32);
   // magic (7 bytes) + NUL
   buf.write(HANDSHAKE_MAGIC, 0, 'utf8');
   buf[7] = 0x00;
   // version triple
-  buf.writeUInt32LE(3, 8);  // major
-  buf.writeUInt32LE(0, 12); // minor
-  buf.writeUInt32LE(0, 16); // patch
+  buf.writeUInt32LE(version.major, 8);
+  buf.writeUInt32LE(version.minor, 12);
+  buf.writeUInt32LE(version.patch, 16);
   // remaining_packet_length = 8 (timestamp field only)
   buf.writeUInt32LE(8, 20);
   // revision_timestamp: use current time in ms as BigUInt64LE
@@ -84,6 +84,12 @@ export type MockBdpServer = {
    * Frames the event using `encodeUpdateEvent` and `encodeFrame`.
    */
   emitEvent(event: BdpUpdateEvent): void;
+  /**
+   * Override the BDP version advertised in the handshake response.
+   * Useful for testing BDP_VERSION_UNSUPPORTED error paths.
+   * Must be called before the client connects.
+   */
+  setHandshakeVersion(version: { major: number; minor: number; patch: number }): void;
   /** Destroy all active sockets and close the server. */
   stop(): Promise<void>;
 };
@@ -98,6 +104,9 @@ export async function startMockBdpServer(): Promise<MockBdpServer> {
     BdpRequest['kind'],
     (req: BdpRequest) => BdpResponse | Promise<BdpResponse>
   >();
+
+  // Handshake version advertised to clients. Default: v3.0.0.
+  let handshakeVersion = { major: 3, minor: 0, patch: 0 };
 
   const sockets = new Set<net.Socket>();
 
@@ -118,8 +127,8 @@ export async function startMockBdpServer(): Promise<MockBdpServer> {
         // here -- if it were wrong the socket would be in a bad state, and
         // the test would fail naturally on the handshake response decode).
         recvBuf = recvBuf.subarray(HANDSHAKE_REQUEST_LENGTH);
-        // Write the HandshakeV3Response.
-        sock.write(encodeHandshakeV3Response());
+        // Write the HandshakeV3Response using the current handshakeVersion.
+        sock.write(encodeHandshakeV3Response(handshakeVersion));
         handshakeDone = true;
         // Fall through: remaining data (if any) may contain the first request frame.
       }
@@ -157,7 +166,7 @@ export async function startMockBdpServer(): Promise<MockBdpServer> {
 
           let encoded: { packetType: number; payload: Buffer };
           try {
-            encoded = encodeResponse(res, requestId);
+            encoded = encodeResponseAs(res.kind, res, requestId);
           } catch {
             continue;
           }
@@ -183,6 +192,10 @@ export async function startMockBdpServer(): Promise<MockBdpServer> {
     onRequest<K extends BdpRequest['kind']>(kind: K, handler: RequestHandler<K>): void {
       // Cast to the widened handler type stored in the map.
       handlers.set(kind, handler as (req: BdpRequest) => BdpResponse | Promise<BdpResponse>);
+    },
+
+    setHandshakeVersion(version: { major: number; minor: number; patch: number }): void {
+      handshakeVersion = version;
     },
 
     emitEvent(event: BdpUpdateEvent): void {
