@@ -6,3 +6,4 @@ import './generate-app.js';
 import './package-app.js';
 import './validate-manifest.js';
 import './validate-assets.js';
+import './spec-upgrade.js';
