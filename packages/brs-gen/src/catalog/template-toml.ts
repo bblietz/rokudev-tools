@@ -2,6 +2,7 @@ import { z } from 'zod';
 import semver from 'semver';
 
 const SemverRange = z.string().refine((s) => semver.validRange(s) !== null, 'invalid semver range');
+const BrsIdentifier = z.string().min(1).regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'must be a valid BrightScript identifier (letters, digits, underscores; must not start with a digit)');
 
 export const TemplateTomlSchema = z.object({
   template: z.object({
@@ -12,7 +13,7 @@ export const TemplateTomlSchema = z.object({
   }).strict(),
   template_exports: z.object({
     init_hooks: z.array(z.object({
-      scope: z.string().min(1), phase: z.string().min(1),
+      scope: BrsIdentifier, phase: BrsIdentifier,
       file: z.string().min(1), signature: z.string().min(1),
     }).strict()),
     scene_nodes: z.array(z.object({ name: z.string().min(1), file: z.string().min(1) }).strict()),

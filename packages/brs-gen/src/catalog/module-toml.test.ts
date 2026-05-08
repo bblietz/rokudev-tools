@@ -34,4 +34,28 @@ describe('ModuleTomlSchema', () => {
     if (r.success) throw new Error('narrowing');
     expect(r.error.issues[0]?.message).toMatch(/valid BrightScript identifier/);
   });
+  it('rejects init_hook.scope with non-identifier characters', () => {
+    const bad = { ...minimal,
+      module_wiring: {
+        exports: [],
+        requires: [{ kind: 'init_hook', scope: 'my-scope', phase: 'before_scene_show' }],
+        init_calls: [],
+      }};
+    const r = ModuleTomlSchema.safeParse(bad);
+    expect(r.success).toBe(false);
+    if (r.success) throw new Error('narrowing');
+    expect(r.error.issues[0]?.message).toMatch(/valid BrightScript identifier/);
+  });
+  it('rejects init_hook.phase with non-identifier characters', () => {
+    const bad = { ...minimal,
+      module_wiring: {
+        exports: [],
+        requires: [{ kind: 'init_hook', scope: 'Main', phase: 'before-scene-show' }],
+        init_calls: [],
+      }};
+    const r = ModuleTomlSchema.safeParse(bad);
+    expect(r.success).toBe(false);
+    if (r.success) throw new Error('narrowing');
+    expect(r.error.issues[0]?.message).toMatch(/valid BrightScript identifier/);
+  });
 });

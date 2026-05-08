@@ -2,6 +2,7 @@ import { z } from 'zod';
 import semver from 'semver';
 
 const SemverRange = z.string().refine((s) => semver.validRange(s) !== null, 'invalid semver range');
+const BrsIdentifier = z.string().min(1).regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'must be a valid BrightScript identifier (letters, digits, underscores; must not start with a digit)');
 
 const ExportEntry = z.object({
   kind: z.enum(['init_fn', 'scene_node', 'helper']),
@@ -10,7 +11,7 @@ const ExportEntry = z.object({
 }).strict();
 
 const RequireEntry = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('init_hook'), scope: z.string(), phase: z.string() }).strict(),
+  z.object({ kind: z.literal('init_hook'), scope: BrsIdentifier, phase: BrsIdentifier }).strict(),
   z.object({ kind: z.literal('scene_node'), name: z.string() }).strict(),
 ]);
 
