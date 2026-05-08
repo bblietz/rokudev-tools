@@ -1931,6 +1931,12 @@ export function mergeManifest(templateDefaults: Record<string, string>, modules:
         out.set(k, mergeAppendCsv(existing, v));
         keyOwners.set(k, existing === undefined ? m.id : `${keyOwners.get(k)},${m.id}`);
       }
+      // Note: spec §7 specifies `requires_billing` uses `set-if-unset with
+      // logical-or convergence` (true wins over conflicting false). Plan 3's
+      // stub catalog contributes no manifest keys from modules, so this path
+      // is never exercised. Plan 5's real modules (Pay, Ads) will need this
+      // specialization; fold into the strategy switch when the first real
+      // contributor lands, and add a regression test at that time.
     }
   }
   return { ok: true, manifest: out };
@@ -3891,6 +3897,149 @@ The shape is large; the handler is the glue that invokes every previous module i
 
 The tool reads template/module file bytes from disk each call (in-process; not cached across calls). Module file bytes come from the bundled `modules/<id>/files/` dir.
 
+Happy-path control-flow skeleton (fill in with the primitives built in T3-T19):
+
+```ts
+// src/tools/generate-app.ts (happy-path skeleton)
+registerToolsModule((tools) => {
+  tools.push({
+    name: 'generate_app',
+    description: '...',
+    inputSchema: { /* hand-rolled JSON Schema for the input shape */ },
+    handler: async (args) => {
+      const warnings: Array<{ code: string; message: string }> = [];
+
+      // 1. Parse input: inline JSON object vs. file path
+      const specInput = typeof args.spec === 'string'
+        ? JSON.parse(await readFile(args.spec as string, 'utf8'))
+        : args.spec;
+
+      // 2. v1 -> v2 auto-promotion (captures SPEC_AUTO_PROMOTED warning if applicable)
+      const promoted = promoteV1ToV2(specInput);
+      if (promoted.warning) warnings.push(promoted.warning);
+      const spec = promoted.spec;
+
+      // 3. Preflight template
+      const cat = getCatalog();
+      const pf = preflightTemplate(spec.template, new Set(cat.templates.keys()));
+      if (!pf.ok) throw pf.failure;
+
+      // 4. Zod wrapper parse (strict-ish per T3)
+      const parsed = AppSpecV2Wrapper.safeParse(spec);
+      if (!parsed.success) throw fail('APP_SPEC_INVALID', 'AppSpec failed wrapper validation',
+        { stage: 'parse', issues: parsed.error.issues });
+      const appSpec = parsed.data;
+
+      // 5. Resolve modules (with version_range); emit MODULE_VERSION_UNPINNED as needed
+      const modules: ModuleToml[] = [];
+      for (const ref of appSpec.modules) {
+        const m = cat.modules.get(ref.id);
+        if (!m) throw fail('UNKNOWN_MODULE', `module not in catalog: ${ref.id}`,
+          { stage: 'catalog', given: ref.id, known: [...cat.modules.keys()].sort() });
+        if (ref.version_range === undefined) {
+          warnings.push({ code: 'MODULE_VERSION_UNPINNED',
+            message: `module ${ref.id} reference omits version_range; using installed ${m.module.version}` });
+        } else if (!semver.satisfies(m.module.version, ref.version_range)) {
+          throw fail('MODULE_VERSION_UNAVAILABLE',
+            `no installed version of ${ref.id} satisfies ${ref.version_range}`,
+            { stage: 'catalog', module_id: ref.id, requested: ref.version_range,
+              installed: m.module.version });
+        }
+        modules.push(m);
+      }
+
+      // 6. spec_compat check on template and every module
+      const tmpl = cat.templates.get(appSpec.template)!;
+      const tc = checkSpecCompat(appSpec.spec_version, tmpl.template.spec_compat, `template:${tmpl.template.id}`);
+      if (!tc.ok) throw tc.failure;
+      for (const m of modules) {
+        const mc = checkSpecCompat(appSpec.spec_version, m.module.spec_compat, `module:${m.module.id}`);
+        if (!mc.ok) throw mc.failure;
+      }
+
+      // 7. Per-module config validation (ajv)
+      for (const ref of appSpec.modules) {
+        const m = cat.modules.get(ref.id)!;
+        const cr = validateModuleConfig(ref.id, m.module_config_schema, ref.config ?? {});
+        if (!cr.ok) throw cr.failure;
+      }
+
+      // 8. Load template + module file bytes from the bundled dirs
+      const pkgRoot = /* resolve to packages/brs-gen */;
+      const templateFiles = await readTemplateFiles(join(pkgRoot, 'templates', tmpl.template.id, 'files'));
+      const moduleFileBytes = await readModuleFileBytes(pkgRoot, modules);
+
+      // 9. Render template files (EJS)
+      const renderedTemplateFiles = await renderTemplateFiles(templateFiles, appSpec,
+        { brs_gen_version: PKG_VERSION, template_version: tmpl.template.version });
+
+      // 10. Assemble EmittedProject (merger runs conflicts, topo-sort, wiring,
+      //     manifest merge, config.bs + __init_hooks.bs emission, provenance).
+      const project = await buildEmittedProject({
+        spec: appSpec, template: tmpl, modules,
+        renderedTemplateFiles, moduleFileBytes, brsGenVersion: PKG_VERSION,
+      });
+
+      // 11. Write to disk
+      await writeProject({
+        outputDir: args.output_dir as string,
+        files: project.files,
+        overwrite: Boolean(args.overwrite),
+      });
+
+      // 12. Run bsc compile (mandatory pre-zip)
+      const compileRes = await compileProject(args.output_dir as string);
+      if (!compileRes.ok) throw compileRes.failure;
+      for (const d of compileRes.diagnostics.filter((d) => d.severity === 'warning')) {
+        warnings.push({ code: 'BSC_LINT_WARNING', message: `${d.file}:${d.line} ${d.message}` });
+      }
+
+      // 13. Optional zip
+      let zipPath: string | undefined;
+      let zipBytes: number | undefined;
+      if (args.zip) {
+        zipPath = typeof args.zip === 'object' && args.zip.output_zip
+          ? args.zip.output_zip : `${args.output_dir}.zip`;
+        await packageProject({
+          projectDir: args.output_dir as string, outputZip: zipPath,
+          exclude: ['.rokudev-tools/sourcemaps'],
+        });
+        zipBytes = (await stat(zipPath)).size;
+      }
+
+      // 14. Optional sideload (throws DEVICE_NO_PASSWORD if unresolvable)
+      let sideloadResult: unknown;
+      if (args.sideload) {
+        const { device, dev_password } = args.sideload as { device: string; dev_password?: string };
+        if (!zipPath) throw fail('NOT_IMPLEMENTED', 'sideload requires zip: true', { stage: 'tool' });
+        sideloadResult = await deviceClient.devPortal.sideload({
+          device, dev_password, zip_path: zipPath,
+        });
+      }
+
+      // 15. Return result envelope
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            ok: true,
+            project_dir: args.output_dir,
+            files_written: project.files.length,
+            manifest_keys: [...project.manifest.keys()].sort(),
+            init_order: project.initOrder,
+            ...(zipPath ? { zip_path: zipPath, zip_bytes: zipBytes } : {}),
+            ...(sideloadResult ? { sideload: sideloadResult } : {}),
+            details: warnings.length > 0 ? { warnings } : undefined,
+          }),
+        }],
+      };
+    },
+  });
+});
+```
+
+`readTemplateFiles` and `readModuleFileBytes` are small fs walkers. Either inline them (20 lines) or factor into `src/tools/_fs-helpers.ts` if T28's determinism test wants to reuse them (the advisory note on T28 flagged this).
+
 Tests should cover at minimum:
 - happy path: generate a project from `{ template: stub_hello, modules: [{ id: stub_label, config: {text:'hi'} }] }` and assert the output tree has manifest, source/Main.bs (compiled to source/Main.brs), source/_modules/stub_label/Init.bs, source/_modules/stub_label/config.bs, source/_modules/__init_hooks.bs, .rokudev-tools/provenance.json.
 - refusal when `output_dir` is non-empty without `overwrite: true`.
@@ -4368,7 +4517,14 @@ describe('brs-gen e2e MCP smoke', () => {
 });
 ```
 
-Fill in the MCP stdio plumbing by copying `packages/rokudev-device/tests/e2e.test.ts` verbatim and adapting the tool-name assertions.
+Fill in the MCP stdio plumbing by copying `packages/rokudev-device/tests/e2e.test.ts` verbatim and adapting the tool-name assertions. That file already works out:
+
+- child-process spawn lifecycle (spawn on `beforeAll`, kill on `afterAll`)
+- JSON-RPC-over-stdio framing (one message per line, null-terminated; see the helper function `sendAndReceive` in rokudev-device's e2e),
+- request/response correlation by `id`,
+- timeout handling on `tools/list` and `tools/call`.
+
+Do NOT rewrite the plumbing from scratch. Copy the helper functions (`sendAndReceive`, `nextResponse`, etc.) into brs-gen's e2e test verbatim. Only the test bodies (tool names, call args, assertions) differ.
 
 - [ ] **Step 4: Run the full test suite**
 
