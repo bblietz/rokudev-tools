@@ -6,8 +6,14 @@ type R = { ok: true; manifest: Map<string, string> } | { ok: false; failure: Fai
 
 function mergeAppendCsv(existing: string | undefined, next: string): string {
   const set = new Set<string>();
-  if (existing) existing.split(',').forEach((s) => set.add(s.trim()));
-  next.split(',').forEach((s) => set.add(s.trim()));
+  const addTokens = (s: string): void => {
+    for (const raw of s.split(',')) {
+      const t = raw.trim();
+      if (t) set.add(t);
+    }
+  };
+  if (existing) addTokens(existing);
+  addTokens(next);
   return [...set].sort().join(',');
 }
 
@@ -53,6 +59,12 @@ export function mergeManifest(templateDefaults: Record<string, string>, modules:
       } else if (strat.strategy === 'append-csv') {
         out.set(k, mergeAppendCsv(existing, v));
         keyOwners.set(k, existing === undefined ? m.id : `${keyOwners.get(k)},${m.id}`);
+      } else {
+        // Exhaustiveness guard: if a new ManifestStrategy variant is added in
+        // manifest-key-strategies.ts without a branch here, TypeScript will
+        // flag this line at compile time.
+        const _exhaustive: never = strat.strategy;
+        void _exhaustive;
       }
       // Note: spec §7 specifies `requires_billing` uses `set-if-unset with
       // logical-or convergence` (true wins over conflicting false). Plan 3's

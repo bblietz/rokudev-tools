@@ -65,4 +65,14 @@ describe('mergeManifest', () => {
     if (r.ok) throw new Error('narrowing');
     expect(r.failure.code).toBe('MANIFEST_KEY_CONFLICT');
   });
+
+  it('append-csv: empty tokens in malformed input are dropped', () => {
+    const r = mergeManifest({}, [
+      { id: 'a', manifest: { bs_const: 'A=1,,B=1' } },
+      { id: 'b', manifest: { bs_const: ',C=1,' } },
+    ]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error('narrowing');
+    expect(r.manifest.get('bs_const')).toBe('A=1,B=1,C=1');
+  });
 });
