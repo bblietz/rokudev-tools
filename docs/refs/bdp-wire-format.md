@@ -699,7 +699,54 @@ BrightScript function references appear as `Function` (code 6) or `Subroutine` (
 
 ## 6. Verification log
 
-_This section will be appended during Task T27 (integration testing against a real device)._
+### Run 1 (2026-05-08, outcome=PASS)
+
+**Hardware:** Roku Ultra (model 4850X, region US), software 15.2.4 build 3442
+**Test channel:** `FlappyBat` v2.3.0 (FlappyBird-Game-Roku, MD5 `8afd51be170e25a8b9d83b2a931be9d0`)
+**Tester:** automated via `scripts/manual-bdp-smoke.mjs` driving `dist/index.js`
+
+**Procedure**
+
+1. Sideload `FlappyBird.zip` via `/plugin_install` with multipart `mysubmit=Install` and `archive=...`. The `remotedebug=1` form-field had no observable effect on whether port 8081 opens.
+2. Launch the dev channel via ECP `POST /launch/dev?bs_debug_protocol=1`. **This deep-link query parameter is what causes the device to open BDP listener on TCP 8081.** Without it, port 8081 stays refused even with a dev channel running.
+3. Run smoke test: `debug_attach` -> `debug_threads` -> `debug_detach`.
+
+**Observations**
+
+- Direct probe with python (`socket.create_connection` + write `b'bsdebug\x00'`, recv 64 bytes) confirms the device responds with a HandshakeV3Response. Bytes captured (hex):
+
+  ```
+  62736465627567 00          // "bsdebug\0"
+  03 00 00 00                // major = 3
+  05 00 00 00                // minor = 5
+  00 00 00 00                // patch = 0
+  0c 00 00 00                // remaining_packet_length = 12
+  9a 2f 3f 24 9c 01 00 00    // revision_timestamp (BigUInt64LE) = 1764737912218
+  00 00 00 00                // 4 trailing bytes inside remaining_packet_length
+  14 00 00 00 ...            // begins next standard frame (likely IOPortOpened)
+  ```
+
+- Device speaks **BDP v3.5.0**. `roku-debug` v0.23.6 documents `<=3.2.0` but Roku has shipped newer minors. `SUPPORTED_BDP_VERSIONS.max` was raised from 3.2.0 to 3.5.0 to accept it. Pre-bump runs hit `BDP_VERSION_UNSUPPORTED` on 8081 and then fell back to 8086 (which is not BDP), surfacing as a confusing "handshake to :8086 timed out" error.
+- BDP on port 8081 is **single-shot**: after one TCP client disconnects, port 8081 closes and a fresh `?bs_debug_protocol=1` launch is required to re-open it. Probing with `nc` is enough to consume the listener.
+- Port 8086 was reachable on this device but did not serve BDP (handshake timed out at 5000ms). The port-fallback path (spec §4.5.1) is therefore present-but-not-useful on this firmware. Whether other firmwares serve BDP on 8086 was not retested.
+
+**Smoke-test results**
+
+```
+debug_attach  -> ok=true, session_id=bdp-1778254114842-i2fyj6, bdp_version={3,5,0}
+debug_threads -> ok=true, threads=[{id:0, is_primary:true, stop_reason:"break",
+                                    file:"pkg:/source/main.brs", line:6,
+                                    function_name:"main"}]
+debug_detach  -> ok=true, session_id=bdp-1778254114842-i2fyj6
+```
+
+The BDP server pauses execution at the first BrightScript line (`main.brs:6`) on attach, consistent with the protocol's break-on-attach behaviour. End-to-end roundtrip including handshake validation, request/response correlation, source-map handling for the (already pkg-rooted) file, and clean teardown all functioned.
+
+**Open follow-ups (not blocking T27 PASS)**
+
+- Investigate whether the BDP listener can be made multi-shot per launch (would simplify reattach flows). Current understanding: the listener accepts exactly one connection per channel start.
+- Determine the spectrum of firmwares that serve BDP on port 8086. The fallback exists in code (`connectWithFallback`) but was not exercised during this run.
+- The 4 trailing bytes inside `remaining_packet_length` after the 8-byte timestamp are not yet decoded. They may be reserved/zero on this firmware. Spec §1.2 only documents the timestamp.
 
 ---
 

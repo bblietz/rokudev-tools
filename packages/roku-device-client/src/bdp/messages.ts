@@ -48,15 +48,15 @@ export type BdpVersionRange = { min: BdpVersion; max: BdpVersion };
 /**
  * The range of BDP protocol versions supported by this client (doc §3.1 item 5).
  *
- * `max` is `3.2.0` taken directly from `roku-debug`'s `supportedVersionRange = '<=3.2.0'`.
+ * `max` is `3.5.0`. T27 real-device verification on Roku Ultra 4850X firmware
+ * 15.2.4 build 3442 (2026-05-08) observed the device offering BDP 3.5.0 in its
+ * handshake response, so we accept up through that version. roku-debug v0.23.6
+ * documents `<=3.2.0` but Roku has shipped newer minors since.
  * `min` is `1.0.0` (earliest version observed in the wild).
- *
- * Subject to revision in T27 if real-device testing reveals the firmware
- * has moved beyond 3.2.0.
  */
 export const SUPPORTED_BDP_VERSIONS: BdpVersionRange = {
   min: { major: 1, minor: 0, patch: 0 },
-  max: { major: 3, minor: 2, patch: 0 },
+  max: { major: 3, minor: 5, patch: 0 },
 } as const;
 
 // ---------------------------------------------------------------------------
