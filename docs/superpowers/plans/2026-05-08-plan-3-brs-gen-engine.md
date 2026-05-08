@@ -1312,7 +1312,8 @@ function validateModuleFilePath(p: string, moduleId: string, tomlPath: string): 
 function validateHookScopeCasing(t: TemplateToml, tomlPath: string): void {
   const seen = new Map<string, string>(); // lowercased scope -> original
   for (const hook of t.template_exports.init_hooks) {
-    // Each hook entry has { scope, phases } per T4's export schema.
+    // Each hook entry has { scope, phase, file, signature } per the
+    // TemplateTomlSchema export entries at Step 3 of this task.
     const scope = (hook as { scope: string }).scope;
     const lc = scope.toLowerCase();
     const prior = seen.get(lc);
@@ -3859,15 +3860,15 @@ channel start. Used by T30 conflict-matrix test and T31 e2e smoke."
 All tools follow the same pattern Plan 1 and Plan 2 established:
 
 - One file per tool under `src/tools/`.
-- Each file calls `registerToolsModule((tools) => { tools.push(...) })` at module-load so `tools/all.ts` (a side-effect-import barrel) collects them.
+- Each file calls `registerToolsModule((tools) => { tools.set(name, { ... }) })` at module-load so `tools/all.ts` (a side-effect-import barrel) collects them. `tools` is a `Map<string, ToolDef>` matching the canonical shape at `packages/rokudev-device/src/tools/_register.ts`.
 - MCP wire fields use snake_case; internal TS uses camelCase.
 - `inputSchema` is hand-rolled JSON Schema (no Zod-to-JSON at the tool boundary).
 - Every tool returns `{ content: [{ type: 'text', text: JSON.stringify(result) }] }` on success; failures throw a `Failure` that the server translates to an MCP error result.
 
 Before starting T20, add the minimum tool-registrar scaffolding:
 
-- Create `src/tools/_registry.ts` that mirrors `packages/rokudev-device/src/tools/_registry.ts` (copy verbatim; adjust only the package import path if needed). It exports `registerToolsModule()` and `REGISTRARS`.
-- Extend `src/bootstrap/index.ts` to iterate `REGISTRARS` on startup and register each tool's handler with the MCP `Server`.
+- Create `src/tools/_register.ts` (note: `_register.ts`, not `_registry.ts`; matches the canonical filename at `packages/rokudev-device/src/tools/_register.ts`). Copy verbatim; adjust only the package import path if needed. It exports `registerToolsModule()` and `registerAllTools()`.
+- Extend `src/bootstrap/index.ts` to build a `Map<string, ToolDef>`, call `registerAllTools(tools)`, and register each tool's handler with the MCP `Server`.
 - Create `src/tools/all.ts` as an empty barrel that imports each tool file for its side-effect registration. Tools land in `all.ts` as they are added in T20-T27.
 
 This pre-work is part of T20; do it before implementing `list_templates`.
@@ -3875,7 +3876,7 @@ This pre-work is part of T20; do it before implementing `list_templates`.
 ### Task T20: `list_templates` + `get_template_schema`
 
 **Files:**
-- Create: `packages/brs-gen/src/tools/_registry.ts` (mirror rokudev-device)
+- Create: `packages/brs-gen/src/tools/_register.ts` (mirror rokudev-device; note `_register` not `_registry`)
 - Create: `packages/brs-gen/src/tools/all.ts`
 - Create: `packages/brs-gen/src/tools/list-templates.ts` + `.test.ts`
 - Create: `packages/brs-gen/src/tools/get-template-schema.ts` + `.test.ts`
@@ -4218,8 +4219,27 @@ Happy-path control-flow skeleton (fill in with the primitives built in T3-T19):
 
 ```ts
 // src/tools/generate-app.ts (happy-path skeleton)
-// NOTE: imports `registerToolsModule` from './_register.js' (matches canonical
-// rokudev-device filename/shape; not './_registry.js').
+// Required imports (elided below for brevity; fill in at top of file):
+//   import { readFile, stat } from 'node:fs/promises';
+//   import { join } from 'node:path';
+//   import semver from 'semver';
+//   import { fail, DevPortal } from '@rokudev/device-client';
+//   import { registerToolsModule } from './_register.js';
+//   import { getCatalog } from './_catalog-singleton.js';
+//   import { AppSpecV2Wrapper } from '../spec/app-spec.js';
+//   import { promoteV1ToV2 } from '../spec/promote.js';
+//   import { preflightTemplate } from '../spec/preflight.js';
+//   import { checkSpecCompat } from '../merger/spec-compat.js';
+//   import { validateModuleConfig } from '../merger/module-config.js';
+//   import { buildEmittedProject } from '../merger/build.js';
+//   import { renderTemplateFiles } from '../render/ejs.js';
+//   import { writeProject } from '../build/write.js';
+//   import { compileProject } from '../build/compile.js';
+//   import { packageProject } from '../build/zip.js';
+//   import type { ModuleToml } from '../catalog/module-toml.js';
+//   const PKG_VERSION = /* read from package.json; same pattern as bootstrap */;
+//
+// Uses `_register.js` (canonical rokudev-device filename), NOT `_registry.js`.
 registerToolsModule((tools) => {
   tools.set('generate_app', {
     name: 'generate_app',
@@ -4558,21 +4578,38 @@ overwrites. Never silently mutates user input in the default path."
 
 Spec reference: §2.5.
 
-Thin wrapper around `compileProject` (T16). Returns `{ ok, diagnostics }` where `ok` is true only when no diagnostic has severity `"error"`. Unlike `generate_app`, `lint` never modifies the project; it invokes `compileProject` with a staging dir that gets cleaned up.
+Thin wrapper around `compileProject` (T16). Returns `{ ok, diagnostics }` where `ok` is true only when no diagnostic has severity `"error"`.
+
+**Read-only discipline.** `compileProject` is not read-only after T16: it replaces `.bs` files with `.brs`, moves `.brs.map` into `.rokudev-tools/sourcemaps/`, and deletes the `.bs` sources. A `lint` tool that directly called `compileProject(projectDir)` would mutate the user's tree, which is the wrong contract for a linter. The tool MUST stage the project into a temporary copy first:
+
+1. Accept `project_dir` as input.
+2. Create a fresh tmpdir under `os.tmpdir()/brs-gen-lint-<uuid>/`.
+3. Recursively copy `project_dir` into the tmpdir (reuse the `walk()` helper from T17 `zip.ts` or `writeProject`'s copy logic).
+4. Call `compileProject(tmpdir)`.
+5. Remap every diagnostic's `file` field from the tmpdir path back to a path under `project_dir` so the caller's tooling (IDE, CI) sees real file locations.
+6. Delete the tmpdir.
+7. Return the remapped `{ ok, diagnostics }`.
 
 Tests:
 - clean project: ok=true, diagnostics=[].
 - syntax error: ok=false, diagnostics include the error.
 - warnings-only: ok=true, diagnostics include warnings.
+- **the input `project_dir` is unchanged after the call** (no `.bs` -> `.brs` swap in the user's tree); assert the file listing before and after are byte-identical.
+- diagnostic `file` fields point into `project_dir`, not the tmpdir.
 
 Commit:
 
 ```bash
 git commit -m "feat(brs-gen): lint tool
 
-Wraps compileProject; ok is true only when no error-level diagnostics.
+Wraps compileProject in a tmpdir-staged copy of project_dir so the
+linter never mutates the caller's tree (compileProject itself is
+mutating post-Plan 3 T16: .bs -> .brs in-place, .brs.map moved,
+.bs deleted). Diagnostics are remapped from the tmpdir back to
+project_dir paths so callers see real file locations.
+
 Used by generate_app internally (§4.1 step 10) and by Plan 6's
-freeform-session lint gate. Staging dir is cleaned after each call."
+freeform-session lint gate."
 ```
 
 ---
@@ -4764,9 +4801,19 @@ import { join } from 'node:path';
 // ... (setup: generate stub project into tmpdir via generate_app or direct merger call) ...
 
 describe('stub catalog snapshot', () => {
+  // Snapshots are taken at the PRE-COMPILE state (the EmittedProject that
+  // the merger produces), not the post-compile state. Rationale: the .bs
+  // source is what we author and reason about; the .brs is a byproduct of
+  // the brighterscript compiler version, and its exact bytes are already
+  // covered by T28's bsc-byte-equality test. This decision keeps snapshots
+  // stable across brighterscript upgrades.
+  //
+  // Concretely: the helper runs the merger + writeProject but STOPS BEFORE
+  // compileProject(). Every .bs file below lives on disk at the point of
+  // readFile; no .brs swap has happened yet.
   let projectDir: string;
   beforeAll(async () => {
-    projectDir = await generateStubProjectForSnapshots();
+    projectDir = await generateStubProjectPreCompile();
   });
 
   it('emitted manifest matches saved snapshot', async () => {
@@ -4774,10 +4821,6 @@ describe('stub catalog snapshot', () => {
     await expect(s).toMatchFileSnapshot('__snapshots__/manifest.snap');
   });
   it('__init_hooks.bs matches saved snapshot', async () => {
-    // NOTE: this test must run BEFORE compileProject() (which would replace
-    // the .bs with .brs). If the snapshot fixture runs the full pipeline,
-    // snapshot the post-merger / pre-compile state held in memory instead
-    // of reading the post-compile tree. Pick one approach and stick to it.
     const s = await readFile(join(projectDir, 'source/_modules/__init_hooks.bs'), 'utf8');
     await expect(s).toMatchFileSnapshot('__snapshots__/init_hooks.bs.snap');
   });
@@ -4796,6 +4839,8 @@ describe('stub catalog snapshot', () => {
   });
 });
 ```
+
+`generateStubProjectPreCompile()` runs the merger + writeProject and skips the T16 compile step. Inline it as a 15-line helper in the same file; do NOT call the full `generate_app` tool (which compiles).
 
 Run once with `UPDATE_SNAPSHOT=1` to create the initial snapshots, review the diff carefully, commit the `.snap` files. Subsequent runs fail on drift; regen is a manual, reviewed action.
 
@@ -5028,7 +5073,7 @@ Manual regeneration via scripts/regen-golden.ts; CI does NOT auto-regen
 
 - [ ] **Step 1: Bump root + brs-gen package.json to `0.3.0`**
 
-No need to bump `roku-device-client` or `rokudev-device`: their v0.2 surfaces are unchanged (brs-gen uses `workspace:*` to reach them). If the cross-package version check detects drift against a non-0.3 sibling at runtime, minor-drift warning fires once; not a problem. Pin both siblings to v0.3 only if the release policy requires it (confirm with the user before making this decision).
+No ADDITIONAL version bump needed at release time. Note: `roku-device-client` was already bumped from 0.2.0 to 0.2.1 in T2 Step 10 to cover the FAILURE_CODES/WARNING_CODES extension; that commit is already in history by the time we reach T32. `rokudev-device` does NOT need a bump in Plan 3 (it is not affected by the new error codes; its own runtime behavior is unchanged). brs-gen itself goes from its scaffold-time 0.3.0-dev.0 to 0.3.0. If the cross-package version check detects drift against a non-matching sibling at runtime, the drift warning fires once; not a problem.
 
 - [ ] **Step 2: Sync lockfile**
 
