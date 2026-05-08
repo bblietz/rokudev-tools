@@ -45,7 +45,14 @@ export const FAILURE_CODES = {
   INVALID_DEVICE_NAME: 'registry',
   // bootstrap
   CROSS_PACKAGE_VERSION_MISMATCH: 'bootstrap',
-  // (merge, debug, freeform, lint codes added by Plans 2-4)
+  // debug
+  BDP_ATTACH_FAILED: 'debug',
+  BDP_ATTACH_BUSY: 'debug',
+  BDP_VERSION_UNSUPPORTED: 'debug',
+  BDP_BREAKPOINT_INVALID: 'debug',
+  BDP_NO_SOURCE_MAP: 'debug',
+  BDP_THREAD_LOST: 'debug',
+  // (merge, freeform, lint codes added by Plans 3-4)
 } as const;
 export type FailureCode = keyof typeof FAILURE_CODES;
 
