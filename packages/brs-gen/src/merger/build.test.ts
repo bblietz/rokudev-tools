@@ -63,4 +63,20 @@ describe('buildEmittedProject', () => {
     expect(a.files.map((f) => (typeof f.content === 'string' ? f.content : f.content.toString('base64')))).toEqual(
       b.files.map((f) => (typeof f.content === 'string' ? f.content : f.content.toString('base64'))));
   });
+
+  it('throws APP_SPEC_INVALID when a template_manifest_defaults value has malformed EJS', async () => {
+    const badTemplate = {
+      ...fakeTemplate,
+      template_manifest_defaults: {
+        title: '<% throw new Error("malformed EJS template") %>',
+      },
+    };
+    await expect(buildEmittedProject({
+      spec: fakeSpec as any, template: badTemplate as any, modules: [fakeModule as any],
+      renderedTemplateFiles, moduleFileBytes, brsGenVersion: '0.3.0',
+    })).rejects.toMatchObject({
+      code: 'APP_SPEC_INVALID',
+      details: expect.objectContaining({ key: 'title', stage: 'build' }),
+    });
+  });
 });
