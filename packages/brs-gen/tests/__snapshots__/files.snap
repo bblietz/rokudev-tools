@@ -1,0 +1,50 @@
+[
+  {
+    "path": ".rokudev-tools/provenance.json",
+    "size": 447
+  },
+  {
+    "path": "components/MainScene.bs",
+    "size": 81
+  },
+  {
+    "path": "components/MainScene.xml",
+    "size": 361
+  },
+  {
+    "path": "images/icon_fhd.png",
+    "size": 689
+  },
+  {
+    "path": "images/icon_hd.png",
+    "size": 685
+  },
+  {
+    "path": "images/splash_fhd.png",
+    "size": 6121
+  },
+  {
+    "path": "images/splash_hd.png",
+    "size": 2759
+  },
+  {
+    "path": "manifest",
+    "size": 279
+  },
+  {
+    "path": "source/Main.bs",
+    "size": 501
+  },
+  {
+    "path": "source/_modules/__init_hooks.bs",
+    "size": 141
+  },
+  {
+    "path": "source/_modules/stub_label/Init.bs",
+    "size": 359
+  },
+  {
+    "path": "source/_modules/stub_label/config.bs",
+    "size": 141
+  }
+]
