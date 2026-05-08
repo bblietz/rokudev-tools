@@ -113,7 +113,7 @@ function validateModuleFilePath(p: string, moduleId: string, tomlPath: string): 
 function validateHookScopeCasing(t: TemplateToml, tomlPath: string): void {
   const seen = new Map<string, string>();
   for (const hook of t.template_exports.init_hooks) {
-    const scope = (hook as { scope: string }).scope;
+    const scope = hook.scope;
     const lc = scope.toLowerCase();
     const prior = seen.get(lc);
     if (prior !== undefined && prior !== scope) {

@@ -71,4 +71,34 @@ describe('loadCatalog', () => {
     const cat = await loadCatalog(root);
     expect(cat.warnings).toContainEqual(expect.objectContaining({ code: 'ASYMMETRIC_CONFLICT' }));
   });
+
+  it('throws CATALOG_INVALID on module.files.add with traversal path', async () => {
+    await writeFile(join(root, 'modules', 'm', 'module.toml'),
+                    M_TOML.replace('add = []', 'add = ["../escape.bs"]'));
+    await expect(loadCatalog(root)).rejects.toMatchObject({ code: 'CATALOG_INVALID' });
+  });
+
+  it('throws CATALOG_INVALID on template with case-only-different hook scopes', async () => {
+    const colliding = `[template]
+id = "t"
+version = "0.1.0"
+spec_compat = ">=1"
+description = "d"
+[[template.exports.init_hooks]]
+scope = "Main"
+phase = "before_scene_show"
+file = "source/Main.bs"
+signature = "(args as dynamic) as void"
+[[template.exports.init_hooks]]
+scope = "main"
+phase = "before_scene_show"
+file = "source/Main.bs"
+signature = "(args as dynamic) as void"
+[template.exports]
+scene_nodes = []
+[template.manifest_defaults]
+`;
+    await writeFile(join(root, 'templates', 't', 'template.toml'), colliding);
+    await expect(loadCatalog(root)).rejects.toMatchObject({ code: 'CATALOG_INVALID' });
+  });
 });
