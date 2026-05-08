@@ -23,4 +23,25 @@ export {
   isReachable,
   type Fingerprint,
 } from './network/index.js';
+export {
+  BdpClient,
+  BdpSession,
+  SourceMapResolver,
+  findSourceMap,
+  HANDSHAKE_TIMEOUT_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  SUPPORTED_BDP_VERSIONS,
+  type BdpSessionState,
+  type BdpStoppedEvent,
+  type BdpVersion,
+  type BdpVersionRange,
+  type BdpStopReason,
+  type BdpStackFrame,
+  type BdpVariable,
+  type BdpBreakpointEntry,
+  type BdpThreadEntry,
+  type BdpRequest,
+  type BdpResponse,
+  type BdpUpdateEvent,
+} from './bdp/index.js';
 export const VERSION = '0.1.0';

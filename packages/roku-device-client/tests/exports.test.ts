@@ -19,8 +19,19 @@ describe('package exports', () => {
       './telnet',
       './discovery',
       './network',
+      './bdp',
     ]) {
       expect(exports).toHaveProperty(k);
     }
+  });
+  it('BDP exports are accessible at the package root', async () => {
+    const root = await import('../src/index.js');
+    expect(root).toHaveProperty('BdpClient');
+    expect(root).toHaveProperty('BdpSession');
+    expect(root).toHaveProperty('SourceMapResolver');
+    expect(root).toHaveProperty('findSourceMap');
+    expect(root).toHaveProperty('HANDSHAKE_TIMEOUT_MS');
+    expect(root).toHaveProperty('DEFAULT_REQUEST_TIMEOUT_MS');
+    expect(root).toHaveProperty('SUPPORTED_BDP_VERSIONS');
   });
 });
