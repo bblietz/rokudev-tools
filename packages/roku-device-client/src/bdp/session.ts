@@ -23,7 +23,7 @@
 
 import { fail } from '../errors/index.js';
 import { BdpClient, SUPPORTED_BDP_VERSIONS as _defaultVersions } from './client.js';
-import type { BdpVersion, BdpVersionRange, BdpBreakpointEntry } from './messages.js';
+import type { BdpVersion, BdpVersionRange, BdpBreakpointEntry, BdpThreadEntry, BdpStackFrame } from './messages.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -379,6 +379,58 @@ export class BdpSession {
   async pause(): Promise<void> {
     this.guardLive();
     await this.client.send({ kind: 'pause' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Introspection methods (T13)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Retrieve the list of all threads currently known to the device debugger.
+   *
+   * Sends a `threads` request and returns the decoded `BdpThreadEntry[]` from
+   * the device response. Each entry includes stop reason, line/function/file at
+   * the stop point, and a source snippet.
+   *
+   * Because this request is not thread-targeted, thread-gone translation is
+   * not applied -- errors propagate as-is from BdpClient.
+   *
+   * @throws Failure(BDP_THREAD_LOST) if the session is not live (guardLive).
+   */
+  async threads(): Promise<BdpThreadEntry[]> {
+    this.guardLive();
+    const res = await this.client.send({ kind: 'threads' });
+    if (res.kind !== 'threads') {
+      throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for threads`, { session_state: this._state });
+    }
+    return res.threads;
+  }
+
+  /**
+   * Retrieve the call stack for a specific thread.
+   *
+   * Sends a `stack_trace` request for `threadId` and returns the decoded
+   * `BdpStackFrame[]` from the device response. Frame 0 is the innermost
+   * (most recent) frame. File paths are raw compiled-line paths as reported
+   * by the device (e.g. `pkg:/source/main.brs`); `.brs` -> `.bs` translation
+   * is deferred to the tool layer (T23).
+   *
+   * @throws Failure(BDP_THREAD_LOST) with session_state 'thread_terminated_other'
+   *   when the device reports that the targeted thread no longer exists
+   *   (wire error_code indicates INVALID_THREAD).
+   * @throws Failure(BDP_THREAD_LOST) if the session is not live (guardLive).
+   */
+  async stackTrace(threadId: number): Promise<BdpStackFrame[]> {
+    this.guardLive();
+    try {
+      const res = await this.client.send({ kind: 'stack_trace', threadId });
+      if (res.kind !== 'stack_trace') {
+        throw fail('BDP_THREAD_LOST', `Unexpected response kind '${res.kind}' for stack_trace`, { session_state: this._state });
+      }
+      return res.frames;
+    } catch (e: unknown) {
+      throw this.translateThreadGone(e, threadId);
+    }
   }
 
   // ---------------------------------------------------------------------------

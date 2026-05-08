@@ -438,4 +438,146 @@ describe('BdpSession', () => {
       await expect(session.pause()).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Introspection (T13): threads, stackTrace
+  // -------------------------------------------------------------------------
+
+  describe('threads', () => {
+    it('returns BdpThreadEntry[] from device response', async () => {
+      server.onRequest('threads', () => ({
+        kind: 'threads',
+        threads: [
+          {
+            id: 0,
+            isPrimary: true,
+            isDetached: false,
+            stopReason: 'break',
+            stopReasonDetail: 'breakpoint hit',
+            line: 42,
+            functionName: 'main',
+            file: 'pkg:/source/main.brs',
+            codeSnippet: 'stop',
+          },
+          {
+            id: 1,
+            isPrimary: false,
+            isDetached: false,
+            stopReason: 'not_stopped',
+            stopReasonDetail: '',
+            line: 10,
+            functionName: 'runLoop',
+            file: 'pkg:/source/lib.brs',
+            codeSnippet: 'while true',
+          },
+        ],
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const result = await session.threads();
+
+      expect(result).toHaveLength(2);
+
+      expect(result[0]).toMatchObject({
+        id: 0,
+        isPrimary: true,
+        isDetached: false,
+        stopReason: 'break',
+        stopReasonDetail: 'breakpoint hit',
+        line: 42,
+        functionName: 'main',
+        file: 'pkg:/source/main.brs',
+        codeSnippet: 'stop',
+      });
+
+      expect(result[1]).toMatchObject({
+        id: 1,
+        isPrimary: false,
+        stopReason: 'not_stopped',
+        functionName: 'runLoop',
+        file: 'pkg:/source/lib.brs',
+      });
+
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST after detach (state guard)', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.threads()).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  describe('stackTrace', () => {
+    it('returns BdpStackFrame[] for a thread', async () => {
+      server.onRequest('stack_trace', (req) => {
+        expect(req.threadId).toBe(1);
+        return {
+          kind: 'stack_trace',
+          frames: [
+            { idx: 0, file: '/main.brs', line: 10, functionName: 'main' },
+            { idx: 1, file: '/lib.brs', line: 25 },
+          ],
+        };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      const frames = await session.stackTrace(1);
+
+      expect(frames).toHaveLength(2);
+      expect(frames[0]!.file).toBe('/main.brs');
+      expect(frames[0]!.line).toBe(10);
+      expect(frames[0]!.functionName).toBe('main');
+      expect(frames[0]!.idx).toBe(0);
+      expect(frames[1]!.file).toBe('/lib.brs');
+      expect(frames[1]!.idx).toBe(1);
+
+      session.detach();
+    });
+
+    it('propagates threadId in the stack_trace request', async () => {
+      let capturedThreadId: number | undefined;
+      server.onRequest('stack_trace', (req) => {
+        capturedThreadId = req.threadId;
+        return {
+          kind: 'stack_trace',
+          frames: [{ idx: 0, file: 'pkg:/source/main.brs', line: 5 }],
+        };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await session.stackTrace(3);
+      expect(capturedThreadId).toBe(3);
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST with session_state:thread_terminated_other on dead thread (wire errorCode 6)', async () => {
+      // Mock server returns wire errorCode 6 (INVALID_THREAD) -- simulates thread gone.
+      // T27: verify this error_code value against a real Roku device.
+      server.onRequest('stack_trace', (_req) => ({
+        response: { kind: 'stack_trace', frames: [] },
+        errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.stackTrace(2)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+        details: { session_state: 'thread_terminated_other' },
+      });
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST after detach (state guard)', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.stackTrace(1)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
 });
