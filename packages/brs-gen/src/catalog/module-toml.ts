@@ -16,7 +16,7 @@ const RequireEntry = z.discriminatedUnion('kind', [
 
 export const ModuleTomlSchema = z.object({
   module: z.object({
-    id: z.string().min(1),
+    id: z.string().min(1).regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'module.id must be a valid BrightScript identifier (letters, digits, underscores; must not start with a digit)'),
     version: z.string().refine((s) => semver.valid(s) !== null, 'invalid semver'),
     spec_compat: SemverRange,
     description: z.string(),

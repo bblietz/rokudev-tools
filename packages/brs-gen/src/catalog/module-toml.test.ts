@@ -27,4 +27,11 @@ describe('ModuleTomlSchema', () => {
         init_calls: [{ hook: 'Main.before_scene_show', statement: 'StubLabel_init(args)' }],
       }}).success).toBe(true);
   });
+  it('rejects module.id with non-identifier characters', () => {
+    const bad = { ...minimal, module: { id: 'my-module', version: '0.1.0', spec_compat: '>=2', description: 'test' } };
+    const r = ModuleTomlSchema.safeParse(bad);
+    expect(r.success).toBe(false);
+    if (r.success) throw new Error('narrowing');
+    expect(r.error.issues[0]?.message).toMatch(/valid BrightScript identifier/);
+  });
 });
