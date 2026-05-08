@@ -420,7 +420,8 @@ describe('error-codes registry', () => {
       'INIT_ORDER_CYCLE', 'WIRING_CONTRACT_VIOLATION', 'MANIFEST_KEY_CONFLICT',
       'UNKNOWN_MANIFEST_KEY', 'OUTPUT_DIR_NOT_EMPTY', 'LINT_FAILED', 'COMPILE_FAILED',
       'ASSET_VALIDATION_FAILED', 'MANIFEST_VALIDATION_FAILED', 'CATALOG_INVALID',
-      'CROSS_PACKAGE_VERSION_MISMATCH', 'NOT_IMPLEMENTED',
+      'CROSS_PACKAGE_VERSION_MISMATCH', 'NOT_IMPLEMENTED', 'DEVICE_NO_PASSWORD',
+      'CATALOG_INTEGRITY',
     ]) {
       expect(BRS_GEN_ERROR_CODES).toContain(c);
     }
@@ -463,6 +464,18 @@ export const BRS_GEN_ERROR_CODES = [
   'UNKNOWN_MANIFEST_KEY', 'OUTPUT_DIR_NOT_EMPTY', 'LINT_FAILED', 'COMPILE_FAILED',
   'ASSET_VALIDATION_FAILED', 'MANIFEST_VALIDATION_FAILED', 'CATALOG_INVALID',
   'CROSS_PACKAGE_VERSION_MISMATCH', 'NOT_IMPLEMENTED',
+  // DEVICE_NO_PASSWORD is defined by @rokudev/device-client (Plan 1) but
+  // can be re-raised by generate_app's sideload path; listing it here keeps
+  // assertErrorCode() satisfied when tool handlers pass through device-client
+  // failures.
+  'DEVICE_NO_PASSWORD',
+  // CATALOG_INTEGRITY is raised by T13 buildEmittedProject when a module
+  // declares a file in [module.files].add that was not loaded into the
+  // bytes map passed to the merger. Expected to be unreachable once T4's
+  // loader verifies every declared file exists on disk, but kept as a
+  // defensive guard so the error path does not reuse FILE_COLLISION's
+  // semantics for a different failure mode.
+  'CATALOG_INTEGRITY',
 ] as const;
 
 export const BRS_GEN_WARNING_CODES = [
@@ -584,8 +597,14 @@ describe('AppSpecV2Wrapper', () => {
   it('parses a minimal valid spec', () => {
     expect(AppSpecV2Wrapper.safeParse(base).success).toBe(true);
   });
-  it('rejects extra top-level fields (strict)', () => {
-    expect(AppSpecV2Wrapper.safeParse({ ...base, nope: 1 }).success).toBe(false);
+  it('passes through extra top-level fields (per-template schema enforces strictness in pass 2)', () => {
+    // Wrapper is intentionally .passthrough() so per-template fields survive.
+    // The per-template schema (T6 / T20 / T22) is .strict() and rejects typos
+    // at the full-shape parse step.
+    const r = AppSpecV2Wrapper.safeParse({ ...base, nope: 1 });
+    expect(r.success).toBe(true);
+    if (!r.success) throw new Error('narrowing');
+    expect((r.data as Record<string, unknown>).nope).toBe(1);
   });
   it('rejects missing app.name', () => {
     expect(AppSpecV2Wrapper.safeParse({ ...base, app: { major_version: 1, minor_version: 0, build_version: 0 } }).success).toBe(false);
@@ -628,18 +647,24 @@ export const ModuleReference = z.object({
 }).strict();
 export type ModuleReference = z.infer<typeof ModuleReference>;
 
+// Wrapper parses only the 4 wrapper fields. Per-template top-level fields
+// (e.g. `branding` for a future video_grid_channel) are accepted via
+// `.passthrough()` and validated by the template's bundled schema in a
+// second parse pass (happens at tool-layer in T20's get_template_schema /
+// T22's generate_app). Do NOT chain `.strict()` here; Zod's passthrough
+// supersedes strict so the combination is only confusing.
 export const AppSpecV2Wrapper = z.object({
   spec_version: z.literal(2),
   template: z.string().min(1),
   modules: z.array(ModuleReference),
   app: AppMeta,
-}).strict().passthrough();
+}).passthrough();
 
 export const AppSpecV1Wrapper = z.object({
   spec_version: z.literal(1),
   template: z.string().min(1),
   app: AppMeta,
-}).strict().passthrough();
+}).passthrough();
 
 export type AppSpecV2 = z.infer<typeof AppSpecV2Wrapper>;
 export type AppSpecV1 = z.infer<typeof AppSpecV1Wrapper>;
@@ -1069,17 +1094,30 @@ export type Catalog = {
   warnings: ReadonlyArray<{ code: string; message: string; details?: Record<string, unknown> }>;
 };
 
-// smol-toml parses [template.exports] as template.exports nested; flatten
-// to `template_exports` so Zod schemas (which use flat keys to avoid
-// union-collisions between template.* and top-level keys) can validate.
+// smol-toml parses [template.exports] as `template.exports` nested under the
+// top-level `template` object. Our Zod schemas model this as two separate
+// flat keys: `template` (primitives only) and `template_exports` (a sibling
+// sub-table). We rewrite the parsed output to match: for every top-level
+// key whose value is an object, we split its children into primitives
+// (kept on the original key) and sub-tables (hoisted to `<parent>_<child>`).
+// Arrays count as primitives so array-of-tables keeps its natural shape.
 function flatten(parsed: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(parsed)) {
-    out[k] = v;
     if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const primitivesOnly: Record<string, unknown> = {};
       for (const [k2, v2] of Object.entries(v as Record<string, unknown>)) {
-        out[`${k}_${k2}`] = v2;
+        if (v2 && typeof v2 === 'object' && !Array.isArray(v2)) {
+          // sub-table: hoist to a sibling flat key
+          out[`${k}_${k2}`] = v2;
+        } else {
+          // primitive or array: keep on the parent
+          primitivesOnly[k2] = v2;
+        }
       }
+      out[k] = primitivesOnly;
+    } else {
+      out[k] = v;
     }
   }
   return out;
@@ -2390,7 +2428,7 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
     for (const p of m.module_files.add) {
       const b = input.moduleFileBytes.get(p);
       if (!b) {
-        throw fail('FILE_COLLISION' /* placeholder; no dedicated code */,
+        throw fail('CATALOG_INTEGRITY',
           `module ${m.module.id} declares file ${p} but no bytes were provided`,
           { stage: 'build', module_id: m.module.id, missing: p });
       }
@@ -2435,7 +2473,7 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
 }
 ```
 
-Note the placeholder `FILE_COLLISION` use above when module bytes are missing. Before committing, add a dedicated check earlier (in the loader or validator) so this path is unreachable in practice; the throw is a belt-and-braces guard. If a cleaner error code fits, use it and update the registry accordingly.
+The `CATALOG_INTEGRITY` throw above is a belt-and-braces guard. In practice the loader in T4 should verify every declared file exists on disk during catalog scan, making this path unreachable. If you extend T4's loader with such a check, keep the `CATALOG_INTEGRITY` throw here anyway (it's cheap and catches future regressions where a module adds a file in module.toml but forgets to commit the file).
 
 Run; 2 passing.
 
@@ -2922,6 +2960,11 @@ type CompileResult =
   | { ok: false; failure: Failure };
 
 export async function compileProject(projectDir: string): Promise<CompileResult> {
+  // Staging dir sits inside projectDir so source-map paths stay relative; a
+  // fresh UUID per call prevents leftover staging artefacts from a prior run
+  // contaminating program.validate(). Callers wanting staging outside the
+  // project can pass a different path in a future version, but Plan 3 ships
+  // this shape and the e2e tests depend on it.
   const staging = join(projectDir, `.brs-gen-staging-${randomUUID()}`);
   await mkdir(staging, { recursive: true });
 
@@ -3097,7 +3140,11 @@ export async function packageProject(input: PackageInput): Promise<void> {
     if (excluded(rel)) continue;
     const full = join(input.projectDir, rel);
     const bytes = await readFile(full);
-    zip.addBuffer(bytes, rel, { mtime: DOS_EPOCH, compress: false });
+    // Pin mtime, compression, AND the external-file-attributes field so the
+    // zip is OS-independent. yazl's default mode comes from the host fs stat,
+    // which varies by umask / file-create-mode; forcing 0o644 keeps bytes
+    // equal across Linux, macOS, and Windows CI runs.
+    zip.addBuffer(bytes, rel, { mtime: DOS_EPOCH, compress: false, mode: 0o644 });
   }
   zip.end();
 
@@ -3188,8 +3235,12 @@ The stub has no per-template fields beyond the wrapper. Export a Zod schema that
 // packages/brs-gen/templates/stub_hello/schema.ts
 import { z } from 'zod';
 
+// Convention: every template's schema.ts exports exactly two names,
+// `Schema` and `Example`. The get_template_schema MCP tool (T20) imports by
+// these exact names; do NOT rename without updating that tool too.
+
 // stub_hello accepts AppSpec v1 or v2 wrapper with no extra fields.
-export const StubHelloSchema = z.object({
+export const Schema = z.object({
   spec_version: z.union([z.literal(1), z.literal(2)]),
   template: z.literal('stub_hello'),
   modules: z.array(z.record(z.unknown())).optional(), // v2 only
@@ -3199,9 +3250,9 @@ export const StubHelloSchema = z.object({
     minor_version: z.number().int().min(0),
     build_version: z.number().int().min(0),
   }).strict(),
-}).strict().passthrough();
+}).strict();
 
-export const StubHelloExample = {
+export const Example = {
   spec_version: 2 as const,
   template: 'stub_hello' as const,
   modules: [],
@@ -3702,14 +3753,19 @@ registerToolsModule((tools) => {
           { stage: 'catalog', given: id, known: [...cat.templates.keys()].sort() });
       }
       // Dynamic import of the template's schema.ts. The file is bundled next to
-      // its template.toml. For stub_hello: templates/stub_hello/schema.ts.
-      // Use the package root as the resolution base; tests and runtime both
-      // run from the monorepo layout.
+      // its template.toml. Convention (T18): every schema.ts exports exactly
+      // two names, `Schema` (a Zod schema) and `Example` (a minimal valid
+      // AppSpec object). Picking by exact name (not suffix match) so a
+      // template author cannot accidentally shadow the pick with an unrelated
+      // export whose name happens to end in "Schema".
       const url = new URL(`../../templates/${id}/schema.ts`, import.meta.url);
-      const mod = (await import(url.href)) as { [K: string]: unknown };
-      const schemaExport = mod[Object.keys(mod).find((k) => k.endsWith('Schema'))!];
-      const exampleExport = mod[Object.keys(mod).find((k) => k.endsWith('Example'))!];
-      const jsonSchema = zodToJsonSchemaDraft7(schemaExport as any, `${id}Schema`);
+      const mod = (await import(url.href)) as { Schema?: unknown; Example?: unknown };
+      if (!mod.Schema || !mod.Example) {
+        throw fail('CATALOG_INVALID',
+          `template ${id}'s schema.ts must export both 'Schema' and 'Example'`,
+          { stage: 'catalog', template_id: id });
+      }
+      const jsonSchema = zodToJsonSchemaDraft7(mod.Schema as any, `${id}Schema`);
       return {
         content: [{
           type: 'text',
@@ -3718,7 +3774,7 @@ registerToolsModule((tools) => {
             version: t.template.version,
             spec_compat: t.template.spec_compat,
             schema: jsonSchema,
-            example_spec: exampleExport,
+            example_spec: mod.Example,
           }),
         }],
       };
