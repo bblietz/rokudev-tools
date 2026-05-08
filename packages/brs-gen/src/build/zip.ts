@@ -10,7 +10,17 @@ type PackageInput = {
   exclude?: ReadonlyArray<string>;
 };
 
-// DOS epoch = 1980-01-01T00:00:00 UTC
+// DOS epoch = 1980-01-01T00:00:00 UTC.
+//
+// Caveat: yazl 2.5.x encodes mtime via Date#getFullYear()/getMonth()/getDate()
+// (local-time methods, NOT getUTCFullYear()). The encoded DOS timestamp bytes
+// therefore depend on runner timezone: a machine in UTC-8 encodes
+// 1979-12-31 16:00:00 (year underflows DOS minimum), a UTC machine encodes
+// 1980-01-01 00:00:00. Single-machine determinism (the T17 test) is preserved
+// because both invocations read the same TZ; cross-timezone byte-equality is
+// not. T28's determinism-test pass handles cross-environment verification and
+// will either pin TZ=UTC in the vitest env or swap yazl for a UTC-aware
+// zipper.
 const DOS_EPOCH = new Date(Date.UTC(1980, 0, 1, 0, 0, 0));
 
 async function walk(dir: string, base: string): Promise<string[]> {
