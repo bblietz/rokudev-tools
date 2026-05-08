@@ -62,6 +62,9 @@ export class BdpClient {
   /** Registered async event listeners. */
   private listeners: Array<(e: BdpUpdateEvent) => void> = [];
 
+  /** Registered close listeners -- called once when the underlying socket closes. */
+  private closeListeners: Array<() => void> = [];
+
   /** True after close() has been called (or after socket close). */
   private closed = false;
 
@@ -70,8 +73,8 @@ export class BdpClient {
     public readonly bdpVersion: BdpVersion,
   ) {
     socket.on('data', (chunk: Buffer) => this.onData(chunk));
-    socket.on('close', () => this.onClose());
-    // Suppress unhandled 'error' events -- onClose() handles cleanup.
+    socket.on('close', () => this.handleSocketClose());
+    // Suppress unhandled 'error' events -- handleSocketClose() handles cleanup.
     socket.on('error', () => { /* close path handles cleanup */ });
   }
 
@@ -286,6 +289,16 @@ export class BdpClient {
   }
 
   /**
+   * Register a listener that fires exactly once when the underlying TCP socket
+   * closes (either because close() was called or the socket dropped).
+   *
+   * Used by BdpSession (T10) to transition state to 'connection_lost'.
+   */
+  onClose(listener: () => void): void {
+    this.closeListeners.push(listener);
+  }
+
+  /**
    * Close the underlying TCP socket and reject all pending requests.
    * Idempotent -- safe to call multiple times.
    */
@@ -341,11 +354,15 @@ export class BdpClient {
     }
   }
 
-  private onClose(): void {
+  private handleSocketClose(): void {
     if (!this.closed) {
       this.closed = true;
     }
     this.drainPending();
+    for (const listener of this.closeListeners) {
+      listener();
+    }
+    this.closeListeners = [];
   }
 
   /**
