@@ -9,6 +9,11 @@ import { startMockBdpServer, type MockBdpServer } from './_internal/mock-bdp-ser
 import { BdpSession } from './session.js';
 import { SUPPORTED_BDP_VERSIONS } from './messages.js';
 
+// Wire error_code used by BdpSession to detect thread-gone responses.
+// Must match the BDP_WIRE_ERROR_INVALID_THREAD constant in session.ts.
+// T27: verify this value against a real Roku device.
+const BDP_WIRE_ERROR_INVALID_THREAD = 6;
+
 describe('BdpSession', () => {
   let server: MockBdpServer;
 
@@ -287,6 +292,150 @@ describe('BdpSession', () => {
 
       // Belt-and-suspenders: cache still holds the breakpoint set before detach.
       expect(result!).toContainEqual({ file: 'main.brs', line: 15 });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Execution control (T12): resume, step, pause
+  // -------------------------------------------------------------------------
+
+  describe('resume', () => {
+    it('sends continue with threadId and resolves on success', async () => {
+      let capturedThreadId: number | undefined;
+      server.onRequest('continue', (req) => {
+        capturedThreadId = req.threadId;
+        return { kind: 'continued' };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.resume(1)).resolves.toBeUndefined();
+      expect(capturedThreadId).toBe(1);
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST with session_state thread_terminated_other when device returns INVALID_THREAD error', async () => {
+      // Mock server returns a protocol-level error_code == 6 (INVALID_THREAD).
+      // T27: verify that real Roku firmware uses error_code 6 for thread-gone.
+      server.onRequest('continue', (_req) => ({
+        response: { kind: 'continued' },
+        errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.resume(1)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+        details: { session_state: 'thread_terminated_other' },
+      });
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST after detach (guardLive)', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.resume(1)).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  describe('step', () => {
+    it('propagates granularity and threadId, resolves on success', async () => {
+      let capturedReq: { threadId: number; granularity: string } | undefined;
+      server.onRequest('step', (req) => {
+        capturedReq = { threadId: req.threadId, granularity: req.granularity };
+        return { kind: 'stepped' };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.step(1, 'over')).resolves.toBeUndefined();
+      expect(capturedReq).toEqual({ threadId: 1, granularity: 'over' });
+      session.detach();
+    });
+
+    it('sends granularity=line correctly', async () => {
+      let capturedGranularity: string | undefined;
+      server.onRequest('step', (req) => {
+        capturedGranularity = req.granularity;
+        return { kind: 'stepped' };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await session.step(2, 'line');
+      expect(capturedGranularity).toBe('line');
+      session.detach();
+    });
+
+    it('sends granularity=out correctly', async () => {
+      let capturedGranularity: string | undefined;
+      server.onRequest('step', (req) => {
+        capturedGranularity = req.granularity;
+        return { kind: 'stepped' };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await session.step(0, 'out');
+      expect(capturedGranularity).toBe('out');
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST with session_state thread_terminated_other when device returns INVALID_THREAD error', async () => {
+      server.onRequest('step', (_req) => ({
+        response: { kind: 'stepped' },
+        errorCode: BDP_WIRE_ERROR_INVALID_THREAD,
+      }));
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.step(1, 'over')).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+        details: { session_state: 'thread_terminated_other' },
+      });
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST after detach (guardLive)', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.step(1, 'over')).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  describe('pause', () => {
+    it('sends pause (no args) and resolves on success', async () => {
+      let pauseCalled = false;
+      server.onRequest('pause', () => {
+        pauseCalled = true;
+        return { kind: 'paused' };
+      });
+
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      await expect(session.pause()).resolves.toBeUndefined();
+      expect(pauseCalled).toBe(true);
+      session.detach();
+    });
+
+    it('throws BDP_THREAD_LOST after detach (guardLive)', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.pause()).rejects.toMatchObject({
+        ok: false,
+        code: 'BDP_THREAD_LOST',
+      });
+    });
+  });
+
+  describe('execution control state guard (all three methods)', () => {
+    it('all three execution methods throw BDP_THREAD_LOST after detach', async () => {
+      const session = await BdpSession.attach('127.0.0.1', SUPPORTED_BDP_VERSIONS, { _primaryPort: server.port } as any);
+      session.detach();
+      await expect(session.resume(1)).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
+      await expect(session.step(1, 'over')).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
+      await expect(session.pause()).rejects.toMatchObject({ code: 'BDP_THREAD_LOST' });
     });
   });
 });

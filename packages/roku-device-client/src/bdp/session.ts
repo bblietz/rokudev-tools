@@ -320,6 +320,68 @@ export class BdpSession {
   }
 
   // ---------------------------------------------------------------------------
+  // Execution control methods (T12)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resume (continue) a stopped thread.
+   *
+   * Sends a `continue` request for `threadId` and waits for the `continued`
+   * acknowledgement.
+   *
+   * @throws Failure(BDP_THREAD_LOST) with session_state 'thread_terminated_other'
+   *   when the device reports that the targeted thread no longer exists
+   *   (wire error_code indicates INVALID_THREAD).
+   * @throws Failure(BDP_THREAD_LOST) when the session is not live (guardLive).
+   */
+  async resume(threadId: number): Promise<void> {
+    this.guardLive();
+    try {
+      await this.client.send({ kind: 'continue', threadId });
+    } catch (e: unknown) {
+      throw this.translateThreadGone(e, threadId);
+    }
+  }
+
+  /**
+   * Step a stopped thread.
+   *
+   * Sends a `step` request for `threadId` with the given `granularity` and
+   * waits for the `stepped` acknowledgement.
+   *
+   * Granularity values:
+   *   - 'line' = StepTypeCode.Line (1) -- step into next line
+   *   - 'over' = StepTypeCode.Over (3) -- step over current call
+   *   - 'out'  = StepTypeCode.Out  (2) -- step out of current frame
+   *
+   * @throws Failure(BDP_THREAD_LOST) with session_state 'thread_terminated_other'
+   *   when the device reports that the targeted thread no longer exists.
+   * @throws Failure(BDP_THREAD_LOST) when the session is not live (guardLive).
+   */
+  async step(threadId: number, granularity: 'line' | 'over' | 'out'): Promise<void> {
+    this.guardLive();
+    try {
+      await this.client.send({ kind: 'step', threadId, granularity });
+    } catch (e: unknown) {
+      throw this.translateThreadGone(e, threadId);
+    }
+  }
+
+  /**
+   * Pause (stop) all running threads.
+   *
+   * Sends a `pause` request (CommandCode Stop) and waits for the `paused`
+   * acknowledgement.  Unlike `resume` and `step`, `pause` targets no specific
+   * thread, so no thread-gone translation is applied.
+   *
+   * @throws Failure(BDP_THREAD_LOST) when the session is not live (guardLive).
+   */
+  async pause(): Promise<void> {
+    this.guardLive();
+    await this.client.send({ kind: 'pause' });
+  }
+
+  // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
 
@@ -338,5 +400,41 @@ export class BdpSession {
         { session_state: this._state },
       );
     }
+  }
+
+  /**
+   * Translate a BDP_THREAD_LOST failure from the client layer into the
+   * correct session-level error shape.
+   *
+   * When the device rejects a thread-targeted command because the thread is
+   * gone, the BdpClient rejects with BDP_THREAD_LOST and embeds the raw wire
+   * error_code as `details.bdp_error_code`.  This method re-throws with the
+   * correct `session_state: 'thread_terminated_other'` detail for callers
+   * that care about the thread-gone case (resume, step).
+   *
+   * Wire error_code interpretation (T27 verification pending):
+   *   6 = INVALID_THREAD -- chosen as the most likely "thread gone" indicator
+   *   based on the `roku-debug` ErrorCode table (T5 research).  Real-device
+   *   testing in T27 must confirm this mapping; adjust the constant if the
+   *   firmware uses a different code.
+   *
+   * Any other non-zero error_code is re-thrown as-is (no translation).
+   */
+  private translateThreadGone(e: unknown, threadId: number): unknown {
+    // BDP wire error_code 6 = INVALID_THREAD (T27: verify on real device).
+    const BDP_WIRE_ERROR_INVALID_THREAD = 6;
+
+    const failure = e as { code?: string; details?: { bdp_error_code?: number } };
+    if (
+      failure.code === 'BDP_THREAD_LOST' &&
+      failure.details?.bdp_error_code === BDP_WIRE_ERROR_INVALID_THREAD
+    ) {
+      return fail(
+        'BDP_THREAD_LOST',
+        `Thread ${threadId} is no longer available (wire error_code ${BDP_WIRE_ERROR_INVALID_THREAD})`,
+        { session_state: 'thread_terminated_other' },
+      );
+    }
+    return e;
   }
 }

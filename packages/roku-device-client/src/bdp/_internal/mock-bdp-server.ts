@@ -67,9 +67,22 @@ function encodeHandshakeV3Response(version: { major: number; minor: number; patc
 // Public API types
 // ---------------------------------------------------------------------------
 
+/**
+ * A handler return value that wraps a BdpResponse with an optional wire-level
+ * error_code.  When errorCode != 0 the client will receive a protocol-level
+ * rejection (see BdpClient.onData), which BdpSession translates to a
+ * BDP_THREAD_LOST failure with session_state: 'thread_terminated_other'.
+ *
+ * Used in T12 tests to simulate the device reporting that a thread is gone.
+ */
+export type MockResponseWrapper = {
+  response: BdpResponse;
+  errorCode: number;
+};
+
 type RequestHandler<K extends BdpRequest['kind']> = (
   req: Extract<BdpRequest, { kind: K }>,
-) => BdpResponse | Promise<BdpResponse>;
+) => BdpResponse | MockResponseWrapper | Promise<BdpResponse | MockResponseWrapper>;
 
 export type MockBdpServer = {
   /** The TCP port the server is listening on (OS-assigned, in range 1-65535). */
@@ -77,6 +90,11 @@ export type MockBdpServer = {
   /**
    * Register a typed handler for a given request kind.
    * Replaces any previously registered handler for the same kind.
+   *
+   * The handler may return either a plain BdpResponse or a MockResponseWrapper
+   * (which includes an errorCode).  A non-zero errorCode causes the mock to
+   * send a real-wire response with that error_code, simulating a device-side
+   * protocol error (e.g. thread-gone).
    */
   onRequest<K extends BdpRequest['kind']>(kind: K, handler: RequestHandler<K>): void;
   /**
@@ -102,7 +120,7 @@ export async function startMockBdpServer(opts: { port?: number } = {}): Promise<
   // Map from request kind -> handler (holds a covariant cast: see onRequest).
   const handlers = new Map<
     BdpRequest['kind'],
-    (req: BdpRequest) => BdpResponse | Promise<BdpResponse>
+    (req: BdpRequest) => BdpResponse | MockResponseWrapper | Promise<BdpResponse | MockResponseWrapper>
   >();
 
   // Handshake version advertised to clients. Default: v3.0.0.
@@ -156,17 +174,25 @@ export async function startMockBdpServer(opts: { port?: number } = {}): Promise<
           const handler = handlers.get(req.kind);
           if (!handler) continue;
 
-          let res: BdpResponse;
+          let handlerResult: BdpResponse | MockResponseWrapper;
           try {
-            res = await handler(req);
+            handlerResult = await handler(req);
           } catch {
             // Handler threw -- silently skip.
             continue;
           }
 
+          // Unwrap MockResponseWrapper if the handler returned one.
+          const res: BdpResponse = 'errorCode' in handlerResult && 'response' in handlerResult
+            ? (handlerResult as MockResponseWrapper).response
+            : (handlerResult as BdpResponse);
+          const wireErrorCode: number = 'errorCode' in handlerResult && 'response' in handlerResult
+            ? (handlerResult as MockResponseWrapper).errorCode
+            : 0;
+
           let encoded: { packetType: number; payload: Buffer };
           try {
-            encoded = encodeResponseAs(res.kind, res, requestId);
+            encoded = encodeResponseAs(res.kind, res as Parameters<typeof encodeResponseAs>[1], requestId, wireErrorCode);
           } catch {
             continue;
           }
@@ -191,7 +217,7 @@ export async function startMockBdpServer(opts: { port?: number } = {}): Promise<
 
     onRequest<K extends BdpRequest['kind']>(kind: K, handler: RequestHandler<K>): void {
       // Cast to the widened handler type stored in the map.
-      handlers.set(kind, handler as (req: BdpRequest) => BdpResponse | Promise<BdpResponse>);
+      handlers.set(kind, handler as (req: BdpRequest) => BdpResponse | MockResponseWrapper | Promise<BdpResponse | MockResponseWrapper>);
     },
 
     setHandshakeVersion(version: { major: number; minor: number; patch: number }): void {

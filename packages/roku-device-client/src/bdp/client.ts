@@ -346,8 +346,22 @@ export class BdpClient {
       this.pending.delete(requestId);
 
       try {
-        const { res } = decodeResponseAs(pending.kind, decoded.payload);
-        pending.resolve(res);
+        const { res, errorCode } = decodeResponseAs(pending.kind, decoded.payload);
+        if (errorCode !== 0) {
+          // Non-zero response-level error_code means the device rejected the
+          // request at the protocol level (e.g. thread no longer exists).
+          // Reject with BDP_THREAD_LOST and embed the raw wire error_code so
+          // BdpSession can translate it to the appropriate session_state.
+          pending.reject(
+            fail(
+              'BDP_THREAD_LOST',
+              `BDP device returned error_code ${errorCode} for ${pending.kind} response`,
+              { bdp_error_code: errorCode, session_state: 'connection_lost' as const },
+            ),
+          );
+        } else {
+          pending.resolve(res);
+        }
       } catch (e) {
         pending.reject(e);
       }

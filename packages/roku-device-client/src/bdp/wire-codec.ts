@@ -1235,9 +1235,14 @@ export function decodeResponse(
  *
  * Real wire layout: [error_code:4LE][data...]  (no kind discriminator)
  *
- * @param kind  - The BdpResponse['kind'] discriminant that determines encoding.
- * @param res   - The response value to encode.
+ * @param kind      - The BdpResponse['kind'] discriminant that determines encoding.
+ * @param res       - The response value to encode.
  * @param requestId - The request_id to echo back (becomes the frame packetType).
+ * @param errorCode - Optional response-level error code (default 0 = OK).
+ *                    Non-zero values are used by the mock server to simulate
+ *                    device-side protocol errors (e.g. thread-gone).  When
+ *                    errorCode != 0 the body is still encoded but the client
+ *                    will reject the pending request (see BdpClient.onData).
  * @returns { packetType: requestId, payload: [error_code:4LE][data...] }
  *
  * @throws For 'connected' and 'error' kinds (same as encodeResponse).
@@ -1246,6 +1251,7 @@ export function encodeResponseAs<K extends BdpResponse['kind']>(
   kind: K,
   res: Extract<BdpResponse, { kind: K }>,
   requestId: number,
+  errorCode?: number,
 ): { packetType: number; payload: Buffer } {
   if (kind === 'connected') {
     throw new Error(
@@ -1259,7 +1265,7 @@ export function encodeResponseAs<K extends BdpResponse['kind']>(
   }
 
   const header = Buffer.alloc(4); // error_code only (no kind discriminator)
-  header.writeUInt32LE(ERROR_CODE_OK, 0);
+  header.writeUInt32LE(errorCode ?? ERROR_CODE_OK, 0);
 
   const body = encodeResponseBody(res);
   return { packetType: requestId, payload: Buffer.concat([header, body]) };
@@ -1273,7 +1279,9 @@ export function encodeResponseAs<K extends BdpResponse['kind']>(
  *
  * @param kind    - The expected BdpResponse['kind'] (from the originating request).
  * @param payload - The payload bytes from decodeFrame.
- * @returns { res: Extract<BdpResponse, { kind: K }>, requestId: number }
+ * @returns { res: Extract<BdpResponse, { kind: K }>, errorCode: number }
+ *   `errorCode` is the response-level error code from the wire (0 = OK).
+ *   BdpClient checks this and rejects the pending request when errorCode != 0.
  *
  * NOTE: The returned requestId is always the frame's packetType (passed in separately
  * to BdpClient), but this function receives only the payload. The caller already has
@@ -1284,11 +1292,12 @@ export function encodeResponseAs<K extends BdpResponse['kind']>(
 export function decodeResponseAs<K extends BdpResponse['kind']>(
   kind: K,
   payload: Buffer,
-): { res: Extract<BdpResponse, { kind: K }> } {
+): { res: Extract<BdpResponse, { kind: K }>; errorCode: number } {
   if (payload.length < 4) throw new Error('BDP wire-codec: response payload too short (decodeResponseAs)');
-  // error_code at offset 0 -- we skip it; body starts at offset 4.
+  const errorCode = payload.readUInt32LE(0);
+  // Body starts at offset 4 (after the error_code field).
   const res = decodeResponseBody(kind as string, payload, 4) as Extract<BdpResponse, { kind: K }>;
-  return { res };
+  return { res, errorCode };
 }
 
 function decodeResponseBody(kind: string, payload: Buffer, bodyOffset: number): BdpResponse {
