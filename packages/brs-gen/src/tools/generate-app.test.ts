@@ -1,0 +1,410 @@
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { loadCatalog } from '../catalog/loader.js';
+import { setCatalogForTests } from './_catalog-singleton.js';
+import { registerAllTools, type ToolDef } from './_register.js';
+import './generate-app.js';
+
+// Resolve to the packages/brs-gen directory once for the whole suite.
+const PKG_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+
+async function freshTmp(prefix: string): Promise<string> {
+  return mkdtemp(join(tmpdir(), `brs-gen-t22-${prefix}-`));
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getHandler(): ToolDef['handler'] {
+  const tools = new Map<string, ToolDef>();
+  registerAllTools(tools);
+  const def = tools.get('generate_app');
+  if (!def) throw new Error('generate_app not registered');
+  return def.handler;
+}
+
+function parsePayload(result: unknown): Record<string, unknown> {
+  const r = result as { content?: Array<{ text?: string }> };
+  const text = r.content?.[0]?.text;
+  if (!text) throw new Error('no text payload on result');
+  return JSON.parse(text) as Record<string, unknown>;
+}
+
+describe('generate_app tool', () => {
+  beforeAll(async () => {
+    // Load the bundled stub catalog once; the tool reads via getCatalog().
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+  });
+
+  describe('happy path', () => {
+    let outputDir: string;
+    let parent: string;
+    beforeEach(async () => {
+      parent = await freshTmp('hp-parent');
+      // writeProject does an atomic rename ONTO outputDir, so outputDir itself
+      // must not exist as the final target. We pass a not-yet-created child.
+      outputDir = join(parent, 'project');
+    });
+    afterEach(async () => {
+      await rm(parent, { recursive: true, force: true });
+    });
+
+    it('generates a project with expected files', async () => {
+      const handler = getHandler();
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'stub_hello',
+          modules: [{ id: 'stub_label', version_range: '^0.1.0', config: { text: 'hi' } }],
+          app: { name: 'Hi', major_version: 1, minor_version: 0, build_version: 0 },
+        },
+        output_dir: outputDir,
+      });
+      const payload = parsePayload(result);
+      expect(payload['ok']).toBe(true);
+      expect(payload['project_dir']).toBe(outputDir);
+      expect(Array.isArray(payload['manifest_keys'])).toBe(true);
+
+      // Core files present.
+      expect(await pathExists(join(outputDir, 'manifest'))).toBe(true);
+      expect(await pathExists(join(outputDir, 'source/Main.brs'))).toBe(true);
+      expect(await pathExists(join(outputDir, 'source/_modules/stub_label/Init.brs'))).toBe(true);
+      expect(await pathExists(join(outputDir, 'source/_modules/stub_label/config.brs'))).toBe(true);
+      expect(await pathExists(join(outputDir, 'source/_modules/__init_hooks.brs'))).toBe(true);
+      expect(await pathExists(join(outputDir, '.rokudev-tools/provenance.json'))).toBe(true);
+
+      // Post-compile sweep removed .bs sources.
+      expect(await pathExists(join(outputDir, 'source/Main.bs'))).toBe(false);
+
+      // Source map was moved into the tooling dir.
+      expect(
+        await pathExists(join(outputDir, '.rokudev-tools/sourcemaps/source/Main.brs.map')),
+      ).toBe(true);
+    });
+  });
+
+  describe('errors', () => {
+    it('OUTPUT_DIR_NOT_EMPTY when output_dir is non-empty and overwrite is not set', async () => {
+      const dir = await freshTmp('notempty');
+      try {
+        // Seed a stray file so writeProject refuses without overwrite.
+        await writeFile(join(dir, 'stray.txt'), 'noise');
+        const handler = getHandler();
+        await expect(
+          handler({
+            spec: {
+              spec_version: 2,
+              template: 'stub_hello',
+              modules: [],
+              app: { name: 'X', major_version: 1, minor_version: 0, build_version: 0 },
+            },
+            output_dir: dir,
+          }),
+        ).rejects.toMatchObject({ code: 'OUTPUT_DIR_NOT_EMPTY' });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects spec.freeform with NOT_IMPLEMENTED', async () => {
+      const parent = await freshTmp('freeform');
+      try {
+        const handler = getHandler();
+        await expect(
+          handler({
+            spec: {
+              spec_version: 2,
+              template: 'stub_hello',
+              modules: [],
+              app: { name: 'X', major_version: 1, minor_version: 0, build_version: 0 },
+              freeform: { prompt: 'hi' },
+            },
+            output_dir: join(parent, 'project'),
+          }),
+        ).rejects.toMatchObject({
+          code: 'NOT_IMPLEMENTED',
+          details: expect.objectContaining({ field: 'spec.freeform' }),
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('template-strict schema rejects a top-level typo with APP_SPEC_INVALID', async () => {
+      const parent = await freshTmp('strict');
+      try {
+        const handler = getHandler();
+        await expect(
+          handler({
+            spec: {
+              spec_version: 2,
+              template: 'stub_hello',
+              modules: [],
+              app: { name: 'X', major_version: 1, minor_version: 0, build_version: 0 },
+              wrong_key: 1,
+            },
+            output_dir: join(parent, 'project'),
+          }),
+        ).rejects.toMatchObject({
+          code: 'APP_SPEC_INVALID',
+          details: expect.objectContaining({ template_id: 'stub_hello' }),
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('raises a readable error when spec path does not exist', async () => {
+      const handler = getHandler();
+      const missing = join(tmpdir(), `brs-gen-t22-missing-${Date.now()}-${Math.random()}.json`);
+      const parent = await freshTmp('missing');
+      try {
+        await expect(
+          handler({ spec: missing, output_dir: join(parent, 'project') }),
+        ).rejects.toThrow(/ENOENT|no such file|cannot.*find/i);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('warnings', () => {
+    it('surfaces SPEC_AUTO_PROMOTED when a v1 spec is passed', async () => {
+      const parent = await freshTmp('promote');
+      try {
+        const handler = getHandler();
+        const result = await handler({
+          spec: {
+            spec_version: 1,
+            template: 'stub_hello',
+            app: { name: 'P', major_version: 1, minor_version: 0, build_version: 0 },
+          },
+          output_dir: join(parent, 'project'),
+        });
+        const payload = parsePayload(result);
+        expect(payload['ok']).toBe(true);
+        const details = payload['details'] as { warnings?: Array<{ code: string }> } | undefined;
+        const codes = (details?.warnings ?? []).map((w) => w.code);
+        expect(codes).toContain('SPEC_AUTO_PROMOTED');
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('spec input shapes', () => {
+    it('accepts an inline JSON string (leading "{")', async () => {
+      const parent = await freshTmp('inline');
+      try {
+        const handler = getHandler();
+        const specString = JSON.stringify({
+          spec_version: 2,
+          template: 'stub_hello',
+          modules: [],
+          app: { name: 'Inline', major_version: 1, minor_version: 0, build_version: 0 },
+        });
+        const result = await handler({
+          spec: specString,
+          output_dir: join(parent, 'project'),
+        });
+        const payload = parsePayload(result);
+        expect(payload['ok']).toBe(true);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('accepts a filesystem path to a JSON spec file', async () => {
+      const parent = await freshTmp('path');
+      try {
+        const specPath = join(parent, 'spec.json');
+        await writeFile(
+          specPath,
+          JSON.stringify({
+            spec_version: 2,
+            template: 'stub_hello',
+            modules: [],
+            app: { name: 'FromFile', major_version: 1, minor_version: 0, build_version: 0 },
+          }),
+        );
+        const handler = getHandler();
+        const result = await handler({
+          spec: specPath,
+          output_dir: join(parent, 'project'),
+        });
+        const payload = parsePayload(result);
+        expect(payload['ok']).toBe(true);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('treats args.zip: null as no-zip (does not crash, no zip_path)', async () => {
+      const parent = await freshTmp('zipnull');
+      try {
+        const handler = getHandler();
+        const result = await handler({
+          spec: {
+            spec_version: 2,
+            template: 'stub_hello',
+            modules: [],
+            app: { name: 'ZN', major_version: 1, minor_version: 0, build_version: 0 },
+          },
+          output_dir: join(parent, 'project'),
+          zip: null,
+        });
+        const payload = parsePayload(result);
+        expect(payload['ok']).toBe(true);
+        expect(payload['zip_path']).toBeUndefined();
+        expect(payload['zip_bytes']).toBeUndefined();
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('sideload guardrails', () => {
+    it('missing sideload.dev_password -> DEVICE_NO_PASSWORD', async () => {
+      const parent = await freshTmp('sl-nopw');
+      try {
+        const handler = getHandler();
+        await expect(
+          handler({
+            spec: {
+              spec_version: 2,
+              template: 'stub_hello',
+              modules: [],
+              app: { name: 'S', major_version: 1, minor_version: 0, build_version: 0 },
+            },
+            output_dir: join(parent, 'project'),
+            zip: true,
+            sideload: { device: '10.0.0.2' },
+          }),
+        ).rejects.toMatchObject({ code: 'DEVICE_NO_PASSWORD' });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('missing sideload.device -> DEVICE_NOT_RESOLVED', async () => {
+      const parent = await freshTmp('sl-nodev');
+      try {
+        const handler = getHandler();
+        await expect(
+          handler({
+            spec: {
+              spec_version: 2,
+              template: 'stub_hello',
+              modules: [],
+              app: { name: 'S', major_version: 1, minor_version: 0, build_version: 0 },
+            },
+            output_dir: join(parent, 'project'),
+            zip: true,
+            sideload: { dev_password: '1234' },
+          }),
+        ).rejects.toMatchObject({ code: 'DEVICE_NOT_RESOLVED' });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    it('sideload requested without zip -> NOT_IMPLEMENTED', async () => {
+      const parent = await freshTmp('sl-nozip');
+      try {
+        const handler = getHandler();
+        await expect(
+          handler({
+            spec: {
+              spec_version: 2,
+              template: 'stub_hello',
+              modules: [],
+              app: { name: 'S', major_version: 1, minor_version: 0, build_version: 0 },
+            },
+            output_dir: join(parent, 'project'),
+            sideload: { device: '10.0.0.2', dev_password: '1234' },
+          }),
+        ).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('sideload happy path (mocked portal)', () => {
+    // Only this sub-block mocks @rokudev/device-client so the real fail() /
+    // RegistryReader / etc. remain intact for every other test in the file.
+    // We mock the default export module in a nested describe so the vi.mock
+    // applies only after setup here.
+    const mockSideload = vi.fn(async (_zipPath: string) => ({ ok: true as const, status: 'installed' }));
+
+    beforeAll(() => {
+      vi.doMock('@rokudev/device-client', async (importOriginal) => {
+        const original = await importOriginal<typeof import('@rokudev/device-client')>();
+        return {
+          ...original,
+          DevPortal: class {
+            constructor(_host: string, _password: string) { /* no-op */ }
+            async sideload(zipPath: string) {
+              return mockSideload(zipPath);
+            }
+          },
+        };
+      });
+    });
+
+    it('invokes DevPortal.sideload with the zip path and surfaces its result', async () => {
+      mockSideload.mockResolvedValueOnce({ ok: true, status: 'installed' });
+      // Re-import generate-app under the mocked module graph.
+      vi.resetModules();
+      await import('./generate-app.js');
+      // Re-seed catalog after resetModules() (singleton lives in a new module
+      // instance now).
+      const { setCatalogForTests: setCatAgain } = await import('./_catalog-singleton.js');
+      const { loadCatalog: loadAgain } = await import('../catalog/loader.js');
+      const cat = await loadAgain(PKG_ROOT);
+      setCatAgain(cat);
+      const { registerAllTools: regAgain } = await import('./_register.js');
+      const tools = new Map<string, ToolDef>();
+      regAgain(tools);
+      const handler = tools.get('generate_app')!.handler;
+
+      const parent = await freshTmp('sl-ok');
+      try {
+        const result = await handler({
+          spec: {
+            spec_version: 2,
+            template: 'stub_hello',
+            modules: [],
+            app: { name: 'SL', major_version: 1, minor_version: 0, build_version: 0 },
+          },
+          output_dir: join(parent, 'project'),
+          zip: true,
+          sideload: { device: '10.0.0.2', dev_password: '1234' },
+        });
+        const payload = parsePayload(result);
+        expect(payload['ok']).toBe(true);
+        expect(payload['sideload']).toEqual({ ok: true, status: 'installed' });
+        expect(mockSideload).toHaveBeenCalledTimes(1);
+        const callArg = mockSideload.mock.calls[0]?.[0] ?? '';
+        expect(callArg).toMatch(/\.zip$/);
+        // Payload must not leak the dev_password.
+        const text = JSON.stringify(payload);
+        expect(text).not.toContain('1234');
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+        vi.doUnmock('@rokudev/device-client');
+        vi.resetModules();
+      }
+    });
+  });
+});
