@@ -10,19 +10,26 @@ export type VersionState =
   | { ok: false; failure: ReturnType<typeof fail> };
 
 async function readOwnPackageJson(myDir: string): Promise<{ version: string }> {
-  // Try the current directory first (test fixtures, running from source).
-  // If not found, walk up one level -- production build puts compiled JS in dist/
-  // while package.json lives at the package root.
-  for (const dir of [myDir, resolve(myDir, '..')]) {
+  // Walk upward from myDir looking for the nearest package.json. Handles all
+  // of:
+  //   - running from src at test time (packages/brs-gen/src/bootstrap/)
+  //   - running from dist/bootstrap/ (tsc emits one level of nesting for src/bootstrap/)
+  //   - running from dist/ directly (flat layouts some packages use)
+  // Cap at 6 ancestor hops so we never scan the whole filesystem.
+  let dir = myDir;
+  for (let i = 0; i < 6; i++) {
     try {
       return JSON.parse(await readFile(resolve(dir, 'package.json'), 'utf8')) as {
         version: string;
       };
     } catch {
-      // continue
+      // continue climbing
     }
+    const parent = resolve(dir, '..');
+    if (parent === dir) break;
+    dir = parent;
   }
-  throw new Error(`package.json not found in ${myDir} or its parent`);
+  throw new Error(`package.json not found from ${myDir} up to 6 ancestors`);
 }
 
 export async function checkSiblings(myImportMetaUrl: string): Promise<VersionState> {
