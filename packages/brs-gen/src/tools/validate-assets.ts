@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
+import { open, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseManifest } from './validate-manifest.js';
 import { registerToolsModule } from './_register.js';
@@ -15,6 +15,20 @@ const ASSET_KEY_RE = /^(mm_icon_focus_.*|splash_screen_.*)$/;
  */
 function stripPkgPrefix(value: string): string {
   return value.startsWith('pkg:/') ? value.slice('pkg:/'.length) : value;
+}
+
+/**
+ * Read only the first n bytes of a file, efficiently.
+ */
+async function readFirstBytes(path: string, n: number): Promise<Buffer> {
+  const fd = await open(path, 'r');
+  try {
+    const buf = Buffer.alloc(n);
+    const { bytesRead } = await fd.read(buf, 0, n, 0);
+    return buf.subarray(0, bytesRead);
+  } finally {
+    await fd.close();
+  }
 }
 
 registerToolsModule((tools) => {
@@ -84,42 +98,24 @@ registerToolsModule((tools) => {
           continue;
         }
 
-        // Check oversize first (we still need to read header for PNG check).
+        // Check oversize.
         if (fileSize >= ONE_MB) {
           oversize.push(relPath);
-          // Even if oversize, still check PNG magic so caller gets full picture.
-          // Read only the first 4 bytes.
-          let header: Buffer;
-          try {
-            const fd = await import('node:fs').then((m) => m.promises.open(fullPath, 'r'));
-            try {
-              header = Buffer.alloc(4);
-              await fd.read(header, 0, 4, 0);
-            } finally {
-              await fd.close();
-            }
-          } catch {
-            // Can't read — treat as not-PNG as well? No: we already have
-            // oversize. Per the spec, each path can appear in multiple arrays.
-            // But the plan only defines separate arrays; if we can't read the
-            // header we'll leave not_png alone (the file is already flagged).
-            continue;
-          }
-          if (!header.slice(0, 4).equals(PNG_MAGIC)) {
+        }
+
+        // Read first 4 bytes to check PNG magic.
+        let header: Buffer;
+        try {
+          header = await readFirstBytes(fullPath, 4);
+        } catch {
+          // Can't read header — already flagged as missing if stat failed.
+          // If stat succeeded but read failed, we treat as not-PNG.
+          if (fileSize < ONE_MB) {
             not_png.push(relPath);
           }
           continue;
         }
-
-        // File is under 1 MB. Check PNG magic.
-        let header: Buffer;
-        try {
-          header = await readFile(fullPath);
-        } catch {
-          missing.push(relPath);
-          continue;
-        }
-        if (header.length < 4 || !header.slice(0, 4).equals(PNG_MAGIC)) {
+        if (header.length < 4 || !header.equals(PNG_MAGIC)) {
           not_png.push(relPath);
         }
       }
