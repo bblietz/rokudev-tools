@@ -119,6 +119,11 @@ describe('rokudev-device e2e: tools/list', () => {
         'debug_step',
         'debug_step_out',
         'debug_step_over',
+        // debug introspection (T23)
+        'debug_eval',
+        'debug_stack_trace',
+        'debug_threads',
+        'debug_variables',
       ].sort(),
     );
   }, 15_000);
