@@ -296,10 +296,21 @@ describe('brs-gen checkSiblings', () => {
     expect(r).not.toHaveProperty('warning');
   });
 
-  it('warning on minor drift', async () => {
+  it('warning on any non-equal version drift (patch shown)', async () => {
+    // Patch drift is enough to produce a warning -- matches rokudev-device.
     await writePackageJson(d, '0.3.0');
     await writeAnchorFile(d);
     await writeSibling(d, '0.3.1');
+    const r = await checkSiblings(pathToFileURL(join(d, 'index.js')).href);
+    expect(r.ok).toBe(true);
+    if (!('warning' in r)) throw new Error('expected warning');
+    expect(r.warning.code).toBe('CROSS_PACKAGE_VERSION_MISMATCH');
+  });
+
+  it('warning on minor-level drift', async () => {
+    await writePackageJson(d, '0.3.0');
+    await writeAnchorFile(d);
+    await writeSibling(d, '0.4.0');
     const r = await checkSiblings(pathToFileURL(join(d, 'index.js')).href);
     expect(r.ok).toBe(true);
     if (!('warning' in r)) throw new Error('expected warning');
@@ -369,25 +380,31 @@ export async function checkSiblings(myImportMetaUrl: string): Promise<CheckResul
     return { ok: true };
   }
 
-  // Compare.
-  const [myMaj, myMin] = myVersion.split('.').map((n) => Number.parseInt(n, 10));
-  const [sibMaj, sibMin] = siblingVersion.split('.').map((n) => Number.parseInt(n, 10));
+  // Compare. Only the major segment participates in the major-drift check;
+  // any non-equal sibling version (including patch drift) produces a warning.
+  const myMaj = Number.parseInt(myVersion.split('.')[0] ?? '0', 10);
+  const sibMaj = Number.parseInt(siblingVersion.split('.')[0] ?? '0', 10);
 
   if (myMaj !== sibMaj) {
     return {
       ok: false,
       failure: fail('CROSS_PACKAGE_VERSION_MISMATCH',
         `major-version drift: brs-gen ${myVersion} vs @rokudev/device-client ${siblingVersion}`,
-        { stage: 'bootstrap', package: '@rokudev/device-client',
+        { package: '@rokudev/device-client',
           expected_version: myVersion, installed_version: siblingVersion }),
     };
   }
-  if (myMin !== sibMin) {
+  // Warn on ANY non-equal sibling version within the same major. Matches
+  // rokudev-device/src/bootstrap/version-check.ts verbatim: once a major
+  // matches, any drift (minor OR patch) gets the warning, because consumers
+  // upgrade in lockstep via the monorepo release process. The test at line
+  // ~299 uses 0.3.0 vs 0.3.1 (patch drift); this comparison catches it.
+  if (siblingVersion !== myVersion) {
     return {
       ok: true,
       warning: {
         code: 'CROSS_PACKAGE_VERSION_MISMATCH',
-        message: `minor-version drift: brs-gen ${myVersion} vs @rokudev/device-client ${siblingVersion}`,
+        message: `version drift: brs-gen ${myVersion} vs @rokudev/device-client ${siblingVersion}`,
         package: '@rokudev/device-client',
         expected_version: myVersion,
         installed_version: siblingVersion,
@@ -399,6 +416,8 @@ export async function checkSiblings(myImportMetaUrl: string): Promise<CheckResul
 ```
 
 If the `Failure` type shape differs from what this snippet assumes, open `packages/roku-device-client/src/errors/index.ts` and match exactly what Plan 1 shipped. Copy field names and typing verbatim.
+
+Note on the comparison: the snippet above uses `siblingVersion !== myVersion` (match rokudev-device), not `myMin !== sibMin`. The latter would silently accept patch-level drift, which contradicts the test fixture at Step 1. Keep the string comparison.
 
 - [ ] **Step 4: Run tests; expect 4 passing**
 
@@ -503,7 +522,96 @@ export function assertWarningCode(c: string): asserts c is BrsGenWarningCode {
 Run: `pnpm -F brs-gen test -t "error-codes"`
 Expected: 4 passing.
 
-- [ ] **Step 9: Implement `bootstrap/index.ts` and `src/index.ts`**
+- [ ] **Step 9: Extend `@rokudev/device-client` `FAILURE_CODES` and `WARNING_CODES` with brs-gen codes**
+
+The brs-gen local tuple (`BRS_GEN_ERROR_CODES`) in Step 7 is a convenience for tests and assertions. But every `fail(code, ...)` call throughout T3-T27 uses the `fail` helper re-exported from `@rokudev/device-client`, whose `FailureCode` type is `keyof typeof FAILURE_CODES`. If the brs-gen codes are not also in that record, every `fail('UNKNOWN_TEMPLATE', ...)` call in T3 onward fails at compile time (TS2322: not assignable to `FailureCode`).
+
+Extend both registries in the device-client package. The comment at line 55 (`// (merge, freeform, lint codes added by Plans 3-4)`) already acknowledges this.
+
+Open `packages/roku-device-client/src/errors/codes.ts`. Add the following 21 entries to `FAILURE_CODES`, each mapped to the stage it semantically belongs to (stages are already in the `STAGES` tuple). `DEVICE_NO_PASSWORD` is already present; do not re-add.
+
+```ts
+// Extend FAILURE_CODES with (at line 55, replacing the placeholder comment):
+  // merge / validate
+  UNKNOWN_TEMPLATE: 'validate',
+  UNKNOWN_MODULE: 'validate',
+  APP_SPEC_INVALID: 'validate',
+  SPEC_VERSION_INCOMPATIBLE: 'validate',
+  MODULE_CONFIG_INVALID: 'validate',
+  MODULE_VERSION_UNAVAILABLE: 'validate',
+  MODULE_CONFLICT: 'merge',
+  FILE_COLLISION: 'merge',
+  INIT_ORDER_CYCLE: 'merge',
+  WIRING_CONTRACT_VIOLATION: 'merge',
+  MANIFEST_KEY_CONFLICT: 'merge',
+  UNKNOWN_MANIFEST_KEY: 'merge',
+  CATALOG_INVALID: 'validate',
+  CATALOG_INTEGRITY: 'merge',
+  // write / package / compile
+  OUTPUT_DIR_NOT_EMPTY: 'write',
+  LINT_FAILED: 'lint',
+  COMPILE_FAILED: 'lint',
+  ASSET_VALIDATION_FAILED: 'validate',
+  MANIFEST_VALIDATION_FAILED: 'validate',
+  // tool-surface
+  NOT_IMPLEMENTED: 'validate',
+```
+
+Then extend `WARNING_CODES` with the six brs-gen warning codes:
+
+```ts
+export const WARNING_CODES = [
+  'LOG_STREAM_OVERFLOW',
+  'APPSPEC_PROMOTED',
+  'BDP_FALLBACK_TO_TELNET',
+  'CROSS_PACKAGE_VERSION_MISMATCH',
+  // brs-gen (Plan 3)
+  'ASYMMETRIC_CONFLICT',
+  'MODULE_VERSION_UNPINNED',
+  'BSC_LINT_WARNING',
+  'SPEC_AUTO_PROMOTED',
+  'HOOK_DISPATCH_NOT_INVOKED',
+  'MANIFEST_DRIFT',
+] as const;
+```
+
+Every new code MUST have a matching entry in `STAGES` -- check that `validate`, `merge`, `write`, `lint` are all present (they are). If a brs-gen code needs a new stage, add it to `STAGES` first.
+
+- [ ] **Step 10: Bump `@rokudev/device-client` patch version**
+
+The FAILURE_CODES/WARNING_CODES extension is an additive public-API change. Bump `packages/roku-device-client/package.json` version from `0.2.0` to `0.2.1` (or whatever Plan 2 shipped + 1 patch). Matching version bump for `rokudev-device` is handled separately in T32; brs-gen's own version starts at `0.3.0`.
+
+- [ ] **Step 11: Run device-client tests; add one assertion that new codes are registered**
+
+Add a one-liner test in `packages/roku-device-client/src/errors/codes.test.ts` (or the nearest existing errors test file) that asserts every brs-gen code is present:
+
+```ts
+it('includes every brs-gen failure code', () => {
+  for (const c of ['UNKNOWN_TEMPLATE', 'UNKNOWN_MODULE', 'APP_SPEC_INVALID',
+                   'SPEC_VERSION_INCOMPATIBLE', 'MODULE_CONFIG_INVALID',
+                   'MODULE_VERSION_UNAVAILABLE', 'MODULE_CONFLICT',
+                   'FILE_COLLISION', 'INIT_ORDER_CYCLE',
+                   'WIRING_CONTRACT_VIOLATION', 'MANIFEST_KEY_CONFLICT',
+                   'UNKNOWN_MANIFEST_KEY', 'CATALOG_INVALID',
+                   'CATALOG_INTEGRITY', 'OUTPUT_DIR_NOT_EMPTY',
+                   'LINT_FAILED', 'COMPILE_FAILED',
+                   'ASSET_VALIDATION_FAILED', 'MANIFEST_VALIDATION_FAILED',
+                   'NOT_IMPLEMENTED']) {
+    expect(FAILURE_CODES).toHaveProperty(c);
+  }
+});
+```
+
+If `codes.test.ts` doesn't exist, scan the packages/roku-device-client/src/errors/ directory; there is an existing test somewhere (Plan 1 would have shipped one). Append the check there.
+
+Run: `pnpm -F @rokudev/device-client test`
+Expected: all pass, including the new brs-gen-coverage check.
+
+- [ ] **Step 12: Smoke-test the cross-package compile**
+
+Inside `packages/brs-gen`, add a TEMPORARY one-liner in `src/bootstrap/version-check.ts` (or any .ts file) that writes `const _ok: import('@rokudev/device-client').FailureCode = 'UNKNOWN_TEMPLATE';`. Run `pnpm -F brs-gen build` and expect it to pass. Then remove the line. (Alternative: skip this step and rely on T3's first use of `fail('UNKNOWN_TEMPLATE', ...)` to catch the typing regression -- that works too, since the test suite will fail to compile.)
+
+- [ ] **Step 13: Implement `bootstrap/index.ts` and `src/index.ts`**
 
 `src/bootstrap/index.ts` exports `runServer()`; keep it minimal for now, real tool registration lands in later phases.
 
@@ -543,22 +651,30 @@ runServer().catch((e) => {
 
 Match the SDK import path style used by `packages/rokudev-device/src/index.ts`; if the exported members differ, follow rokudev-device's pattern exactly.
 
-- [ ] **Step 10: Verify the build compiles**
+- [ ] **Step 14: Verify the build compiles**
 
-Run: `pnpm -F brs-gen build`
-Expected: clean, `dist/` populated.
+Run: `pnpm -F brs-gen build && pnpm -F @rokudev/device-client build`
+Expected: clean, `dist/` populated in both packages.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 15: Commit**
 
 ```bash
-git add packages/brs-gen/src
+git add packages/brs-gen/src \
+        packages/roku-device-client/src/errors/codes.ts \
+        packages/roku-device-client/src/errors/codes.test.ts \
+        packages/roku-device-client/package.json
 git commit -m "feat(brs-gen): bootstrap, version-check, error-code registry
 
 Mirrors rokudev-device's bootstrap + version-check pattern. The
 version-check test uses the malformed-sibling approach established in
 Plan 2 (vite-node's resolver would otherwise find the workspace sibling
 through the monorepo). Error-code registry enumerates every code/warning
-from spec §6."
+from spec §6.
+
+Extends @rokudev/device-client FAILURE_CODES with 20 new brs-gen codes
+(plus DEVICE_NO_PASSWORD passthrough) and WARNING_CODES with 6 new
+brs-gen warning codes, so that fail('UNKNOWN_TEMPLATE', ...) etc. type-
+check in brs-gen source. Device-client patch-bump from 0.2.0 -> 0.2.1."
 ```
 
 ---
@@ -1163,19 +1279,81 @@ function detectAsymmetric(modules: ReadonlyMap<string, ModuleToml>) {
   return out;
 }
 
+// Guard against path-traversal in module.files.add entries.
+// Modules declare file paths RELATIVE to their own `files/` directory. Any
+// absolute path, '..' segment, or traversal pattern is rejected at catalog
+// load time so the generate_app pipeline never opens a file outside the
+// bundled catalog root. Also guards against `.ejs.` in the middle of a
+// filename (only a trailing `.ejs` is meaningful to T14's strip logic).
+function validateModuleFilePath(p: string, moduleId: string, tomlPath: string): void {
+  if (p.startsWith('/') || p.startsWith('\\')) {
+    throw fail('CATALOG_INVALID',
+      `${tomlPath}: module ${moduleId} declares absolute path ${p}`,
+      { module_id: moduleId, path: p });
+  }
+  const segs = p.split(/[\\/]/);
+  if (segs.some((s) => s === '..' || s === '.')) {
+    throw fail('CATALOG_INVALID',
+      `${tomlPath}: module ${moduleId} declares traversal path ${p}`,
+      { module_id: moduleId, path: p });
+  }
+  const base = segs[segs.length - 1] ?? '';
+  if (base.includes('.ejs.')) {
+    throw fail('CATALOG_INVALID',
+      `${tomlPath}: module ${moduleId} file ${p} has '.ejs.' in the middle; only a trailing .ejs is allowed`,
+      { module_id: moduleId, path: p });
+  }
+}
+
+// Guard against case-insensitive scope collisions in template hook exports.
+// BrightScript identifiers are case-insensitive, so template-level hook
+// scopes 'main' and 'Main' would generate colliding Modules_OnMain<Phase>
+// dispatch functions (T12). Reject at load time.
+function validateHookScopeCasing(t: TemplateToml, tomlPath: string): void {
+  const seen = new Map<string, string>(); // lowercased scope -> original
+  for (const hook of t.template_exports.init_hooks) {
+    // Each hook entry has { scope, phases } per T4's export schema.
+    const scope = (hook as { scope: string }).scope;
+    const lc = scope.toLowerCase();
+    const prior = seen.get(lc);
+    if (prior !== undefined && prior !== scope) {
+      throw fail('CATALOG_INVALID',
+        `${tomlPath}: hook scopes '${prior}' and '${scope}' differ only in case; BrightScript is case-insensitive`,
+        { template_id: t.template.id, scopes: [prior, scope] });
+    }
+    seen.set(lc, scope);
+  }
+}
+
 export async function loadCatalog(root: string): Promise<Catalog> {
   const templates = new Map<string, TemplateToml>();
   const modules = new Map<string, ModuleToml>();
 
   for (const d of await readdir(join(root, 'templates'), { withFileTypes: true })) {
     if (!d.isDirectory()) continue;
-    templates.set(d.name, await loadOne<TemplateToml>(
-      join(root, 'templates', d.name, 'template.toml'), d.name, 'template.id', TemplateTomlSchema));
+    const tomlPath = join(root, 'templates', d.name, 'template.toml');
+    const t = await loadOne<TemplateToml>(tomlPath, d.name, 'template.id', TemplateTomlSchema);
+    validateHookScopeCasing(t, tomlPath);
+    templates.set(d.name, t);
   }
   for (const d of await readdir(join(root, 'modules'), { withFileTypes: true })) {
     if (!d.isDirectory()) continue;
-    modules.set(d.name, await loadOne<ModuleToml>(
-      join(root, 'modules', d.name, 'module.toml'), d.name, 'module.id', ModuleTomlSchema));
+    const tomlPath = join(root, 'modules', d.name, 'module.toml');
+    const m = await loadOne<ModuleToml>(tomlPath, d.name, 'module.id', ModuleTomlSchema);
+    for (const p of m.module_files.add) validateModuleFilePath(p, d.name, tomlPath);
+    // Verify every declared file actually exists under <moduleRoot>/files/.
+    // This makes CATALOG_INTEGRITY at generate-time unreachable in practice
+    // and surfaces catalog authoring mistakes at server startup.
+    for (const rel of m.module_files.add) {
+      const onDisk = join(root, 'modules', d.name, 'files', rel);
+      try { await readFile(onDisk); }
+      catch {
+        throw fail('CATALOG_INVALID',
+          `${tomlPath}: module ${d.name} declares file ${rel} which does not exist at ${onDisk}`,
+          { module_id: d.name, path: rel });
+      }
+    }
+    modules.set(d.name, m);
   }
 
   return { templates, modules, warnings: detectAsymmetric(modules) };
@@ -1980,6 +2158,12 @@ describe('escapeBsString', () => {
   it('leaves plain strings as-is', () => {
     expect(escapeBsString('plain')).toBe('"plain"');
   });
+  it('rejects newlines (no BrightScript escape for them)', () => {
+    expect(() => escapeBsString('line1\nline2')).toThrow(/control character/);
+  });
+  it('rejects NUL bytes', () => {
+    expect(() => escapeBsString('a\0b')).toThrow(/control character/);
+  });
 });
 
 describe('stringifyAsBsValue', () => {
@@ -2011,7 +2195,23 @@ describe('sortByPath', () => {
 
 ```ts
 // src/util/deterministic.ts
+import { fail } from '@rokudev/device-client';
+
 export function escapeBsString(s: string): string {
+  // BrightScript string literals cannot contain unescaped newlines, NULs, or
+  // other non-printable control characters; there is no backslash-escape
+  // syntax inside a "..." literal (only doubled `""` to represent `"`).
+  // Reject any such input with APP_SPEC_INVALID so the failure surfaces at
+  // generate_app time rather than producing unparseable BrightScript source.
+  //
+  // If a future caller needs to embed a newline, the callsite must build it
+  // via chr(10) concatenation: `"prefix" + chr(10) + "suffix"`. Not handled
+  // automatically here because Plan 3's stub module doesn't need it.
+  if (/[\x00-\x1F\x7F]/.test(s)) {
+    throw fail('APP_SPEC_INVALID',
+      'string value contains a control character (e.g. newline or NUL) which cannot be encoded in a BrightScript string literal',
+      { value: s });
+  }
   return `"${s.replace(/"/g, '""')}"`;
 }
 
@@ -2262,10 +2462,21 @@ export type ProvenanceInput = {
 };
 
 function stableStringify(obj: unknown): string {
+  // Reject undefined explicitly. JSON.stringify(undefined) returns the
+  // JS value `undefined` (not a string), which would splice into the
+  // output and produce invalid JSON. The provenance shape is static
+  // (ProvenanceInput has no optional fields at present); this guard
+  // catches future additions that forget to default their value.
+  if (obj === undefined) {
+    throw new Error('stableStringify: undefined is not JSON-serializable; provide a default or omit the key');
+  }
   if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`;
   if (obj && typeof obj === 'object') {
     const keys = Object.keys(obj as Record<string, unknown>).sort();
-    return `{${keys.map((k) => JSON.stringify(k) + ':' + stableStringify((obj as Record<string, unknown>)[k])).join(',')}}`;
+    return `{${keys
+      .filter((k) => (obj as Record<string, unknown>)[k] !== undefined)
+      .map((k) => JSON.stringify(k) + ':' + stableStringify((obj as Record<string, unknown>)[k]))
+      .join(',')}}`;
   }
   return JSON.stringify(obj);
 }
@@ -2659,8 +2870,17 @@ import ejs from 'ejs';
 import { makeHelpers } from './helpers.js';
 import { normalizeText } from '../util/text-normalize.js';
 
-const TEXT_EXTS = new Set(['.bs', '.brs', '.xml', '.ejs', '.txt', '.json']);
-const NO_TEMPLATING_EXTS = new Set<string>(); // none; all text files go through EJS
+// Allowlist of extensions treated as text (EJS-rendered). Anything not in
+// this set is copied verbatim as bytes. Plan 4's real templates may add
+// more entries (.yml, .yaml, .toml, .md, .env, .js, .ts). Keep this list
+// in sync with what templates actually ship; unknown text files silently
+// pass through as binary, which embeds `<%= ... %>` markers in the final
+// artifact. Catalog authors see this in snapshot tests (T29).
+const TEXT_EXTS = new Set([
+  '.bs', '.brs', '.xml', '.ejs', '.txt', '.json',
+  // Likely-needed by Plan 4 templates (add as soon as any template uses them):
+  '.md', '.yml', '.yaml', '.toml', '.env', '.js', '.ts',
+]);
 
 function ext(path: string): string {
   const m = path.match(/\.[^./\\]+$/);
@@ -2672,6 +2892,9 @@ function isTextFile(path: string): boolean {
 }
 
 // Strips one trailing .ejs suffix from path ('manifest.ejs' -> 'manifest').
+// Catalog-load time (T4) rejects any file whose name contains '.ejs.' in the
+// middle, so `Main.ejs.xml` is caught upstream and never reaches here. This
+// function handles only the trailing-suffix case.
 function stripEjsSuffix(path: string): string {
   return path.endsWith('.ejs') ? path.slice(0, -'.ejs'.length) : path;
 }
@@ -2884,7 +3107,7 @@ The test needs a compilable stub project on disk. Use the fake project shape `wr
 ```ts
 // src/build/compile.test.ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -2912,12 +3135,18 @@ describe('compileProject', () => {
     expect(r.diagnostics.filter((d) => d.severity === 'error')).toHaveLength(0);
   });
 
-  it('emits .brs + .brs.map beside each .bs source', async () => {
+  it('emits .brs into source/ and .brs.map into .rokudev-tools/sourcemaps/, deletes .bs', async () => {
     await writeMiniProject(root, 'sub Main(args as dynamic) as void\n  print "hi"\nend sub\n');
-    await compileProject(root);
-    // bsc transpiles .bs -> .brs; the staging dir is implementation-detail of
-    // compileProject. Locate the .brs by asking compileProject for the staging path.
-    // (The implementation exports it as part of the result.)
+    const r = await compileProject(root);
+    expect(r.ok).toBe(true);
+    // .brs is now where the .bs used to be:
+    await expect(access(join(root, 'source/Main.brs'))).resolves.toBeUndefined();
+    // source map is under .rokudev-tools/sourcemaps/ (dev-only; excluded from zip):
+    await expect(access(join(root, '.rokudev-tools/sourcemaps/source/Main.brs.map'))).resolves.toBeUndefined();
+    // .bs source no longer present (the Roku device only loads .brs):
+    await expect(access(join(root, 'source/Main.bs'))).rejects.toThrow();
+    // staging scratch dir has been removed after copy-in-place:
+    await expect(access(join(root, '.rokudev-tools/staging'))).rejects.toThrow();
   });
 
   it('returns LINT_FAILED on a syntax error', async () => {
@@ -2930,14 +3159,18 @@ describe('compileProject', () => {
   });
 
   it('produces byte-equal output across two invocations on the same input', async () => {
+    // Two invocations both land at the same in-place location (source/Main.brs),
+    // so we have to read the first output before overwriting via the second run.
     await writeMiniProject(root, 'sub Main(args as dynamic) as void\n  print "hi"\nend sub\n');
     const a = await compileProject(root);
+    expect(a.ok).toBe(true);
+    const fa = await readFile(join(root, 'source/Main.brs'));
+    // Re-write the .bs source (which was deleted after the first compile) and re-run.
+    await writeMiniProject(root, 'sub Main(args as dynamic) as void\n  print "hi"\nend sub\n');
     const b = await compileProject(root);
-    expect(a.ok && b.ok).toBe(true);
-    if (!a.ok || !b.ok) throw new Error('narrowing');
-    const fa = await readFile(join(a.stagingDir, 'source/Main.brs'), 'utf8');
-    const fb = await readFile(join(b.stagingDir, 'source/Main.brs'), 'utf8');
-    expect(fa).toBe(fb);
+    expect(b.ok).toBe(true);
+    const fb = await readFile(join(root, 'source/Main.brs'));
+    expect(fa.equals(fb)).toBe(true);
   });
 });
 ```
@@ -2947,9 +3180,8 @@ describe('compileProject', () => {
 ```ts
 // src/build/compile.ts
 import { ProgramBuilder } from 'brighterscript';
-import { join } from 'node:path';
-import { mkdir } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { dirname, join, relative } from 'node:path';
+import { access, copyFile, mkdir, readdir, rename, rm, unlink } from 'node:fs/promises';
 import { fail, type Failure } from '@rokudev/device-client';
 
 export type CompileDiagnostic = {
@@ -2962,19 +3194,40 @@ export type CompileDiagnostic = {
 };
 
 type CompileResult =
-  | { ok: true; diagnostics: CompileDiagnostic[]; stagingDir: string }
+  | { ok: true; diagnostics: CompileDiagnostic[] }
   | { ok: false; failure: Failure };
 
+/**
+ * Recursively walk a directory and yield paths RELATIVE to `base`.
+ */
+async function walkRel(dir: string, base: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const d of await readdir(dir, { withFileTypes: true })) {
+    const full = join(dir, d.name);
+    if (d.isDirectory()) out.push(...(await walkRel(full, base)));
+    else if (d.isFile()) out.push(relative(base, full));
+  }
+  return out;
+}
+
 export async function compileProject(projectDir: string): Promise<CompileResult> {
-  // Staging dir sits inside projectDir so source-map paths stay relative; a
-  // fresh UUID per call prevents leftover staging artefacts from a prior run
-  // contaminating program.validate(). Callers wanting staging outside the
-  // project can pass a different path in a future version, but Plan 3 ships
-  // this shape and the e2e tests depend on it.
-  const staging = join(projectDir, `.brs-gen-staging-${randomUUID()}`);
+  // Staging sits at a fixed path inside .rokudev-tools/ rather than a
+  // UUID-named sibling of source/. Two reasons:
+  //   1) Determinism: a UUID in the project tree leaks into T17's zip,
+  //      breaking byte-equality. Fixed path eliminates that.
+  //   2) Zip exclusion: T17's zip excludes `.rokudev-tools/staging` (and
+  //      `.rokudev-tools/sourcemaps`) by convention; any leftover scratch
+  //      stays out of the shipped archive.
+  // The staging dir is deleted at the end of this function; only the
+  // copied-in-place .brs files and the sourcemaps under
+  // .rokudev-tools/sourcemaps/ survive.
+  const staging = join(projectDir, '.rokudev-tools', 'staging');
+  // Clean any prior run's staging; mkdir recursive.
+  await rm(staging, { recursive: true, force: true });
   await mkdir(staging, { recursive: true });
 
   const builder = new ProgramBuilder();
+  let diags: CompileDiagnostic[] = [];
   try {
     await builder.run({
       cwd: projectDir,
@@ -2985,7 +3238,7 @@ export async function compileProject(projectDir: string): Promise<CompileResult>
       sourceMap: true,
       diagnosticSeverityOverrides: {},
     });
-    const diags = builder.program.getDiagnostics().map<CompileDiagnostic>((d: any) => ({
+    diags = builder.program.getDiagnostics().map<CompileDiagnostic>((d: any) => ({
       severity: d.severity === 1 /* error */ ? 'error' : d.severity === 2 /* warning */ ? 'warning' : 'info',
       code: String(d.code ?? 'unknown'),
       message: d.message,
@@ -2993,33 +3246,76 @@ export async function compileProject(projectDir: string): Promise<CompileResult>
       line: (d.range?.start?.line ?? 0) + 1,
       col: (d.range?.start?.character ?? 0) + 1,
     }));
-    const errors = diags.filter((d) => d.severity === 'error');
-    if (errors.length > 0) {
-      return {
-        ok: false,
-        failure: fail('LINT_FAILED',
-          `bsc reported ${errors.length} error(s)`,
-          { stage: 'compile', diagnostics: diags }),
-      };
-    }
-    return { ok: true, diagnostics: diags, stagingDir: staging };
   } catch (e) {
+    await rm(staging, { recursive: true, force: true });
     return {
       ok: false,
       failure: fail('COMPILE_FAILED',
         `bsc compile threw: ${e instanceof Error ? e.message : String(e)}`,
-        { stage: 'compile', cause: String(e) }),
+        { cause: String(e) }),
     };
   } finally {
     builder.dispose?.();
   }
+
+  const errors = diags.filter((d) => d.severity === 'error');
+  if (errors.length > 0) {
+    // Keep staging for debugging on the failure path? No -- fail fast and
+    // clean up. The diagnostics array already carries the information.
+    await rm(staging, { recursive: true, force: true });
+    return {
+      ok: false,
+      failure: fail('LINT_FAILED',
+        `bsc reported ${errors.length} error(s)`,
+        { diagnostics: diags }),
+    };
+  }
+
+  // Post-compile sweep: move .brs files into their source-tree locations
+  // (replacing the authoring .bs files) and route .brs.map files under
+  // .rokudev-tools/sourcemaps/<relpath>. This is what T22's generate_app
+  // and T17's zip expect; the in-place layout is what the Roku device runs.
+  const stagedFiles = await walkRel(staging, staging);
+  const sourcemapRoot = join(projectDir, '.rokudev-tools', 'sourcemaps');
+  // Wipe any prior sourcemaps so a second compile produces identical bytes.
+  await rm(sourcemapRoot, { recursive: true, force: true });
+
+  for (const rel of stagedFiles) {
+    const src = join(staging, rel);
+    if (rel.endsWith('.brs.map')) {
+      const dest = join(sourcemapRoot, rel);
+      await mkdir(dirname(dest), { recursive: true });
+      await rename(src, dest);
+    } else if (rel.endsWith('.brs')) {
+      const dest = join(projectDir, rel);
+      await mkdir(dirname(dest), { recursive: true });
+      // copy over the .brs (overwrite allowed):
+      await copyFile(src, dest);
+      // Delete the matching .bs source in-place (Roku loads only .brs).
+      // bsc preserves the same relative path; replace trailing .brs with .bs.
+      const bsPath = dest.replace(/\.brs$/, '.bs');
+      try { await unlink(bsPath); }
+      catch { /* .bs may not exist if it was authored directly as .brs; ignore */ }
+    } else {
+      // Non-source files that bsc copies verbatim (e.g. manifest, images) --
+      // skip the move. They already live in projectDir.
+    }
+  }
+
+  // Remove staging dir; its .rokudev-tools/ parent survives (may contain
+  // sourcemaps + provenance written earlier by the merger).
+  await rm(staging, { recursive: true, force: true });
+
+  return { ok: true, diagnostics: diags };
 }
 ```
 
 The `brighterscript` API may differ from this snippet. Before implementing, run `pnpm -F brs-gen exec node -e "console.log(Object.keys(require('brighterscript')))"` to confirm the exports, or open `node_modules/brighterscript/dist/index.js` and read. Adapt the fields you pass to `builder.run()` to match the actual type signature. The invariants to preserve are:
 
 - source maps are produced,
-- staging dir is a new subdirectory inside `projectDir`,
+- staging dir lives at the fixed path `.rokudev-tools/staging/` inside `projectDir` (same filesystem, deterministic location),
+- after compile, `.brs` files replace `.bs` files in-place; `.brs.map` files land under `.rokudev-tools/sourcemaps/<relpath>.brs.map`,
+- staging dir is deleted at the end (success or failure),
 - diagnostics are extractable after the run,
 - the call is in-process (no child subprocess).
 
@@ -3033,8 +3329,13 @@ git add packages/brs-gen/src/build/compile.ts \
 git commit -m "feat(brs-gen): in-process bsc compile via brighterscript ProgramBuilder
 
 Implements spec §4.1 step 10 and §10.2.3 determinism check. Uses
-brighterscript's ProgramBuilder; staging dir inside projectDir;
-source maps produced (consumed later by .rokudev-tools/sourcemaps/).
+brighterscript's ProgramBuilder with staging at a fixed path
+.rokudev-tools/staging/ inside projectDir. Post-compile sweep moves
+.brs files in-place (replacing the .bs sources the Roku device cannot
+load) and routes .brs.map files to .rokudev-tools/sourcemaps/. Staging
+dir is deleted on success and on failure, keeping the project tree
+deterministic across runs.
+
 LINT_FAILED vs COMPILE_FAILED distinguishes diagnostic-surfaced errors
 from uncaught compile-time exceptions."
 ```
@@ -3143,14 +3444,22 @@ export async function packageProject(input: PackageInput): Promise<void> {
   const zip = new yazl.ZipFile();
 
   for (const rel of all) {
-    if (excluded(rel)) continue;
+    // Always normalize path separators to '/' (Windows → POSIX) so zip entry
+    // names match on every OS. relative() returns platform-native separators.
+    const normRel = rel.split(/[\\/]/).join('/');
+    if (excluded(normRel)) continue;
     const full = join(input.projectDir, rel);
     const bytes = await readFile(full);
     // Pin mtime, compression, AND the external-file-attributes field so the
     // zip is OS-independent. yazl's default mode comes from the host fs stat,
     // which varies by umask / file-create-mode; forcing 0o644 keeps bytes
     // equal across Linux, macOS, and Windows CI runs.
-    zip.addBuffer(bytes, rel, { mtime: DOS_EPOCH, compress: false, mode: 0o644 });
+    //
+    // `mode` has been honored by yazl since 2.5 (externalFileAttributes =
+    // mode << 16). If the installed @types/yazl omits the field from the
+    // options type (some versions do), the cast below keeps TS silent.
+    zip.addBuffer(bytes, normRel,
+      { mtime: DOS_EPOCH, compress: false, mode: 0o644 } as yazl.Options & { mode: number });
   }
   zip.end();
 
@@ -3161,6 +3470,8 @@ export async function packageProject(input: PackageInput): Promise<void> {
   });
 }
 ```
+
+If a future yazl minor drops the `mode` option, the `byte-equal output on two zips of the same project` test (same machine) still passes because both runs see the same host umask. The cross-OS guarantee rests on the mode field being honored; verify this assumption as part of T28's determinism test. If it fails under a different umask, switch the impl to write the zip bytes manually (hand-craft the central directory with fixed `externalFileAttributes = 0o644 << 16`), or swap yazl for `archiver`'s `entryData.attr` control. Neither change is required for Plan 3 to ship; it's an advisory for Plan 4's CI matrix.
 
 Run; 3 passing.
 
@@ -3572,43 +3883,47 @@ This pre-work is part of T20; do it before implementing `list_templates`.
 
 Spec reference: §2.1.
 
-- [ ] **Step 1: Mirror the tool-registry scaffolding**
+- [ ] **Step 1: Mirror the tool-registry scaffolding EXACTLY from rokudev-device**
 
-Read `packages/rokudev-device/src/tools/_registry.ts` and copy its shape into `packages/brs-gen/src/tools/_registry.ts`. The interface should look approximately:
+Read `packages/rokudev-device/src/tools/_register.ts` (note the filename -- it's `_register.ts`, not `_registry.ts`). Copy its shape VERBATIM into `packages/brs-gen/src/tools/_register.ts`. The canonical shape uses `Map<string, ToolDef>`, not an array. Copy this exact shape, renaming nothing:
 
 ```ts
-// src/tools/_registry.ts
+// packages/brs-gen/src/tools/_register.ts
 export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
-export type ToolDefinition = {
+export type ToolDef = {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   handler: ToolHandler;
 };
 
-export const REGISTRARS: Array<(tools: ToolDefinition[]) => void> = [];
+const REGISTRARS: ((tools: Map<string, ToolDef>) => void)[] = [];
 
-export function registerToolsModule(fn: (tools: ToolDefinition[]) => void) {
+export function registerToolsModule(fn: (tools: Map<string, ToolDef>) => void): void {
   REGISTRARS.push(fn);
+}
+
+export function registerAllTools(tools: Map<string, ToolDef>): void {
+  for (const r of REGISTRARS) r(tools);
 }
 ```
 
-If rokudev-device's version differs, follow its shape exactly so maintainers learn one pattern.
+Note: the rest of this plan refers to this file as `_register.ts` (matching rokudev-device). Every `import './_registry.js'` or `from './_registry.js'` in any later task or test snippet should read `import './_register.js'` / `from './_register.js'`. If you spot a stale reference, treat it as a doc-only typo and use `_register` everywhere.
 
 - [ ] **Step 2: Write the list_templates test first**
 
 ```ts
 // src/tools/list-templates.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { REGISTRARS } from './_registry.js';
+import { registerAllTools, type ToolDef } from './_register.js';
 import './list-templates.js';  // side-effect registration
 
 describe('list_templates tool', () => {
-  let handler: (args: Record<string, unknown>) => Promise<unknown>;
+  let handler: ToolDef['handler'];
   beforeEach(() => {
-    const tools: Array<{ name: string; handler: any }> = [];
-    for (const r of REGISTRARS) r(tools);
-    const t = tools.find((t) => t.name === 'list_templates');
+    const tools = new Map<string, ToolDef>();
+    registerAllTools(tools);
+    const t = tools.get('list_templates');
     if (!t) throw new Error('not registered');
     handler = t.handler;
   });
@@ -3665,11 +3980,11 @@ Bootstrap (`src/bootstrap/index.ts`) will call `setCatalog(await loadCatalog(bun
 
 ```ts
 // src/tools/list-templates.ts
-import { registerToolsModule } from './_registry.js';
+import { registerToolsModule } from './_register.js';
 import { getCatalog } from './_catalog-singleton.js';
 
 registerToolsModule((tools) => {
-  tools.push({
+  tools.set('list_templates', {
     name: 'list_templates',
     description: 'List bundled base templates available for generate_app. Sorted by id ascending.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -3691,16 +4006,18 @@ Run the test; 1 passing.
 ```ts
 // src/tools/get-template-schema.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { REGISTRARS } from './_registry.js';
+import { registerAllTools, type ToolDef } from './_register.js';
 import './get-template-schema.js';
 import { setCatalogForTests } from './_catalog-singleton.js';
 
 describe('get_template_schema tool', () => {
-  let handler: any;
+  let handler: ToolDef['handler'];
   beforeEach(() => {
-    const tools: any[] = [];
-    for (const r of REGISTRARS) r(tools);
-    handler = tools.find((t) => t.name === 'get_template_schema')!.handler;
+    const tools = new Map<string, ToolDef>();
+    registerAllTools(tools);
+    const t = tools.get('get_template_schema');
+    if (!t) throw new Error('not registered');
+    handler = t.handler;
   });
 
   it('returns schema + example for known template', async () => {
@@ -3733,7 +4050,7 @@ The tool loads the template's `schema.ts` via dynamic import and runs it through
 
 ```ts
 // src/tools/get-template-schema.ts
-import { registerToolsModule } from './_registry.js';
+import { registerToolsModule } from './_register.js';
 import { getCatalog } from './_catalog-singleton.js';
 import { zodToJsonSchemaDraft7 } from '../spec/to-json-schema.js';
 import { fail } from '@rokudev/device-client';
@@ -3741,7 +4058,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 registerToolsModule((tools) => {
-  tools.push({
+  tools.set('get_template_schema', {
     name: 'get_template_schema',
     description: 'Return JSON Schema Draft 7 and a minimal example AppSpec for the named template.',
     inputSchema: {
@@ -3901,18 +4218,38 @@ Happy-path control-flow skeleton (fill in with the primitives built in T3-T19):
 
 ```ts
 // src/tools/generate-app.ts (happy-path skeleton)
+// NOTE: imports `registerToolsModule` from './_register.js' (matches canonical
+// rokudev-device filename/shape; not './_registry.js').
 registerToolsModule((tools) => {
-  tools.push({
+  tools.set('generate_app', {
     name: 'generate_app',
     description: '...',
     inputSchema: { /* hand-rolled JSON Schema for the input shape */ },
     handler: async (args) => {
       const warnings: Array<{ code: string; message: string }> = [];
 
-      // 1. Parse input: inline JSON object vs. file path
-      const specInput = typeof args.spec === 'string'
-        ? JSON.parse(await readFile(args.spec as string, 'utf8'))
-        : args.spec;
+      // 1. Parse input: inline JSON object vs. file path.
+      //    Convention: a string starting with '{' (after trim) is treated as
+      //    inline JSON; otherwise the string is treated as a filesystem path.
+      //    Non-string (object) specs are passed through unchanged. This
+      //    removes the ambiguity the spec flagged in §2.2.
+      const specInput = await (async () => {
+        if (typeof args.spec === 'string') {
+          const s = args.spec.trim();
+          if (s.startsWith('{')) return JSON.parse(s);
+          return JSON.parse(await readFile(args.spec, 'utf8'));
+        }
+        return args.spec;
+      })();
+
+      // 1a. Reject freeform specs explicitly (Plan 6 lands the freeform path).
+      //     Freeform is not part of the AppSpec schema but spec §3 allows a
+      //     passthrough `freeform` field. Detect and refuse early.
+      if (specInput && typeof specInput === 'object' && 'freeform' in specInput) {
+        throw fail('NOT_IMPLEMENTED',
+          'spec.freeform is not supported in Plan 3; use the deterministic template+modules path',
+          { field: 'spec.freeform' });
+      }
 
       // 2. v1 -> v2 auto-promotion (captures SPEC_AUTO_PROMOTED warning if applicable)
       const promoted = promoteV1ToV2(specInput);
@@ -3924,11 +4261,30 @@ registerToolsModule((tools) => {
       const pf = preflightTemplate(spec.template, new Set(cat.templates.keys()));
       if (!pf.ok) throw pf.failure;
 
-      // 4. Zod wrapper parse (strict-ish per T3)
+      // 4. Zod wrapper parse (passthrough per T3; template-strict parse at step 4a)
       const parsed = AppSpecV2Wrapper.safeParse(spec);
       if (!parsed.success) throw fail('APP_SPEC_INVALID', 'AppSpec failed wrapper validation',
-        { stage: 'parse', issues: parsed.error.issues });
+        { issues: parsed.error.issues });
       const appSpec = parsed.data;
+
+      // 4a. Template-strict schema parse. Each template ships a schema.ts
+      //     exporting a Zod `Schema` that is .strict() at the wrapper level
+      //     (see T18/T20). Running it here catches template-specific typos
+      //     that the wrapper's .passthrough() intentionally let through.
+      //     Note: dynamic import path mirrors T20's get_template_schema tool
+      //     so the resolution logic is consistent.
+      const schemaUrl = new URL(`../../templates/${spec.template}/schema.ts`, import.meta.url);
+      const templateMod = (await import(schemaUrl.href)) as { Schema?: { safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } } } };
+      if (templateMod.Schema) {
+        const strict = templateMod.Schema.safeParse(spec);
+        if (!strict.success) {
+          throw fail('APP_SPEC_INVALID',
+            `AppSpec failed strict validation against template '${spec.template}'`,
+            { template_id: spec.template, issues: strict.error?.issues });
+        }
+      }
+      // Templates that ship without a schema.ts (none in Plan 3, but possible
+      // in Plan 4+) skip the strict pass. Not a warning; it's intentional.
 
       // 5. Resolve modules (with version_range); emit MODULE_VERSION_UNPINNED as needed
       const modules: ModuleToml[] = [];
@@ -3994,27 +4350,53 @@ registerToolsModule((tools) => {
         warnings.push({ code: 'BSC_LINT_WARNING', message: `${d.file}:${d.line} ${d.message}` });
       }
 
-      // 13. Optional zip
+      // 13. Optional zip. `args.zip` may be `true`, an object `{output_zip: ...}`,
+      //     `false`, `null`, or undefined. Null-safe check required because
+      //     `typeof null === 'object'` would crash on `.output_zip` access.
       let zipPath: string | undefined;
       let zipBytes: number | undefined;
       if (args.zip) {
-        zipPath = typeof args.zip === 'object' && args.zip.output_zip
-          ? args.zip.output_zip : `${args.output_dir}.zip`;
+        const zipArg = args.zip;
+        zipPath = (typeof zipArg === 'object' && zipArg !== null && 'output_zip' in zipArg
+                   && typeof (zipArg as { output_zip?: unknown }).output_zip === 'string')
+          ? (zipArg as { output_zip: string }).output_zip
+          : `${args.output_dir}.zip`;
+        // Exclude sourcemaps (dev-only) and staging (compile scratch) from the
+        // zip. Provenance stays in the zip for audit (spec §8).
         await packageProject({
           projectDir: args.output_dir as string, outputZip: zipPath,
-          exclude: ['.rokudev-tools/sourcemaps'],
+          exclude: ['.rokudev-tools/sourcemaps', '.rokudev-tools/staging'],
         });
         zipBytes = (await stat(zipPath)).size;
       }
 
-      // 14. Optional sideload (throws DEVICE_NO_PASSWORD if unresolvable)
+      // 14. Optional sideload. brs-gen does NOT depend on rokudev-device's
+      //     resolveTarget() (avoids inter-MCP runtime coupling per spec §1.3),
+      //     so callers must pass the Roku host + dev_password explicitly via
+      //     the `sideload` arg. @rokudev/device-client's DevPortal is
+      //     constructed directly: `new DevPortal(host, password)` then
+      //     `portal.sideload(zipPath)` -- see
+      //     packages/roku-device-client/src/devportal/sideload.ts.
+      //     If dev_password is absent, throw DEVICE_NO_PASSWORD; if no zip
+      //     was produced, throw NOT_IMPLEMENTED (sideload needs a zip).
       let sideloadResult: unknown;
       if (args.sideload) {
-        const { device, dev_password } = args.sideload as { device: string; dev_password?: string };
-        if (!zipPath) throw fail('NOT_IMPLEMENTED', 'sideload requires zip: true', { stage: 'tool' });
-        sideloadResult = await deviceClient.devPortal.sideload({
-          device, dev_password, zip_path: zipPath,
-        });
+        const { device, dev_password } = args.sideload as { device?: unknown; dev_password?: unknown };
+        if (typeof device !== 'string' || device.length === 0) {
+          throw fail('DEVICE_NOT_RESOLVED', 'sideload.device (host string) is required',
+            { tried: ['sideload.device'] });
+        }
+        if (typeof dev_password !== 'string' || dev_password.length === 0) {
+          throw fail('DEVICE_NO_PASSWORD',
+            'sideload.dev_password is required; brs-gen does not resolve from the device registry',
+            { device });
+        }
+        if (!zipPath) throw fail('NOT_IMPLEMENTED',
+          'sideload requires zip: true (must zip before sideloading)', {});
+        // Import at top of generate-app.ts:
+        //   import { DevPortal } from '@rokudev/device-client';
+        const portal = new DevPortal(device, dev_password);
+        sideloadResult = await portal.sideload(zipPath);
       }
 
       // 15. Return result envelope
@@ -4041,10 +4423,16 @@ registerToolsModule((tools) => {
 `readTemplateFiles` and `readModuleFileBytes` are small fs walkers. Either inline them (20 lines) or factor into `src/tools/_fs-helpers.ts` if T28's determinism test wants to reuse them (the advisory note on T28 flagged this).
 
 Tests should cover at minimum:
-- happy path: generate a project from `{ template: stub_hello, modules: [{ id: stub_label, config: {text:'hi'} }] }` and assert the output tree has manifest, source/Main.bs (compiled to source/Main.brs), source/_modules/stub_label/Init.bs, source/_modules/stub_label/config.bs, source/_modules/__init_hooks.bs, .rokudev-tools/provenance.json.
-- refusal when `output_dir` is non-empty without `overwrite: true`.
-- auto-promoted warning surfaces when spec_version is 1.
-- sideload parameter present but dev_password unresolvable -> DEVICE_NO_PASSWORD failure (re-raised from device-client).
+- happy path: generate a project from `{ template: stub_hello, modules: [{ id: stub_label, config: {text:'hi'} }] }` and assert the output tree has `manifest`, compiled `source/Main.brs` (no `.bs` after T16's post-compile sweep), `source/_modules/stub_label/Init.brs`, `source/_modules/stub_label/config.brs`, `source/_modules/__init_hooks.brs`, and `.rokudev-tools/provenance.json` plus `.rokudev-tools/sourcemaps/source/Main.brs.map`.
+- refusal when `output_dir` is non-empty without `overwrite: true` -> `OUTPUT_DIR_NOT_EMPTY`.
+- `SPEC_AUTO_PROMOTED` warning surfaces when spec_version is 1.
+- `spec.freeform` present -> `NOT_IMPLEMENTED`.
+- template-strict parse rejects an AppSpec with a typo'd top-level field (e.g. `{ ...valid, wrong_key: 1 }`) -> `APP_SPEC_INVALID` with `details.template_id` set.
+- `args.spec` as inline JSON string (leading `{`) works; as filesystem path works; non-existent path surfaces a readable error.
+- `args.zip: null` does not crash (no zip produced).
+- sideload with missing `dev_password` -> `DEVICE_NO_PASSWORD`.
+- sideload with missing `device` host -> `DEVICE_NOT_RESOLVED`.
+- sideload requested without `zip: true` -> `NOT_IMPLEMENTED` ("sideload requires zip").
 
 Follow TDD rhythm. Structure the test to use a tmpdir for `output_dir` and a real catalog load against the bundled stub_hello + stub_label.
 
@@ -4208,8 +4596,8 @@ Three tests:
 
 ```ts
 // tests/determinism.test.ts
-import { describe, it, expect, beforeAll } from 'vitest';
-import { mkdir, rm, readFile, cp } from 'node:fs/promises';
+import { describe, it, expect, vi } from 'vitest';
+import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -4218,6 +4606,7 @@ import { buildEmittedProject } from '../src/merger/build.js';
 import { renderTemplateFiles } from '../src/render/ejs.js';
 import { compileProject } from '../src/build/compile.js';
 import { writeProject } from '../src/build/write.js';
+import { packageProject } from '../src/build/zip.js';
 
 function tmp() { return join(tmpdir(), `brs-gen-det-${randomUUID()}`); }
 
@@ -4264,7 +4653,6 @@ describe('determinism', () => {
   });
 
   it('bsc compile output is byte-equal across runs', async () => {
-    const pkgRoot = join(new URL('..', import.meta.url).pathname);
     const dirA = tmp(); const dirB = tmp();
     await mkdir(dirA, { recursive: true }); await mkdir(dirB, { recursive: true });
     // Write the same minimal project (manifest + source/Main.bs + bsconfig.json) to both.
@@ -4272,19 +4660,74 @@ describe('determinism', () => {
     const ra = await compileProject(dirA);
     const rb = await compileProject(dirB);
     expect(ra.ok && rb.ok).toBe(true);
-    if (!ra.ok || !rb.ok) throw new Error('narrowing');
-    const fa = await readFile(join(ra.stagingDir, 'source/Main.brs'));
-    const fb = await readFile(join(rb.stagingDir, 'source/Main.brs'));
+    // After T16's in-place layout: .brs lives at projectDir/source/Main.brs.
+    const fa = await readFile(join(dirA, 'source/Main.brs'));
+    const fb = await readFile(join(dirB, 'source/Main.brs'));
     expect(fa.equals(fb)).toBe(true);
     await rm(dirA, { recursive: true, force: true });
     await rm(dirB, { recursive: true, force: true });
+  });
+
+  it('wall-clock invariance: buildProvenance + merger output identical across system-time changes', async () => {
+    // vi.setSystemTime exercises any hidden `new Date()` in the pipeline.
+    // Provenance SHOULD NOT carry a build timestamp (spec §8 -- determinism
+    // requires reproducibility from source + catalog alone), so shifting the
+    // clock by a year must NOT change bytes.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2020-01-01T00:00:00Z'));
+      const a = await runMerge();
+      vi.setSystemTime(new Date('2030-06-15T12:34:56Z'));
+      const b = await runMerge();
+      expect(a.provenance).toBe(b.provenance);
+      expect(a.files.map((f) => f.path)).toEqual(b.files.map((f) => f.path));
+      for (let i = 0; i < a.files.length; i++) {
+        const ac = a.files[i]!.content;
+        const bc = b.files[i]!.content;
+        if (Buffer.isBuffer(ac) && Buffer.isBuffer(bc)) expect(ac.equals(bc)).toBe(true);
+        else expect(ac).toBe(bc);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('zip external-file-attributes are OS-independent (0o644)', async () => {
+    // Regression guard for yazl's `mode` option. A zip built on macOS
+    // vs Linux CI must produce byte-equal central directory entries when
+    // the same files are fed in. We cannot cross-build in a single test,
+    // but we CAN assert the external-file-attributes field in the central
+    // directory is exactly `0o644 << 16` for every entry, which is the
+    // source of cross-OS drift. Parse the zip bytes manually.
+    const proj = tmp(); await mkdir(join(proj, 'source'), { recursive: true });
+    await writeFile(join(proj, 'manifest'), 'title=X\n');
+    await writeFile(join(proj, 'source/Main.brs'), 'sub Main(): end sub\n');
+    const out = join(proj, 'p.zip');
+    await packageProject({ projectDir: proj, outputZip: out });
+    const bytes = await readFile(out);
+    // ZIP central directory entries: signature 0x02014b50. Scan from end.
+    // For each CDE, external_file_attributes is at offset 38 (4 bytes LE).
+    // We accept any entry where (externalAttr >>> 16) === 0o644 (high 16
+    // bits = unix mode).
+    const expected = 0o644;
+    let found = 0;
+    for (let i = 0; i < bytes.length - 4; i++) {
+      if (bytes.readUInt32LE(i) === 0x02014b50) {
+        const ext = bytes.readUInt32LE(i + 38);
+        const mode = (ext >>> 16) & 0o777;
+        expect(mode).toBe(expected);
+        found++;
+      }
+    }
+    expect(found).toBeGreaterThan(0);
+    await rm(proj, { recursive: true, force: true });
   });
 });
 ```
 
 The `runMerge()` helper is scaffolded above with TODO markers. Fill in the directory walk + bytes loader; use small inline helpers rather than adding new exported functions.
 
-Run; 2 tests passing (or 3 if you split out the wall-clock test). Commit:
+Run; 4 tests passing. Commit:
 
 ```bash
 git add packages/brs-gen/tests/determinism.test.ts
@@ -4303,50 +4746,70 @@ version (per spec §11.1)."
 
 Spec reference: §10.3.
 
-Golden-file test for the stub catalog's full output. Generates a project from `{ template: stub_hello, modules: [{ id: stub_label, config: { text: 'hello world' } }] }`, then:
+Golden-file test for the stub catalog's full output. Generates a project from `{ template: stub_hello, modules: [{ id: stub_label, config: { text: 'hello world' } }] }`, then snapshots:
 
-- Snapshots the sorted list of `(path, size)` pairs (full bytes are too noisy for inline snapshots; the determinism test in T28 covers bytes).
-- Inline-snapshots the merged manifest (small; printable).
-- Inline-snapshots the generated `__init_hooks.bs` content (small; printable).
-- Inline-snapshots the `config.bs` emitted for `stub_label`.
-- Inline-snapshots the `provenance.json` content.
+- the sorted list of `(path, size)` pairs (full bytes are too noisy; T28 covers bytes),
+- the merged `manifest` (small; printable),
+- the generated `source/_modules/__init_hooks.bs` (before compile),
+- the `config.bs` emitted for `stub_label`,
+- the `.rokudev-tools/provenance.json` content.
 
-Vitest's `toMatchInlineSnapshot()` keeps the expected values in the test file itself, so reviewers can see what's being generated at a glance without chasing `__snapshots__/`.
+**Use file snapshots, not inline snapshots.** D9 forbids auto-regen in CI: inline snapshots get WRITTEN into the test file on first run, which means a reviewer cannot distinguish "expected to change" from "golden drift". Use `toMatchFileSnapshot()` into `tests/__snapshots__/<name>.snap` so golden drift shows up as a git diff that explicitly regenerates via `UPDATE_SNAPSHOT=1 pnpm -F brs-gen test`. Plan 3 ships a regen script per T28's convention; point the commit message at it.
 
 ```ts
 // tests/snapshots.test.ts (sketch)
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 // ... (setup: generate stub project into tmpdir via generate_app or direct merger call) ...
 
 describe('stub catalog snapshot', () => {
-  it('emitted manifest matches inline snapshot', () => {
-    // expect(manifestContent).toMatchInlineSnapshot(`...`)
+  let projectDir: string;
+  beforeAll(async () => {
+    projectDir = await generateStubProjectForSnapshots();
   });
-  it('__init_hooks.bs matches inline snapshot', () => {
-    // ...
+
+  it('emitted manifest matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'manifest'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/manifest.snap');
   });
-  it('config.bs matches inline snapshot', () => {
-    // ...
+  it('__init_hooks.bs matches saved snapshot', async () => {
+    // NOTE: this test must run BEFORE compileProject() (which would replace
+    // the .bs with .brs). If the snapshot fixture runs the full pipeline,
+    // snapshot the post-merger / pre-compile state held in memory instead
+    // of reading the post-compile tree. Pick one approach and stick to it.
+    const s = await readFile(join(projectDir, 'source/_modules/__init_hooks.bs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/init_hooks.bs.snap');
   });
-  it('provenance.json matches inline snapshot', () => {
-    // ...
+  it('config.bs for stub_label matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'source/_modules/stub_label/config.bs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/stub_label-config.bs.snap');
   });
-  it('file listing matches saved snapshot', () => {
-    // expect(sortedList).toMatchSnapshot()  // this one uses a __snapshots__/ file
+  it('provenance.json matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, '.rokudev-tools/provenance.json'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/provenance.json.snap');
+  });
+  it('file listing matches saved snapshot', async () => {
+    const sortedList = await sortedPathSizeList(projectDir);
+    await expect(JSON.stringify(sortedList, null, 2))
+      .toMatchFileSnapshot('__snapshots__/files.snap');
   });
 });
 ```
 
-Fill in the setup logic; commit.
+Run once with `UPDATE_SNAPSHOT=1` to create the initial snapshots, review the diff carefully, commit the `.snap` files. Subsequent runs fail on drift; regen is a manual, reviewed action.
 
 ```bash
 git add packages/brs-gen/tests/snapshots.test.ts packages/brs-gen/tests/__snapshots__
 git commit -m "test(brs-gen): stub catalog snapshot tests
 
-Implements spec §10.3. Inline snapshots for the small printable outputs
-(manifest, __init_hooks.bs, config.bs, provenance.json) so reviewers see
-exactly what stub output looks like in the diff. File listing lives in
-a saved snapshot; bytes equality is covered by T28 determinism tests."
+Implements spec §10.3. File snapshots (toMatchFileSnapshot, not inline)
+because D9 forbids CI auto-regen; inline snapshots would silently
+capture first-run output. Review the .snap files, commit them, then
+any future drift surfaces as a failing test.
+
+Manifest, __init_hooks.bs, config.bs, provenance.json, file listing
+all snapshotted. Byte equality covered by T28 determinism tests."
 ```
 
 ### Task T30: Conflict-matrix combinatorial test
@@ -4583,7 +5046,9 @@ Format: mirror the Plan 1 and Plan 2 sections already in README. One paragraph, 
 pnpm run release-prep
 ```
 
-Expected: format:check, lint, typecheck, test, build all pass. If prettier reformats new files, commit them separately and re-run.
+Expected: format:check, lint, typecheck, test, build all pass.
+
+**Hard gate:** If ANY step of release-prep fails -- a test, a type error, a lint violation -- DO NOT proceed to Step 5 (version commit) or Step 6 (tag). Fix the root cause and re-run release-prep. Never tag a release against a failing test suite. This includes new tests added in T28-T31: if a snapshot is stale because of a legitimate change, regenerate via `UPDATE_SNAPSHOT=1 pnpm -F brs-gen test`, review the diff, commit the updated snapshots separately, then retry release-prep. If prettier reformats new files, commit them separately and re-run.
 
 - [ ] **Step 5: Commit the version bump**
 
