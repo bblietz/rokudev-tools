@@ -7,3 +7,4 @@ import './log.js';
 import './dev-loop.js';
 import './debug-lifecycle.js';
 import './debug-breakpoints.js';
+import './debug-execution.js';

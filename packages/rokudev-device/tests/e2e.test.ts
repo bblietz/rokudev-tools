@@ -110,9 +110,15 @@ describe('rokudev-device e2e: tools/list', () => {
         'debug_detach',
         'debug_session_state',
         // debug breakpoints (T21)
-        'debug_set_breakpoint',
         'debug_clear_breakpoint',
         'debug_list_breakpoints',
+        'debug_set_breakpoint',
+        // debug execution (T22)
+        'debug_continue',
+        'debug_pause',
+        'debug_step',
+        'debug_step_out',
+        'debug_step_over',
       ].sort(),
     );
   }, 15_000);
