@@ -109,7 +109,10 @@ describe('spec_upgrade tool', () => {
     expect(payload.spec_version_after).toBe(2);
     expect(payload.written_to).toBe(filePath);
 
-    const updated = JSON.parse(await readFile(filePath, 'utf8')) as { spec_version: number; modules: unknown[] };
+    const updated = JSON.parse(await readFile(filePath, 'utf8')) as {
+      spec_version: number;
+      modules: unknown[];
+    };
     expect(updated.spec_version).toBe(2);
     expect(Array.isArray(updated.modules)).toBe(true);
   });

@@ -18,28 +18,35 @@ registerToolsModule((tools) => {
       const cat = getCatalog();
       const t = cat.templates.get(id);
       if (!t) {
-        throw fail('UNKNOWN_TEMPLATE', `template not in catalog: ${id}`,
-          { stage: 'catalog', given: id, known: [...cat.templates.keys()].sort() });
+        throw fail('UNKNOWN_TEMPLATE', `template not in catalog: ${id}`, {
+          stage: 'catalog',
+          given: id,
+          known: [...cat.templates.keys()].sort(),
+        });
       }
       const url = new URL(`../../templates/${id}/schema.ts`, import.meta.url);
       const mod = (await import(url.href)) as { Schema?: unknown; Example?: unknown };
       if (!mod.Schema || !mod.Example) {
-        throw fail('CATALOG_INVALID',
+        throw fail(
+          'CATALOG_INVALID',
           `template ${id}'s schema.ts must export both 'Schema' and 'Example'`,
-          { stage: 'catalog', template_id: id });
+          { stage: 'catalog', template_id: id },
+        );
       }
       const jsonSchema = zodToJsonSchemaDraft7(mod.Schema as any, `${id}Schema`);
       return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            id,
-            version: t.template.version,
-            spec_compat: t.template.spec_compat,
-            schema: jsonSchema,
-            example_spec: mod.Example,
-          }),
-        }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              id,
+              version: t.template.version,
+              spec_compat: t.template.spec_compat,
+              schema: jsonSchema,
+              example_spec: mod.Example,
+            }),
+          },
+        ],
       };
     },
   });

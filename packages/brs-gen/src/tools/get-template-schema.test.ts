@@ -16,9 +16,14 @@ describe('get_template_schema tool', () => {
   it('returns schema + example for known template', async () => {
     setCatalogForTests({
       templates: new Map([
-        ['stub_hello', { template: { id: 'stub_hello', version: '0.1.0', spec_compat: '>=1', description: 'd' },
-                         template_exports: { init_hooks: [], scene_nodes: [] },
-                         template_manifest_defaults: {} }],
+        [
+          'stub_hello',
+          {
+            template: { id: 'stub_hello', version: '0.1.0', spec_compat: '>=1', description: 'd' },
+            template_exports: { init_hooks: [], scene_nodes: [] },
+            template_manifest_defaults: {},
+          },
+        ],
       ]) as any,
       modules: new Map(),
       warnings: [],

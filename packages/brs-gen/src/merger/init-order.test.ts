@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { topoSortInitOrder } from './init-order.js';
 import type { ModuleToml } from '../catalog/module-toml.js';
 
-const mod = (id: string, before: string[] = [], after: string[] = []): ModuleToml => ({
-  module: { id, version: '0.1.0', spec_compat: '>=2', description: '' },
-  module_ordering: { before, after },
-} as unknown as ModuleToml);
+const mod = (id: string, before: string[] = [], after: string[] = []): ModuleToml =>
+  ({
+    module: { id, version: '0.1.0', spec_compat: '>=2', description: '' },
+    module_ordering: { before, after },
+  }) as unknown as ModuleToml;
 
 describe('topoSortInitOrder', () => {
   it('returns lexical order when no constraints', () => {

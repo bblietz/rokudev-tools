@@ -42,7 +42,11 @@ async function removeStaleOutputs(dir: string): Promise<void> {
       await removeStaleOutputs(full);
     } else if (d.isFile() && d.name.endsWith('.bs')) {
       const stale = full.slice(0, -3) + '.brs';
-      try { await unlink(stale); } catch { /* not present or not writable; ignore */ }
+      try {
+        await unlink(stale);
+      } catch {
+        /* not present or not writable; ignore */
+      }
     }
   }
 }
@@ -90,9 +94,11 @@ export async function compileProject(projectDir: string): Promise<CompileResult>
     builder.dispose();
     return {
       ok: false,
-      failure: fail('COMPILE_FAILED',
+      failure: fail(
+        'COMPILE_FAILED',
         `bsc compile threw: ${e instanceof Error ? e.message : String(e)}`,
-        { cause: String(e) }),
+        { cause: String(e) },
+      ),
     };
   }
 
@@ -102,9 +108,9 @@ export async function compileProject(projectDir: string): Promise<CompileResult>
     builder.dispose();
     return {
       ok: false,
-      failure: fail('LINT_FAILED',
-        `bsc reported ${errors.length} error(s)`,
-        { diagnostics: diags }),
+      failure: fail('LINT_FAILED', `bsc reported ${errors.length} error(s)`, {
+        diagnostics: diags,
+      }),
     };
   }
 
@@ -128,8 +134,11 @@ export async function compileProject(projectDir: string): Promise<CompileResult>
       await copyFile(src, dest);
       // Delete the .bs source that the Roku device cannot load.
       const bsPath = dest.replace(/\.brs$/, '.bs');
-      try { await unlink(bsPath); }
-      catch { /* .bs may not exist (e.g. bslib.brs has no .bs counterpart) */ }
+      try {
+        await unlink(bsPath);
+      } catch {
+        /* .bs may not exist (e.g. bslib.brs has no .bs counterpart) */
+      }
     }
   }
 

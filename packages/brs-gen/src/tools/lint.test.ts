@@ -98,9 +98,10 @@ describe('lint tool', () => {
     );
 
     const r = await handler({ project_dir: projectDir });
-    const payload = JSON.parse(
-      (r as { content: [{ text: string }] }).content[0].text,
-    ) as { ok: boolean; diagnostics: unknown[] };
+    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+      ok: boolean;
+      diagnostics: unknown[];
+    };
 
     expect(payload.ok).toBe(true);
     expect(payload.diagnostics).toHaveLength(0);
@@ -118,9 +119,10 @@ describe('lint tool', () => {
     );
 
     const r = await handler({ project_dir: projectDir });
-    const payload = JSON.parse(
-      (r as { content: [{ text: string }] }).content[0].text,
-    ) as { ok: boolean; diagnostics: Array<{ severity: string; message: string }> };
+    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+      ok: boolean;
+      diagnostics: Array<{ severity: string; message: string }>;
+    };
 
     expect(payload.ok).toBe(false);
     expect(payload.diagnostics.some((d) => d.severity === 'error')).toBe(true);
@@ -178,9 +180,10 @@ describe('lint tool', () => {
     );
 
     const r = await handler({ project_dir: projectDir });
-    const payload = JSON.parse(
-      (r as { content: [{ text: string }] }).content[0].text,
-    ) as { ok: boolean; diagnostics: Array<{ file: string; severity: string }> };
+    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+      ok: boolean;
+      diagnostics: Array<{ file: string; severity: string }>;
+    };
 
     expect(payload.ok).toBe(false);
     const errorDiags = payload.diagnostics.filter((d) => d.severity === 'error');

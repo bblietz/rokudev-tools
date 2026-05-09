@@ -41,23 +41,36 @@ function flatten(parsed: Record<string, unknown>): Record<string, unknown> {
 }
 
 async function loadOne<T>(
-  tomlPath: string, expectedId: string, idPath: string,
+  tomlPath: string,
+  expectedId: string,
+  idPath: string,
   zodSchema: { safeParse(o: unknown): { success: boolean; data?: T; error?: unknown } },
 ): Promise<T> {
   let raw: string;
-  try { raw = await readFile(tomlPath, 'utf8'); }
-  catch (e) { throw fail('CATALOG_INVALID', `cannot read ${tomlPath}`, { cause: String(e) }); }
+  try {
+    raw = await readFile(tomlPath, 'utf8');
+  } catch (e) {
+    throw fail('CATALOG_INVALID', `cannot read ${tomlPath}`, { cause: String(e) });
+  }
   let parsed: Record<string, unknown>;
-  try { parsed = parseToml(raw); }
-  catch (e) { throw fail('CATALOG_INVALID', `malformed TOML in ${tomlPath}`, { cause: String(e) }); }
+  try {
+    parsed = parseToml(raw);
+  } catch (e) {
+    throw fail('CATALOG_INVALID', `malformed TOML in ${tomlPath}`, { cause: String(e) });
+  }
   const flat = flatten(parsed);
   const r = zodSchema.safeParse(flat);
   if (!r.success) throw fail('CATALOG_INVALID', `schema error in ${tomlPath}`, { issues: r.error });
   // idPath is a dot path like "template.id" or "module.id".
-  const actualId = idPath.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], r.data!);
+  const actualId = idPath
+    .split('.')
+    .reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], r.data!);
   if (actualId !== expectedId) {
-    throw fail('CATALOG_INVALID', `${idPath}=${String(actualId)} in ${tomlPath} does not match dir name ${expectedId}`,
-               { expected: expectedId, got: actualId });
+    throw fail(
+      'CATALOG_INVALID',
+      `${idPath}=${String(actualId)} in ${tomlPath} does not match dir name ${expectedId}`,
+      { expected: expectedId, got: actualId },
+    );
   }
   return r.data!;
 }
@@ -88,21 +101,25 @@ function detectAsymmetric(modules: ReadonlyMap<string, ModuleToml>) {
 // filename (only a trailing `.ejs` is meaningful to T14's strip logic).
 function validateModuleFilePath(p: string, moduleId: string, tomlPath: string): void {
   if (p.startsWith('/') || p.startsWith('\\')) {
-    throw fail('CATALOG_INVALID',
-      `${tomlPath}: module ${moduleId} declares absolute path ${p}`,
-      { module_id: moduleId, path: p });
+    throw fail('CATALOG_INVALID', `${tomlPath}: module ${moduleId} declares absolute path ${p}`, {
+      module_id: moduleId,
+      path: p,
+    });
   }
   const segs = p.split(/[\\/]/);
   if (segs.some((s) => s === '..' || s === '.')) {
-    throw fail('CATALOG_INVALID',
-      `${tomlPath}: module ${moduleId} declares traversal path ${p}`,
-      { module_id: moduleId, path: p });
+    throw fail('CATALOG_INVALID', `${tomlPath}: module ${moduleId} declares traversal path ${p}`, {
+      module_id: moduleId,
+      path: p,
+    });
   }
   const base = segs[segs.length - 1] ?? '';
   if (base.includes('.ejs.')) {
-    throw fail('CATALOG_INVALID',
+    throw fail(
+      'CATALOG_INVALID',
       `${tomlPath}: module ${moduleId} file ${p} has '.ejs.' in the middle; only a trailing .ejs is allowed`,
-      { module_id: moduleId, path: p });
+      { module_id: moduleId, path: p },
+    );
   }
 }
 
@@ -117,9 +134,11 @@ function validateHookScopeCasing(t: TemplateToml, tomlPath: string): void {
     const lc = scope.toLowerCase();
     const prior = seen.get(lc);
     if (prior !== undefined && prior !== scope) {
-      throw fail('CATALOG_INVALID',
+      throw fail(
+        'CATALOG_INVALID',
         `${tomlPath}: hook scopes '${prior}' and '${scope}' differ only in case; BrightScript is case-insensitive`,
-        { template_id: t.template.id, scopes: [prior, scope] });
+        { template_id: t.template.id, scopes: [prior, scope] },
+      );
     }
     seen.set(lc, scope);
   }
@@ -143,11 +162,14 @@ export async function loadCatalog(root: string): Promise<Catalog> {
     for (const p of m.module_files.add) validateModuleFilePath(p, d.name, tomlPath);
     for (const rel of m.module_files.add) {
       const onDisk = join(root, 'modules', d.name, 'files', rel);
-      try { await readFile(onDisk); }
-      catch {
-        throw fail('CATALOG_INVALID',
+      try {
+        await readFile(onDisk);
+      } catch {
+        throw fail(
+          'CATALOG_INVALID',
           `${tomlPath}: module ${d.name} declares file ${rel} which does not exist at ${onDisk}`,
-          { module_id: d.name, path: rel });
+          { module_id: d.name, path: rel },
+        );
       }
     }
     modules.set(d.name, m);

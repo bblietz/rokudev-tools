@@ -97,7 +97,8 @@ class McpChild {
     });
     this.proc.on('close', () => {
       const err = new Error('MCP child closed before response');
-      for (const [, r] of this.pending) r({ jsonrpc: '2.0', id: -1, error: { code: -1, message: err.message } });
+      for (const [, r] of this.pending)
+        r({ jsonrpc: '2.0', id: -1, error: { code: -1, message: err.message } });
       this.pending.clear();
       this.closeRejecter?.(err);
     });
@@ -169,9 +170,11 @@ function parseToolPayload(result: unknown): Record<string, unknown> {
     throw new Error(`tool returned isError: ${JSON.stringify(firstParse)}`);
   }
   // Unwrap the handler's own content envelope if present.
-  const innerContent = (firstParse as {
-    content?: Array<{ type?: string; text?: string }>;
-  }).content;
+  const innerContent = (
+    firstParse as {
+      content?: Array<{ type?: string; text?: string }>;
+    }
+  ).content;
   if (Array.isArray(innerContent) && typeof innerContent[0]?.text === 'string') {
     return JSON.parse(innerContent[0].text) as Record<string, unknown>;
   }

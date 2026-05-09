@@ -10,7 +10,9 @@ describe('mergeManifest', () => {
   });
 
   it('set-if-unset: module fills unset splash icons', () => {
-    const r = mergeManifest({ title: 'T' }, [{ id: 'm', manifest: { splash_screen_hd: 'pkg:/x.png' } }]);
+    const r = mergeManifest({ title: 'T' }, [
+      { id: 'm', manifest: { splash_screen_hd: 'pkg:/x.png' } },
+    ]);
     expect(r.ok).toBe(true);
     if (!r.ok) throw new Error('narrowing');
     expect(r.manifest.get('splash_screen_hd')).toBe('pkg:/x.png');

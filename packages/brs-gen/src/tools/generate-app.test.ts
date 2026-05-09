@@ -279,12 +279,14 @@ describe('generate_app tool', () => {
       const parent = await freshTmp('bom');
       try {
         const handler = getHandler();
-        const specString = '\uFEFF' + JSON.stringify({
-          spec_version: 2,
-          template: 'stub_hello',
-          modules: [],
-          app: { name: 'Hi', major_version: 1, minor_version: 0, build_version: 0 },
-        });
+        const specString =
+          '\uFEFF' +
+          JSON.stringify({
+            spec_version: 2,
+            template: 'stub_hello',
+            modules: [],
+            app: { name: 'Hi', major_version: 1, minor_version: 0, build_version: 0 },
+          });
         const result = await handler({
           spec: specString,
           output_dir: join(parent, 'project'),
@@ -438,7 +440,10 @@ describe('generate_app tool', () => {
     // RegistryReader / etc. remain intact for every other test in the file.
     // We mock the default export module in a nested describe so the vi.mock
     // applies only after setup here.
-    const mockSideload = vi.fn(async (_zipPath: string) => ({ ok: true as const, status: 'installed' }));
+    const mockSideload = vi.fn(async (_zipPath: string) => ({
+      ok: true as const,
+      status: 'installed',
+    }));
 
     beforeAll(() => {
       vi.doMock('@rokudev/device-client', async (importOriginal) => {
@@ -446,7 +451,9 @@ describe('generate_app tool', () => {
         return {
           ...original,
           DevPortal: class {
-            constructor(_host: string, _password: string) { /* no-op */ }
+            constructor(_host: string, _password: string) {
+              /* no-op */
+            }
             async sideload(zipPath: string) {
               return mockSideload(zipPath);
             }

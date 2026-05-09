@@ -9,22 +9,28 @@ describe('list_modules tool', () => {
     setCatalogForTests({
       templates: new Map(),
       modules: new Map([
-        ['zebra', {
-          module: { id: 'zebra', version: '1.0.0', spec_compat: '>=1', description: 'z' },
-          module_config_schema: { type: 'object' },
-          module_files: { add: [] },
-          module_wiring: { exports: [], requires: [], init_calls: [] },
-          module_ordering: { before: [], after: [] },
-          module_conflicts: { exclusive_with: [] },
-        }],
-        ['alpha', {
-          module: { id: 'alpha', version: '0.1.0', spec_compat: '>=1', description: 'a' },
-          module_config_schema: { type: 'object' },
-          module_files: { add: [] },
-          module_wiring: { exports: [], requires: [], init_calls: [] },
-          module_ordering: { before: [], after: [] },
-          module_conflicts: { exclusive_with: [] },
-        }],
+        [
+          'zebra',
+          {
+            module: { id: 'zebra', version: '1.0.0', spec_compat: '>=1', description: 'z' },
+            module_config_schema: { type: 'object' },
+            module_files: { add: [] },
+            module_wiring: { exports: [], requires: [], init_calls: [] },
+            module_ordering: { before: [], after: [] },
+            module_conflicts: { exclusive_with: [] },
+          },
+        ],
+        [
+          'alpha',
+          {
+            module: { id: 'alpha', version: '0.1.0', spec_compat: '>=1', description: 'a' },
+            module_config_schema: { type: 'object' },
+            module_files: { add: [] },
+            module_wiring: { exports: [], requires: [], init_calls: [] },
+            module_ordering: { before: [], after: [] },
+            module_conflicts: { exclusive_with: [] },
+          },
+        ],
       ]) as any,
       warnings: [],
     });
@@ -40,7 +46,17 @@ describe('list_modules tool', () => {
     const result = await handler({});
     const parsed = JSON.parse((result as any).content[0].text);
     expect(parsed.modules.map((m: any) => m.id)).toEqual(['alpha', 'zebra']);
-    expect(parsed.modules[0]).toEqual({ id: 'alpha', version: '0.1.0', spec_compat: '>=1', description: 'a' });
-    expect(parsed.modules[1]).toEqual({ id: 'zebra', version: '1.0.0', spec_compat: '>=1', description: 'z' });
+    expect(parsed.modules[0]).toEqual({
+      id: 'alpha',
+      version: '0.1.0',
+      spec_compat: '>=1',
+      description: 'a',
+    });
+    expect(parsed.modules[1]).toEqual({
+      id: 'zebra',
+      version: '1.0.0',
+      spec_compat: '>=1',
+      description: 'z',
+    });
   });
 });

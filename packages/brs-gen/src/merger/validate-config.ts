@@ -15,18 +15,27 @@ export function validateModuleConfig(moduleId: string, schema: unknown, config: 
     const message = e instanceof Error ? e.message : String(e);
     return {
       ok: false,
-      failure: fail('MODULE_CONFIG_INVALID',
+      failure: fail(
+        'MODULE_CONFIG_INVALID',
         `config for module ${moduleId} has an invalid schema: ${message}`,
-        { stage: 'config-validate', module_id: moduleId, reason: 'schema_compile_failed' }),
+        { stage: 'config-validate', module_id: moduleId, reason: 'schema_compile_failed' },
+      ),
     };
   }
   if (validate(config)) return { ok: true };
   const err = validate.errors?.[0];
   return {
     ok: false,
-    failure: fail('MODULE_CONFIG_INVALID',
+    failure: fail(
+      'MODULE_CONFIG_INVALID',
       `config for module ${moduleId} failed validation: ${err?.message ?? 'unknown'}`,
-      { stage: 'config-validate', module_id: moduleId,
-        pointer: err?.instancePath ?? '', keyword: err?.keyword, params: err?.params }),
+      {
+        stage: 'config-validate',
+        module_id: moduleId,
+        pointer: err?.instancePath ?? '',
+        keyword: err?.keyword,
+        params: err?.params,
+      },
+    ),
   };
 }

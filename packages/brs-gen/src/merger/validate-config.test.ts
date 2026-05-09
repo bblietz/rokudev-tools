@@ -3,7 +3,8 @@ import { validateModuleConfig } from './validate-config.js';
 
 describe('validateModuleConfig', () => {
   const schema = {
-    type: 'object', required: ['text'],
+    type: 'object',
+    required: ['text'],
     properties: { text: { type: 'string', minLength: 1 } },
     additionalProperties: false,
   };

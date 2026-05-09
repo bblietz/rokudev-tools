@@ -47,13 +47,17 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
   // Render them against the spec before merging so the downstream Map holds finalized
   // manifest values, not raw template text.
   const renderedDefaults: Record<string, string> = {};
-  for (const [k, v] of Object.entries(input.template.template_manifest_defaults as Record<string, string>)) {
+  for (const [k, v] of Object.entries(
+    input.template.template_manifest_defaults as Record<string, string>,
+  )) {
     try {
       renderedDefaults[k] = ejs.render(v, { spec: input.spec }, { async: false });
     } catch (e) {
-      throw fail('APP_SPEC_INVALID',
+      throw fail(
+        'APP_SPEC_INVALID',
         `failed to render EJS template for manifest key ${k}: ${e instanceof Error ? e.message : String(e)}`,
-        { stage: 'build', key: k, raw_value: v });
+        { stage: 'build', key: k, raw_value: v },
+      );
     }
   }
   const manifestRes = mergeManifest(renderedDefaults, moduleContribs);
@@ -70,7 +74,9 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
   }
 
   // __init_hooks.bs
-  const callsByModule = new Map(input.modules.map((m) => [m.module.id, m.module_wiring.init_calls]));
+  const callsByModule = new Map(
+    input.modules.map((m) => [m.module.id, m.module_wiring.init_calls]),
+  );
   const initHooksContent = emitInitHooks(
     input.template.template_exports.init_hooks,
     topo.order,
@@ -83,17 +89,22 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
     for (const p of m.module_files.add) {
       const b = input.moduleFileBytes.get(p);
       if (!b) {
-        throw fail('CATALOG_INTEGRITY',
+        throw fail(
+          'CATALOG_INTEGRITY',
           `module ${m.module.id} declares file ${p} but no bytes were provided`,
-          { stage: 'build', module_id: m.module.id, missing: p });
+          { stage: 'build', module_id: m.module.id, missing: p },
+        );
       }
       moduleFiles.push({ path: p, content: b });
     }
   }
 
   // Manifest file (sorted lines)
-  const manifestLines = [...manifestRes.manifest.entries()].sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([k, v]) => `${k}=${v}`).join('\n') + '\n';
+  const manifestLines =
+    [...manifestRes.manifest.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n') + '\n';
   const manifestFile = { path: 'manifest', content: manifestLines };
 
   // Provenance
@@ -101,7 +112,8 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
     spec_version: input.spec.spec_version,
     template: { id: input.template.template.id, version: input.template.template.version },
     modules: input.modules.map((m) => ({
-      id: m.module.id, version: m.module.version,
+      id: m.module.id,
+      version: m.module.version,
       files: [...m.module_files.add, `source/_modules/${m.module.id}/config.bs`],
     })),
     init_order: topo.order,

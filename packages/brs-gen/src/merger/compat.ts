@@ -8,8 +8,10 @@ export function checkSpecCompat(specVersion: number, range: string, labelFor?: s
   if (semver.satisfies(coerced, range)) return { ok: true };
   return {
     ok: false,
-    failure: fail('SPEC_VERSION_INCOMPATIBLE',
+    failure: fail(
+      'SPEC_VERSION_INCOMPATIBLE',
       `${labelFor ?? 'spec_compat'} range ${range} does not accept spec_version ${specVersion}`,
-      { stage: 'compat', spec_version: specVersion, range, rejected_by: labelFor ?? null }),
+      { stage: 'compat', spec_version: specVersion, range, rejected_by: labelFor ?? null },
+    ),
   };
 }

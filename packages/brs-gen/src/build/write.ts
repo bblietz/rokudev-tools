@@ -10,18 +10,29 @@ type WriteInput = {
 };
 
 async function exists(p: string): Promise<boolean> {
-  try { await access(p); return true; } catch { return false; }
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
 }
 async function isNonEmpty(p: string): Promise<boolean> {
-  try { return (await readdir(p)).length > 0; } catch { return false; }
+  try {
+    return (await readdir(p)).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export async function writeProject(input: WriteInput): Promise<void> {
-  if (await exists(input.outputDir) && await isNonEmpty(input.outputDir)) {
+  if ((await exists(input.outputDir)) && (await isNonEmpty(input.outputDir))) {
     if (!input.overwrite) {
-      throw fail('OUTPUT_DIR_NOT_EMPTY',
+      throw fail(
+        'OUTPUT_DIR_NOT_EMPTY',
         `output_dir ${input.outputDir} is non-empty; pass overwrite: true to replace`,
-        { stage: 'write', output_dir: input.outputDir });
+        { stage: 'write', output_dir: input.outputDir },
+      );
     }
   }
 
@@ -49,7 +60,9 @@ export async function writeProject(input: WriteInput): Promise<void> {
     // Clean up the tmpdir on any error so repeated failed runs don't leave
     // orphaned `.brs-gen-tmp-*` dirs. Swallow cleanup failures so the original
     // error propagates.
-    await rm(tmp, { recursive: true, force: true }).catch(() => { /* ignore */ });
+    await rm(tmp, { recursive: true, force: true }).catch(() => {
+      /* ignore */
+    });
     throw e;
   }
 }

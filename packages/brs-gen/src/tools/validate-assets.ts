@@ -35,10 +35,10 @@ registerToolsModule((tools) => {
   tools.set('validate_assets', {
     name: 'validate_assets',
     description:
-      'Checks manifest-referenced icon/splash images: each file must exist, '
-      + 'start with PNG magic bytes (89 50 4E 47), and be smaller than 1 MB. '
-      + 'Returns ok:true when all assets pass, or ok:false with details on '
-      + 'missing / not_png / oversize files.',
+      'Checks manifest-referenced icon/splash images: each file must exist, ' +
+      'start with PNG magic bytes (89 50 4E 47), and be smaller than 1 MB. ' +
+      'Returns ok:true when all assets pass, or ok:false with details on ' +
+      'missing / not_png / oversize files.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,

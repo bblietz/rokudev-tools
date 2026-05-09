@@ -4,7 +4,12 @@ import { emitInitHooks } from './emit-init-hooks.js';
 describe('emitInitHooks', () => {
   it('generates one sub per template hook', () => {
     const hooks = [
-      { scope: 'Main', phase: 'before_scene_show', file: 'x.bs', signature: '(args as dynamic) as void' },
+      {
+        scope: 'Main',
+        phase: 'before_scene_show',
+        file: 'x.bs',
+        signature: '(args as dynamic) as void',
+      },
     ];
     const callsByModule = new Map<string, Array<{ hook: string; statement: string }>>();
     const out = emitInitHooks(hooks, [], callsByModule);
@@ -14,7 +19,12 @@ describe('emitInitHooks', () => {
 
   it('inserts init_calls in topo order', () => {
     const hooks = [
-      { scope: 'Main', phase: 'before_scene_show', file: 'x.bs', signature: '(args as dynamic) as void' },
+      {
+        scope: 'Main',
+        phase: 'before_scene_show',
+        file: 'x.bs',
+        signature: '(args as dynamic) as void',
+      },
     ];
     const callsByModule = new Map([
       ['b', [{ hook: 'Main.before_scene_show', statement: 'B_init(args)' }]],
@@ -29,7 +39,12 @@ describe('emitInitHooks', () => {
 
   it('emits empty sub bodies when no module contributes', () => {
     const hooks = [
-      { scope: 'MainScene.init', phase: 'after_content_load', file: 'y.bs', signature: '(top as roSGNode) as void' },
+      {
+        scope: 'MainScene.init',
+        phase: 'after_content_load',
+        file: 'y.bs',
+        signature: '(top as roSGNode) as void',
+      },
     ];
     const out = emitInitHooks(hooks, [], new Map());
     expect(out).toContain('sub Modules_OnMainSceneInitAfterContentLoad(top as roSGNode) as void');
@@ -39,7 +54,7 @@ describe('emitInitHooks', () => {
   it('handles multiple hooks in file', () => {
     const hooks = [
       { scope: 'Main', phase: 'before_scene_show', file: 'x.bs', signature: '(args) as void' },
-      { scope: 'Main', phase: 'after_scene_show',  file: 'x.bs', signature: '(args) as void' },
+      { scope: 'Main', phase: 'after_scene_show', file: 'x.bs', signature: '(args) as void' },
     ];
     const out = emitInitHooks(hooks, [], new Map());
     expect(out.match(/sub Modules_On/g)?.length).toBe(2);

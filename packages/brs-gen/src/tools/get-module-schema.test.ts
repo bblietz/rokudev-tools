@@ -9,23 +9,31 @@ describe('get_module_schema tool', () => {
     setCatalogForTests({
       templates: new Map(),
       modules: new Map([
-        ['stub_label', {
-          module: { id: 'stub_label', version: '0.1.0', spec_compat: '>=1', description: 'Stub label' },
-          module_config_schema: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['text'],
-            properties: { text: { type: 'string' } },
+        [
+          'stub_label',
+          {
+            module: {
+              id: 'stub_label',
+              version: '0.1.0',
+              spec_compat: '>=1',
+              description: 'Stub label',
+            },
+            module_config_schema: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['text'],
+              properties: { text: { type: 'string' } },
+            },
+            module_files: { add: [] },
+            module_wiring: {
+              exports: [{ kind: 'scene_node', name: 'StubLabel' }],
+              requires: [],
+              init_calls: [],
+            },
+            module_ordering: { before: [], after: [] },
+            module_conflicts: { exclusive_with: [] },
           },
-          module_files: { add: [] },
-          module_wiring: {
-            exports: [{ kind: 'scene_node', name: 'StubLabel' }],
-            requires: [],
-            init_calls: [],
-          },
-          module_ordering: { before: [], after: [] },
-          module_conflicts: { exclusive_with: [] },
-        }],
+        ],
       ]) as any,
       warnings: [],
     });
@@ -64,18 +72,21 @@ describe('get_module_schema tool', () => {
     setCatalogForTests({
       templates: new Map(),
       modules: new Map([
-        ['nullable_mod', {
-          module: { id: 'nullable_mod', version: '0.1.0', spec_compat: '>=1', description: 'n' },
-          module_config_schema: {
-            type: 'object',
-            required: ['label'],
-            properties: { label: { type: ['string', 'null'] } },
-          },
-          module_files: { add: [] },
-          module_wiring: { exports: [], requires: [], init_calls: [] },
-          module_ordering: { before: [], after: [] },
-          module_conflicts: { exclusive_with: [] },
-        } as any],
+        [
+          'nullable_mod',
+          {
+            module: { id: 'nullable_mod', version: '0.1.0', spec_compat: '>=1', description: 'n' },
+            module_config_schema: {
+              type: 'object',
+              required: ['label'],
+              properties: { label: { type: ['string', 'null'] } },
+            },
+            module_files: { add: [] },
+            module_wiring: { exports: [], requires: [], init_calls: [] },
+            module_ordering: { before: [], after: [] },
+            module_conflicts: { exclusive_with: [] },
+          } as any,
+        ],
       ]),
       warnings: [],
     });

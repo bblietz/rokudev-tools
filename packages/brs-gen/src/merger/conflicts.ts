@@ -8,9 +8,14 @@ export function detectConflicts(modules: ModuleToml[], templateFilePaths: string
   for (const m of modules) {
     for (const other of m.module_conflicts.exclusive_with) {
       if (present.has(other)) {
-        return { ok: false, failure: fail('MODULE_CONFLICT',
-          `module ${m.module.id} is exclusive_with ${other}, which is also present`,
-          { stage: 'conflicts', a: m.module.id, b: other }) };
+        return {
+          ok: false,
+          failure: fail(
+            'MODULE_CONFLICT',
+            `module ${m.module.id} is exclusive_with ${other}, which is also present`,
+            { stage: 'conflicts', a: m.module.id, b: other },
+          ),
+        };
       }
     }
   }
@@ -21,9 +26,14 @@ export function detectConflicts(modules: ModuleToml[], templateFilePaths: string
     for (const p of m.module_files.add) {
       const existing = owners.get(p);
       if (existing !== undefined) {
-        return { ok: false, failure: fail('FILE_COLLISION',
-          `path ${p} added by both ${existing} and module ${m.module.id}`,
-          { stage: 'conflicts', path: p, owner_a: existing, owner_b: m.module.id }) };
+        return {
+          ok: false,
+          failure: fail(
+            'FILE_COLLISION',
+            `path ${p} added by both ${existing} and module ${m.module.id}`,
+            { stage: 'conflicts', path: p, owner_a: existing, owner_b: m.module.id },
+          ),
+        };
       }
       owners.set(p, `module:${m.module.id}`);
     }

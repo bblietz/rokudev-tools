@@ -64,22 +64,20 @@ async function main() {
     // provenance file is what buildEmittedProject emits to
     // .rokudev-tools/provenance.json; we keep it as its raw bytes so the
     // e2e test can do a byte-equal compare.
-    const provenance = await readFile(
-      join(output_dir, '.rokudev-tools', 'provenance.json'),
-    );
+    const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
     await writeFile(join(GOLDEN_DIR, 'stub.provenance.json'), provenance);
   } finally {
     await rm(work, { recursive: true, force: true });
   }
 
   process.stdout.write(
-    '\n========================================================================\n'
-      + 'Golden files regenerated:\n'
-      + `  ${join(GOLDEN_DIR, 'stub.zip')}\n`
-      + `  ${join(GOLDEN_DIR, 'stub.provenance.json')}\n`
-      + 'Please commit both files with a clear cause in the message\n'
-      + '(e.g. "regen goldens: bump stub_hello template version").\n'
-      + '========================================================================\n',
+    '\n========================================================================\n' +
+      'Golden files regenerated:\n' +
+      `  ${join(GOLDEN_DIR, 'stub.zip')}\n` +
+      `  ${join(GOLDEN_DIR, 'stub.provenance.json')}\n` +
+      'Please commit both files with a clear cause in the message\n' +
+      '(e.g. "regen goldens: bump stub_hello template version").\n' +
+      '========================================================================\n',
   );
 }
 

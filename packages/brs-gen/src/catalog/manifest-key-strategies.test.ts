@@ -3,15 +3,31 @@ import { MANIFEST_KEY_STRATEGIES, getStrategy } from './manifest-key-strategies.
 
 describe('manifest-key-strategies', () => {
   it('registers set keys', () => {
-    for (const k of ['title', 'subtitle', 'splash_color', 'splash_min_time', 'ui_resolutions',
-                     'major_version', 'minor_version', 'build_version']) {
+    for (const k of [
+      'title',
+      'subtitle',
+      'splash_color',
+      'splash_min_time',
+      'ui_resolutions',
+      'major_version',
+      'minor_version',
+      'build_version',
+    ]) {
       expect(MANIFEST_KEY_STRATEGIES[k]?.strategy).toBe('set');
     }
   });
   it('registers set-if-unset keys', () => {
-    for (const k of ['mm_icon_focus_hd','mm_icon_focus_fhd','splash_screen_hd','splash_screen_fhd',
-                     'splash_screen_uhd','splash_screen_shd','mm_icon_side_hd','mm_icon_side_fhd',
-                     'requires_billing']) {
+    for (const k of [
+      'mm_icon_focus_hd',
+      'mm_icon_focus_fhd',
+      'splash_screen_hd',
+      'splash_screen_fhd',
+      'splash_screen_uhd',
+      'splash_screen_shd',
+      'mm_icon_side_hd',
+      'mm_icon_side_fhd',
+      'requires_billing',
+    ]) {
       expect(MANIFEST_KEY_STRATEGIES[k]?.strategy).toBe('set-if-unset');
     }
   });

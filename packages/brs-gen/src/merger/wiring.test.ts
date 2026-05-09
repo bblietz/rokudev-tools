@@ -8,8 +8,13 @@ const mkTemplate = (hooks: Array<{ scope: string; phase: string }>, scenes: stri
     scene_nodes: scenes.map((n) => ({ name: n, file: 'x.xml' })),
   },
 });
-const mkModule = (id: string, reqs: Array<{ kind: 'init_hook'; scope: string; phase: string } | { kind: 'scene_node'; name: string }>,
-                  calls: Array<{ hook: string; statement: string }>) => ({
+const mkModule = (
+  id: string,
+  reqs: Array<
+    { kind: 'init_hook'; scope: string; phase: string } | { kind: 'scene_node'; name: string }
+  >,
+  calls: Array<{ hook: string; statement: string }>,
+) => ({
   module: { id, version: '0.1.0', spec_compat: '>=2', description: '' },
   module_wiring: { exports: [], requires: reqs, init_calls: calls },
 });
@@ -17,8 +22,11 @@ const mkModule = (id: string, reqs: Array<{ kind: 'init_hook'; scope: string; ph
 describe('validateWiring', () => {
   it('passes when every require matches an export', () => {
     const t = mkTemplate([{ scope: 'Main', phase: 'before_scene_show' }]);
-    const m = mkModule('m', [{ kind: 'init_hook', scope: 'Main', phase: 'before_scene_show' }],
-                       [{ hook: 'Main.before_scene_show', statement: 'x()' }]);
+    const m = mkModule(
+      'm',
+      [{ kind: 'init_hook', scope: 'Main', phase: 'before_scene_show' }],
+      [{ hook: 'Main.before_scene_show', statement: 'x()' }],
+    );
     expect(validateWiring(t as any, [m as any]).ok).toBe(true);
   });
 
@@ -42,8 +50,11 @@ describe('validateWiring', () => {
 
   it('WIRING_CONTRACT_VIOLATION when init_call hook does not match any template init_hook', () => {
     const t = mkTemplate([{ scope: 'Main', phase: 'before_scene_show' }]);
-    const m = mkModule('m', [{ kind: 'init_hook', scope: 'Main', phase: 'before_scene_show' }],
-                       [{ hook: 'Main.wrong_phase', statement: 'x()' }]);
+    const m = mkModule(
+      'm',
+      [{ kind: 'init_hook', scope: 'Main', phase: 'before_scene_show' }],
+      [{ hook: 'Main.wrong_phase', statement: 'x()' }],
+    );
     const r = validateWiring(t as any, [m as any]);
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error('narrowing');

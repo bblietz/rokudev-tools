@@ -16,12 +16,22 @@ describe('list_templates tool', () => {
     const { setCatalogForTests } = await import('./_catalog-singleton.js');
     setCatalogForTests({
       templates: new Map([
-        ['zeta', { template: { id: 'zeta', version: '0.1.0', spec_compat: '>=1', description: 'z' },
-                   template_exports: { init_hooks: [], scene_nodes: [] },
-                   template_manifest_defaults: {} }],
-        ['alpha', { template: { id: 'alpha', version: '0.1.0', spec_compat: '>=1', description: 'a' },
-                    template_exports: { init_hooks: [], scene_nodes: [] },
-                    template_manifest_defaults: {} }],
+        [
+          'zeta',
+          {
+            template: { id: 'zeta', version: '0.1.0', spec_compat: '>=1', description: 'z' },
+            template_exports: { init_hooks: [], scene_nodes: [] },
+            template_manifest_defaults: {},
+          },
+        ],
+        [
+          'alpha',
+          {
+            template: { id: 'alpha', version: '0.1.0', spec_compat: '>=1', description: 'a' },
+            template_exports: { init_hooks: [], scene_nodes: [] },
+            template_manifest_defaults: {},
+          },
+        ],
       ]) as any,
       modules: new Map(),
       warnings: [],

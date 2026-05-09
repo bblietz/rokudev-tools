@@ -28,7 +28,7 @@ async function walk(dir: string, base: string): Promise<string[]> {
   for (const d of await readdir(dir, { withFileTypes: true })) {
     const full = join(dir, d.name);
     const rel = relative(base, full);
-    if (d.isDirectory()) out.push(...await walk(full, base));
+    if (d.isDirectory()) out.push(...(await walk(full, base)));
     else if (d.isFile()) out.push(rel);
   }
   return out;
@@ -36,7 +36,8 @@ async function walk(dir: string, base: string): Promise<string[]> {
 
 export async function packageProject(input: PackageInput): Promise<void> {
   const all = (await walk(input.projectDir, input.projectDir)).sort();
-  const excluded = (p: string) => (input.exclude ?? []).some((pref) => p === pref || p.startsWith(pref + '/'));
+  const excluded = (p: string) =>
+    (input.exclude ?? []).some((pref) => p === pref || p.startsWith(pref + '/'));
   const zip = new yazl.ZipFile();
 
   for (const rel of all) {
@@ -54,8 +55,11 @@ export async function packageProject(input: PackageInput): Promise<void> {
     // `mode` has been honored by yazl since 2.5 (externalFileAttributes =
     // mode << 16). If the installed @types/yazl omits the field from the
     // options type (some versions do), the cast below keeps TS silent.
-    zip.addBuffer(bytes, normRel,
-      { mtime: DOS_EPOCH, compress: false, mode: 0o644 } as yazl.Options & { mode: number });
+    zip.addBuffer(bytes, normRel, {
+      mtime: DOS_EPOCH,
+      compress: false,
+      mode: 0o644,
+    } as yazl.Options & { mode: number });
   }
   zip.end();
 

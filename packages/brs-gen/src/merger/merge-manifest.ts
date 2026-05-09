@@ -17,7 +17,10 @@ function mergeAppendCsv(existing: string | undefined, next: string): string {
   return [...set].sort().join(',');
 }
 
-export function mergeManifest(templateDefaults: Record<string, string>, modules: ModuleContrib[]): R {
+export function mergeManifest(
+  templateDefaults: Record<string, string>,
+  modules: ModuleContrib[],
+): R {
   const out = new Map<string, string>();
   const keyOwners = new Map<string, string>(); // who last contributed each key
   for (const [k, v] of Object.entries(templateDefaults)) {
@@ -29,33 +32,68 @@ export function mergeManifest(templateDefaults: Record<string, string>, modules:
     for (const [k, v] of Object.entries(m.manifest)) {
       const strat = getStrategy(k);
       if (!strat) {
-        return { ok: false, failure: fail('UNKNOWN_MANIFEST_KEY',
-          `module ${m.id} contributes manifest key ${k} which is not in the strategy table`,
-          { stage: 'merge-manifest', module_id: m.id, key: k }) };
+        return {
+          ok: false,
+          failure: fail(
+            'UNKNOWN_MANIFEST_KEY',
+            `module ${m.id} contributes manifest key ${k} which is not in the strategy table`,
+            { stage: 'merge-manifest', module_id: m.id, key: k },
+          ),
+        };
       }
       if (strat.templateOnly) {
-        return { ok: false, failure: fail('MANIFEST_KEY_CONFLICT',
-          `manifest key ${k} is template-only; module ${m.id} cannot contribute it`,
-          { stage: 'merge-manifest', module_id: m.id, key: k }) };
+        return {
+          ok: false,
+          failure: fail(
+            'MANIFEST_KEY_CONFLICT',
+            `manifest key ${k} is template-only; module ${m.id} cannot contribute it`,
+            { stage: 'merge-manifest', module_id: m.id, key: k },
+          ),
+        };
       }
       const existing = out.get(k);
       if (strat.strategy === 'set') {
         if (existing !== undefined && existing !== v) {
-          return { ok: false, failure: fail('MANIFEST_KEY_CONFLICT',
-            `manifest key ${k} set by ${keyOwners.get(k)} to "${existing}"; module ${m.id} conflicts with "${v}"`,
-            { stage: 'merge-manifest', key: k, existing, incoming: v,
-              owner_a: keyOwners.get(k), owner_b: m.id }) };
+          return {
+            ok: false,
+            failure: fail(
+              'MANIFEST_KEY_CONFLICT',
+              `manifest key ${k} set by ${keyOwners.get(k)} to "${existing}"; module ${m.id} conflicts with "${v}"`,
+              {
+                stage: 'merge-manifest',
+                key: k,
+                existing,
+                incoming: v,
+                owner_a: keyOwners.get(k),
+                owner_b: m.id,
+              },
+            ),
+          };
         }
         out.set(k, v);
         if (existing === undefined) keyOwners.set(k, m.id);
       } else if (strat.strategy === 'set-if-unset') {
         if (existing !== undefined && existing !== v) {
-          return { ok: false, failure: fail('MANIFEST_KEY_CONFLICT',
-            `set-if-unset manifest key ${k} contested; ${keyOwners.get(k)} has "${existing}", module ${m.id} wants "${v}"`,
-            { stage: 'merge-manifest', key: k, existing, incoming: v,
-              owner_a: keyOwners.get(k), owner_b: m.id }) };
+          return {
+            ok: false,
+            failure: fail(
+              'MANIFEST_KEY_CONFLICT',
+              `set-if-unset manifest key ${k} contested; ${keyOwners.get(k)} has "${existing}", module ${m.id} wants "${v}"`,
+              {
+                stage: 'merge-manifest',
+                key: k,
+                existing,
+                incoming: v,
+                owner_a: keyOwners.get(k),
+                owner_b: m.id,
+              },
+            ),
+          };
         }
-        if (existing === undefined) { out.set(k, v); keyOwners.set(k, m.id); }
+        if (existing === undefined) {
+          out.set(k, v);
+          keyOwners.set(k, m.id);
+        }
       } else if (strat.strategy === 'append-csv') {
         out.set(k, mergeAppendCsv(existing, v));
         keyOwners.set(k, existing === undefined ? m.id : `${keyOwners.get(k)},${m.id}`);

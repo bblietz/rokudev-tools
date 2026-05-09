@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { loadCatalog } from './loader.js';
 
-function tmp() { return join(tmpdir(), `brs-gen-cat-${randomUUID()}`); }
+function tmp() {
+  return join(tmpdir(), `brs-gen-cat-${randomUUID()}`);
+}
 
 const T_TOML = `[template]
 id = "t"
@@ -46,7 +48,9 @@ describe('loadCatalog', () => {
     await writeFile(join(root, 'templates', 't', 'template.toml'), T_TOML);
     await writeFile(join(root, 'modules', 'm', 'module.toml'), M_TOML);
   });
-  afterEach(async () => { await rm(root, { recursive: true, force: true }); });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
 
   it('scans both dirs', async () => {
     const cat = await loadCatalog(root);
@@ -58,23 +62,31 @@ describe('loadCatalog', () => {
     await expect(loadCatalog(root)).rejects.toMatchObject({ code: 'CATALOG_INVALID' });
   });
   it('throws CATALOG_INVALID when id != dir name', async () => {
-    await writeFile(join(root, 'templates', 't', 'template.toml'),
-                    T_TOML.replace('id = "t"', 'id = "other"'));
+    await writeFile(
+      join(root, 'templates', 't', 'template.toml'),
+      T_TOML.replace('id = "t"', 'id = "other"'),
+    );
     await expect(loadCatalog(root)).rejects.toMatchObject({ code: 'CATALOG_INVALID' });
   });
   it('emits ASYMMETRIC_CONFLICT warning on one-sided exclusive_with', async () => {
     const m2 = join(root, 'modules', 'm2');
     await mkdir(m2, { recursive: true });
-    await writeFile(join(m2, 'module.toml'),
-                    M_TOML.replace('id = "m"', 'id = "m2"')
-                          .replace('exclusive_with = []', 'exclusive_with = ["m"]'));
+    await writeFile(
+      join(m2, 'module.toml'),
+      M_TOML.replace('id = "m"', 'id = "m2"').replace(
+        'exclusive_with = []',
+        'exclusive_with = ["m"]',
+      ),
+    );
     const cat = await loadCatalog(root);
     expect(cat.warnings).toContainEqual(expect.objectContaining({ code: 'ASYMMETRIC_CONFLICT' }));
   });
 
   it('throws CATALOG_INVALID on module.files.add with traversal path', async () => {
-    await writeFile(join(root, 'modules', 'm', 'module.toml'),
-                    M_TOML.replace('add = []', 'add = ["../escape.bs"]'));
+    await writeFile(
+      join(root, 'modules', 'm', 'module.toml'),
+      M_TOML.replace('add = []', 'add = ["../escape.bs"]'),
+    );
     await expect(loadCatalog(root)).rejects.toMatchObject({ code: 'CATALOG_INVALID' });
   });
 

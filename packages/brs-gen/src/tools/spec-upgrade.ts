@@ -21,10 +21,10 @@ registerToolsModule((tools) => {
   tools.set('spec_upgrade', {
     name: 'spec_upgrade',
     description:
-      'Reads an AppSpec JSON file, promotes it from v1 to v2 if needed, and writes the '
-      + 'result. By default writes to <file_path>.v2.json (sidecar). With in_place: true '
-      + 'overwrites the original file. If the input is already v2 the tool returns a no-op '
-      + 'result (written_to: null, diff: "") and does not mutate any file.',
+      'Reads an AppSpec JSON file, promotes it from v1 to v2 if needed, and writes the ' +
+      'result. By default writes to <file_path>.v2.json (sidecar). With in_place: true ' +
+      'overwrites the original file. If the input is already v2 the tool returns a no-op ' +
+      'result (written_to: null, diff: "") and does not mutate any file.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -45,7 +45,9 @@ registerToolsModule((tools) => {
       } catch (err) {
         const e = err as NodeJS.ErrnoException;
         if (e?.code === 'ENOENT') {
-          throw fail('APP_SPEC_INVALID', `spec file not found: ${filePath}`, { file_path: filePath });
+          throw fail('APP_SPEC_INVALID', `spec file not found: ${filePath}`, {
+            file_path: filePath,
+          });
         }
         throw fail(
           'APP_SPEC_INVALID',
@@ -61,7 +63,9 @@ registerToolsModule((tools) => {
         parsed = JSON.parse(text);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        throw fail('APP_SPEC_INVALID', `spec file is not valid JSON: ${msg}`, { file_path: filePath });
+        throw fail('APP_SPEC_INVALID', `spec file is not valid JSON: ${msg}`, {
+          file_path: filePath,
+        });
       }
 
       // 3. Determine spec_version_before.

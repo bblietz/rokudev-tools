@@ -42,9 +42,12 @@ async function findPkgRoot(fromUrl: string): Promise<string> {
 }
 
 const pkgRoot = await findPkgRoot(import.meta.url);
-const PKG_VERSION = ((JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8')) as {
-  version?: string;
-}).version) ?? '0.0.0';
+const PKG_VERSION =
+  (
+    JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8')) as {
+      version?: string;
+    }
+  ).version ?? '0.0.0';
 
 /**
  * Resolve the `spec` argument into a parsed object. Accepts:
@@ -93,11 +96,9 @@ async function resolveSpecInput(raw: unknown): Promise<any> {
     return JSON.parse(contents);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw fail(
-      'APP_SPEC_INVALID',
-      `spec file contains invalid JSON: ${raw}: ${msg}`,
-      { given_path: raw },
-    );
+    throw fail('APP_SPEC_INVALID', `spec file contains invalid JSON: ${raw}: ${msg}`, {
+      given_path: raw,
+    });
   }
 }
 
@@ -110,7 +111,9 @@ async function resolveSpecInput(raw: unknown): Promise<any> {
 async function importTemplateSchema(
   pkgRootPath: string,
   templateId: string,
-): Promise<{ Schema?: { safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } } } } | null> {
+): Promise<{
+  Schema?: { safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } } };
+} | null> {
   for (const ext of ['ts', 'js'] as const) {
     const p = join(pkgRootPath, 'templates', templateId, `schema.${ext}`);
     try {
@@ -199,10 +202,10 @@ registerToolsModule((tools) => {
   tools.set('generate_app', {
     name: 'generate_app',
     description:
-      'Render a Roku channel project from a validated AppSpec: merges the template with '
-      + 'feature modules, writes the project tree, runs a bsc compile, and optionally zips '
-      + 'and sideloads. Deterministic (Path A); freeform LLM path (spec.freeform) is rejected '
-      + 'as NOT_IMPLEMENTED in Plan 3.',
+      'Render a Roku channel project from a validated AppSpec: merges the template with ' +
+      'feature modules, writes the project tree, runs a bsc compile, and optionally zips ' +
+      'and sideloads. Deterministic (Path A); freeform LLM path (spec.freeform) is rejected ' +
+      'as NOT_IMPLEMENTED in Plan 3.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -288,8 +291,7 @@ registerToolsModule((tools) => {
         if (ref.version_range === undefined) {
           warnings.push({
             code: 'MODULE_VERSION_UNPINNED',
-            message:
-              `module ${ref.id} reference omits version_range; using installed ${m.module.version}`,
+            message: `module ${ref.id} reference omits version_range; using installed ${m.module.version}`,
           });
         } else if (!semver.satisfies(m.module.version, ref.version_range)) {
           throw fail(
@@ -394,10 +396,10 @@ registerToolsModule((tools) => {
       if (args['zip']) {
         const zipArg = args['zip'];
         zipPath =
-          typeof zipArg === 'object'
-            && zipArg !== null
-            && 'output_zip' in zipArg
-            && typeof (zipArg as { output_zip?: unknown }).output_zip === 'string'
+          typeof zipArg === 'object' &&
+          zipArg !== null &&
+          'output_zip' in zipArg &&
+          typeof (zipArg as { output_zip?: unknown }).output_zip === 'string'
             ? (zipArg as { output_zip: string }).output_zip
             : `${outputDir}.zip`;
         await packageProject({

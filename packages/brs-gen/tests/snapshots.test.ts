@@ -64,9 +64,7 @@ async function generateStubProjectPreCompile(parentDir: string): Promise<string>
   const cat = await loadCatalog(PKG_ROOT);
   const template = cat.templates.get('stub_hello')!;
   const modules = [cat.modules.get('stub_label')!];
-  const templateFiles = await walkTemplateFiles(
-    join(PKG_ROOT, 'templates', 'stub_hello', 'files'),
-  );
+  const templateFiles = await walkTemplateFiles(join(PKG_ROOT, 'templates', 'stub_hello', 'files'));
   const renderedTemplateFiles = await renderTemplateFiles(templateFiles, sharedSpec, {
     brs_gen_version: BRS_GEN_VERSION,
     template_version: template.template.version,
@@ -91,9 +89,7 @@ async function generateStubProjectPreCompile(parentDir: string): Promise<string>
 
 // Recursive walk returning sorted [{path, size}] for every file under root.
 // Paths use forward slashes for cross-OS stable snapshots.
-async function sortedPathSizeList(
-  root: string,
-): Promise<Array<{ path: string; size: number }>> {
+async function sortedPathSizeList(root: string): Promise<Array<{ path: string; size: number }>> {
   const out: Array<{ path: string; size: number }> = [];
   async function walk(current: string): Promise<void> {
     for (const e of await readdir(current, { withFileTypes: true })) {
@@ -138,10 +134,7 @@ describe('stub catalog snapshot', () => {
     await expect(s).toMatchFileSnapshot('__snapshots__/init_hooks.bs.snap');
   });
   it('config.bs for stub_label matches saved snapshot', async () => {
-    const s = await readFile(
-      join(projectDir, 'source/_modules/stub_label/config.bs'),
-      'utf8',
-    );
+    const s = await readFile(join(projectDir, 'source/_modules/stub_label/config.bs'), 'utf8');
     await expect(s).toMatchFileSnapshot('__snapshots__/stub_label-config.bs.snap');
   });
   it('provenance.json matches saved snapshot', async () => {

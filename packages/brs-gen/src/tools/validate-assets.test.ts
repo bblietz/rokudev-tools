@@ -83,7 +83,12 @@ describe('validate_assets tool', () => {
       ok: boolean;
       failure: {
         code: string;
-        details: { missing: string[]; not_png: string[]; oversize: string[]; wrong_dimensions: string[] };
+        details: {
+          missing: string[];
+          not_png: string[];
+          oversize: string[];
+          wrong_dimensions: string[];
+        };
       };
     };
 
@@ -102,7 +107,12 @@ describe('validate_assets tool', () => {
       ok: boolean;
       failure: {
         code: string;
-        details: { missing: string[]; not_png: string[]; oversize: string[]; wrong_dimensions: string[] };
+        details: {
+          missing: string[];
+          not_png: string[];
+          oversize: string[];
+          wrong_dimensions: string[];
+        };
       };
     };
 
@@ -122,7 +132,12 @@ describe('validate_assets tool', () => {
       ok: boolean;
       failure: {
         code: string;
-        details: { missing: string[]; not_png: string[]; oversize: string[]; wrong_dimensions: string[] };
+        details: {
+          missing: string[];
+          not_png: string[];
+          oversize: string[];
+          wrong_dimensions: string[];
+        };
       };
     };
 
@@ -170,7 +185,12 @@ describe('validate_assets tool', () => {
       failure: {
         code: string;
         message: string;
-        details: { missing: string[]; not_png: string[]; oversize: string[]; wrong_dimensions: string[] };
+        details: {
+          missing: string[];
+          not_png: string[];
+          oversize: string[];
+          wrong_dimensions: string[];
+        };
       };
     };
 

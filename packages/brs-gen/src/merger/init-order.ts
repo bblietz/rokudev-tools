@@ -1,9 +1,7 @@
 import { fail, type Failure } from '@rokudev/device-client';
 import type { ModuleToml } from '../catalog/module-toml.js';
 
-type R =
-  | { ok: true; order: string[] }
-  | { ok: false; failure: Failure };
+type R = { ok: true; order: string[] } | { ok: false; failure: Failure };
 
 // "a before b" means a must come before b in the emitted order, so the edge
 // in the DAG is a -> b (a must be resolved before b). "b after a" is the
@@ -52,9 +50,13 @@ export function topoSortInitOrder(modules: ModuleToml[]): R {
 
   if (result.length !== ids.length) {
     const unresolved = ids.filter((id) => !result.includes(id));
-    return { ok: false, failure: fail('INIT_ORDER_CYCLE',
-      `cycle involving modules: ${unresolved.join(', ')}`,
-      { stage: 'init-order', cycle: unresolved }) };
+    return {
+      ok: false,
+      failure: fail('INIT_ORDER_CYCLE', `cycle involving modules: ${unresolved.join(', ')}`, {
+        stage: 'init-order',
+        cycle: unresolved,
+      }),
+    };
   }
   return { ok: true, order: result };
 }

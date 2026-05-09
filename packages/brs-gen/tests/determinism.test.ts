@@ -69,9 +69,7 @@ async function runMerge() {
   const cat = await loadCatalog(PKG_ROOT);
   const template = cat.templates.get('stub_hello')!;
   const modules = [cat.modules.get('stub_label')!];
-  const templateFiles = await walkTemplateFiles(
-    join(PKG_ROOT, 'templates', 'stub_hello', 'files'),
-  );
+  const templateFiles = await walkTemplateFiles(join(PKG_ROOT, 'templates', 'stub_hello', 'files'));
   const renderedTemplateFiles = await renderTemplateFiles(templateFiles, sharedSpec, {
     brs_gen_version: BRS_GEN_VERSION,
     template_version: template.template.version,

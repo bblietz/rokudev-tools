@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { detectConflicts } from './conflicts.js';
 import type { ModuleToml } from '../catalog/module-toml.js';
 
-const mod = (id: string, files: string[], exclusive: string[] = []): ModuleToml => ({
-  module: { id, version: '0.1.0', spec_compat: '>=2', description: '' },
-  module_files: { add: files },
-  module_conflicts: { exclusive_with: exclusive },
-} as unknown as ModuleToml);
+const mod = (id: string, files: string[], exclusive: string[] = []): ModuleToml =>
+  ({
+    module: { id, version: '0.1.0', spec_compat: '>=2', description: '' },
+    module_files: { add: files },
+    module_conflicts: { exclusive_with: exclusive },
+  }) as unknown as ModuleToml;
 
 describe('detectConflicts', () => {
   it('ok when no collisions', () => {

@@ -3,7 +3,9 @@ import { renderTemplateFiles } from './ejs.js';
 
 describe('renderTemplateFiles', () => {
   const spec = {
-    spec_version: 2 as const, template: 't', modules: [],
+    spec_version: 2 as const,
+    template: 't',
+    modules: [],
     app: { name: 'Hi', major_version: 1, minor_version: 0, build_version: 0 },
   };
   const meta = { brs_gen_version: '0.3.0', template_version: '0.1.0' };

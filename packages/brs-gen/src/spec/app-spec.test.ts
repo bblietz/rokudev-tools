@@ -22,13 +22,25 @@ describe('AppSpecV2Wrapper', () => {
     expect((r.data as Record<string, unknown>).nope).toBe(1);
   });
   it('rejects missing app.name', () => {
-    expect(AppSpecV2Wrapper.safeParse({ ...base, app: { major_version: 1, minor_version: 0, build_version: 0 } }).success).toBe(false);
+    expect(
+      AppSpecV2Wrapper.safeParse({
+        ...base,
+        app: { major_version: 1, minor_version: 0, build_version: 0 },
+      }).success,
+    ).toBe(false);
   });
   it('accepts module references with optional version_range', () => {
-    expect(AppSpecV2Wrapper.safeParse({ ...base, modules: [{ id: 'stub_label', config: { text: 'hi' } }] }).success).toBe(true);
+    expect(
+      AppSpecV2Wrapper.safeParse({
+        ...base,
+        modules: [{ id: 'stub_label', config: { text: 'hi' } }],
+      }).success,
+    ).toBe(true);
   });
   it('requires non-negative integer versions on app.*', () => {
-    expect(AppSpecV2Wrapper.safeParse({ ...base, app: { ...base.app, major_version: -1 } }).success).toBe(false);
+    expect(
+      AppSpecV2Wrapper.safeParse({ ...base, app: { ...base.app, major_version: -1 } }).success,
+    ).toBe(false);
   });
   it('ModuleReference rejects version_range that is not a string', () => {
     expect(ModuleReference.safeParse({ id: 'x', version_range: 1 }).success).toBe(false);
@@ -47,6 +59,11 @@ describe('AppSpecV1Wrapper', () => {
   });
 
   it('rejects missing app.name in v1', () => {
-    expect(AppSpecV1Wrapper.safeParse({ ...baseV1, app: { major_version: 0, minor_version: 0, build_version: 0 } }).success).toBe(false);
+    expect(
+      AppSpecV1Wrapper.safeParse({
+        ...baseV1,
+        app: { major_version: 0, minor_version: 0, build_version: 0 },
+      }).success,
+    ).toBe(false);
   });
 });

@@ -133,9 +133,7 @@ async function runPair(
     app: { name: 'ConflictTest', major_version: 1, minor_version: 0, build_version: 0 },
   };
 
-  const templateFiles = await walkTemplateFiles(
-    join(PKG_ROOT, 'templates', 'stub_hello', 'files'),
-  );
+  const templateFiles = await walkTemplateFiles(join(PKG_ROOT, 'templates', 'stub_hello', 'files'));
   const renderedTemplateFiles = await renderTemplateFiles(templateFiles, spec, {
     brs_gen_version: BRS_GEN_VERSION,
     template_version: template.template.version,

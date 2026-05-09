@@ -9,9 +9,20 @@ import { normalizeText } from '../util/text-normalize.js';
 // pass through as binary, which embeds `<%= ... %>` markers in the final
 // artifact. Catalog authors see this in snapshot tests (T29).
 const TEXT_EXTS = new Set([
-  '.bs', '.brs', '.xml', '.ejs', '.txt', '.json',
+  '.bs',
+  '.brs',
+  '.xml',
+  '.ejs',
+  '.txt',
+  '.json',
   // Likely-needed by Plan 4 templates (add as soon as any template uses them):
-  '.md', '.yml', '.yaml', '.toml', '.env', '.js', '.ts',
+  '.md',
+  '.yml',
+  '.yaml',
+  '.toml',
+  '.env',
+  '.js',
+  '.ts',
 ]);
 
 function ext(path: string): string {
@@ -46,7 +57,11 @@ export async function renderTemplateFiles(
       continue;
     }
     const src = normalizeText(f.bytes.toString('utf8'));
-    const rendered = await ejs.render(src, { spec, helpers, meta }, { async: true, escape: (v) => String(v) });
+    const rendered = await ejs.render(
+      src,
+      { spec, helpers, meta },
+      { async: true, escape: (v) => String(v) },
+    );
     // ejs escape override: we disabled HTML escape by setting escape to identity;
     // BrightScript hex literals like &hFF00FFFF would otherwise be mangled.
     out.push({ path: stripEjsSuffix(f.path), content: rendered });

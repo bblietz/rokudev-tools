@@ -69,10 +69,7 @@ describe('validate_manifest tool', () => {
   it('drift: manifest has extra key not in provenance', async () => {
     const dir = await makeDir();
     const baseKeys = ['build_version', 'major_version', 'minor_version', 'title'];
-    await writeManifest(
-      dir,
-      [...baseKeys, 'extra_key'].map((k) => `${k}=1`).join('\n') + '\n',
-    );
+    await writeManifest(dir, [...baseKeys, 'extra_key'].map((k) => `${k}=1`).join('\n') + '\n');
     await writeProvenance(dir, {
       manifest_keys: baseKeys,
       brs_gen_version: '0.3.0',

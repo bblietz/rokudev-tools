@@ -11,9 +11,11 @@ export function escapeBsString(s: string): string {
   // via chr(10) concatenation: `"prefix" + chr(10) + "suffix"`. Not handled
   // automatically here because Plan 3's stub module doesn't need it.
   if (/[\x00-\x1F\x7F]/.test(s)) {
-    throw fail('APP_SPEC_INVALID',
+    throw fail(
+      'APP_SPEC_INVALID',
       'string value contains a control character (e.g. newline or NUL) which cannot be encoded in a BrightScript string literal',
-      { value: s });
+      { value: s },
+    );
   }
   return `"${s.replace(/"/g, '""')}"`;
 }
@@ -26,7 +28,9 @@ export function stringifyAsBsValue(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stringifyAsBsValue).join(', ')}]`;
   if (typeof v === 'object') {
     const keys = Object.keys(v as Record<string, unknown>).sort();
-    const body = keys.map((k) => `${k}: ${stringifyAsBsValue((v as Record<string, unknown>)[k])}`).join(', ');
+    const body = keys
+      .map((k) => `${k}: ${stringifyAsBsValue((v as Record<string, unknown>)[k])}`)
+      .join(', ');
     return `{ ${body} }`;
   }
   return 'invalid';

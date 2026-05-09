@@ -32,11 +32,11 @@ registerToolsModule((tools) => {
   tools.set('validate_manifest', {
     name: 'validate_manifest',
     description:
-      'Reads project_dir/manifest and project_dir/.rokudev-tools/provenance.json, '
-      + 'parses both, and cross-checks manifest keys against the provenance key list. '
-      + 'Drift (keys that appear in one but not the other) is reported as a '
-      + 'MANIFEST_DRIFT warning (non-fatal). Missing files are MANIFEST_VALIDATION_FAILED '
-      + 'failures.',
+      'Reads project_dir/manifest and project_dir/.rokudev-tools/provenance.json, ' +
+      'parses both, and cross-checks manifest keys against the provenance key list. ' +
+      'Drift (keys that appear in one but not the other) is reported as a ' +
+      'MANIFEST_DRIFT warning (non-fatal). Missing files are MANIFEST_VALIDATION_FAILED ' +
+      'failures.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -56,11 +56,10 @@ registerToolsModule((tools) => {
       } catch (err) {
         const e = err as NodeJS.ErrnoException;
         if (e?.code === 'ENOENT') {
-          throw fail(
-            'MANIFEST_VALIDATION_FAILED',
-            `manifest not found: ${manifestPath}`,
-            { project_dir: projectDir, missing: 'manifest' },
-          );
+          throw fail('MANIFEST_VALIDATION_FAILED', `manifest not found: ${manifestPath}`, {
+            project_dir: projectDir,
+            missing: 'manifest',
+          });
         }
         throw fail(
           'MANIFEST_VALIDATION_FAILED',
@@ -80,11 +79,10 @@ registerToolsModule((tools) => {
       } catch (err) {
         const e = err as NodeJS.ErrnoException;
         if (e?.code === 'ENOENT') {
-          throw fail(
-            'MANIFEST_VALIDATION_FAILED',
-            `provenance.json not found: ${provenancePath}`,
-            { project_dir: projectDir, missing: '.rokudev-tools/provenance.json' },
-          );
+          throw fail('MANIFEST_VALIDATION_FAILED', `provenance.json not found: ${provenancePath}`, {
+            project_dir: projectDir,
+            missing: '.rokudev-tools/provenance.json',
+          });
         }
         throw fail(
           'MANIFEST_VALIDATION_FAILED',
@@ -99,11 +97,9 @@ registerToolsModule((tools) => {
         provenance = JSON.parse(provenanceText);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        throw fail(
-          'MANIFEST_VALIDATION_FAILED',
-          `provenance.json is not valid JSON: ${msg}`,
-          { project_dir: projectDir },
-        );
+        throw fail('MANIFEST_VALIDATION_FAILED', `provenance.json is not valid JSON: ${msg}`, {
+          project_dir: projectDir,
+        });
       }
 
       // 3. Compute drift.

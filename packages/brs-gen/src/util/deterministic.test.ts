@@ -35,7 +35,10 @@ describe('stringifyAsBsValue', () => {
 
 describe('sortByPath', () => {
   it('sorts by path ascending', () => {
-    const files = [{ path: 'c.bs', content: '' }, { path: 'a.bs', content: '' }];
+    const files = [
+      { path: 'c.bs', content: '' },
+      { path: 'a.bs', content: '' },
+    ];
     expect(sortByPath(files).map((f) => f.path)).toEqual(['a.bs', 'c.bs']);
   });
 });

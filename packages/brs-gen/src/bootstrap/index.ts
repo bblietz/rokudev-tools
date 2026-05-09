@@ -50,10 +50,7 @@ export async function runServer(): Promise<void> {
   const tools = new Map<string, ToolDef>();
   registerAllTools(tools);
 
-  const server = new Server(
-    { name: 'brs-gen', version },
-    { capabilities: { tools: {} } },
-  );
+  const server = new Server({ name: 'brs-gen', version }, { capabilities: { tools: {} } });
 
   let versionState: VersionState = versionResult;
 
@@ -68,7 +65,10 @@ export async function runServer(): Promise<void> {
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (versionState.ok === false) {
       // Short-circuit every call with the bootstrap failure.
-      return { isError: true, content: [{ type: 'text', text: JSON.stringify(versionState.failure) }] };
+      return {
+        isError: true,
+        content: [{ type: 'text', text: JSON.stringify(versionState.failure) }],
+      };
     }
     const def = tools.get(req.params.name);
     if (!def) throw new Error(`unknown tool: ${req.params.name}`);

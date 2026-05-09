@@ -6,7 +6,9 @@ import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { checkSiblings } from './version-check.js';
 
-function makeTmpDir() { return join(tmpdir(), `brs-gen-vcheck-${randomUUID()}`); }
+function makeTmpDir() {
+  return join(tmpdir(), `brs-gen-vcheck-${randomUUID()}`);
+}
 async function writePackageJson(dir: string, version: string) {
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'brs-gen', version }));
 }
@@ -16,13 +18,21 @@ async function writeAnchorFile(dir: string) {
 async function writeSibling(dir: string, version: string) {
   const p = join(dir, 'node_modules', '@rokudev', 'device-client');
   await mkdir(p, { recursive: true });
-  await writeFile(join(p, 'package.json'), JSON.stringify({ name: '@rokudev/device-client', version }));
+  await writeFile(
+    join(p, 'package.json'),
+    JSON.stringify({ name: '@rokudev/device-client', version }),
+  );
 }
 
 describe('brs-gen checkSiblings', () => {
   let d: string;
-  beforeEach(async () => { d = makeTmpDir(); await mkdir(d, { recursive: true }); });
-  afterEach(async () => { await rm(d, { recursive: true, force: true }); });
+  beforeEach(async () => {
+    d = makeTmpDir();
+    await mkdir(d, { recursive: true });
+  });
+  afterEach(async () => {
+    await rm(d, { recursive: true, force: true });
+  });
 
   it('ok when versions match', async () => {
     await writePackageJson(d, '0.3.0');

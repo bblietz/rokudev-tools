@@ -6,7 +6,9 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { packageProject } from './zip.js';
 
-function tmp() { return join(tmpdir(), `brs-gen-zip-${randomUUID()}`); }
+function tmp() {
+  return join(tmpdir(), `brs-gen-zip-${randomUUID()}`);
+}
 
 async function writeMiniProject(dir: string) {
   await mkdir(join(dir, 'source'), { recursive: true });
@@ -20,11 +22,17 @@ function sha256(b: Buffer): string {
 
 describe('packageProject', () => {
   let root: string;
-  beforeEach(async () => { root = tmp(); await mkdir(root, { recursive: true }); });
-  afterEach(async () => { await rm(root, { recursive: true, force: true }); });
+  beforeEach(async () => {
+    root = tmp();
+    await mkdir(root, { recursive: true });
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
 
   it('produces a zip file at the requested output_zip path', async () => {
-    const proj = join(root, 'p'); await writeMiniProject(proj);
+    const proj = join(root, 'p');
+    await writeMiniProject(proj);
     const out = join(root, 'p.zip');
     await packageProject({ projectDir: proj, outputZip: out });
     const bytes = await readFile(out);
@@ -32,7 +40,8 @@ describe('packageProject', () => {
   });
 
   it('byte-equal output on two zips of the same project', async () => {
-    const proj = join(root, 'p'); await writeMiniProject(proj);
+    const proj = join(root, 'p');
+    await writeMiniProject(proj);
     const a = join(root, 'a.zip');
     const b = join(root, 'b.zip');
     await packageProject({ projectDir: proj, outputZip: a });
@@ -43,11 +52,16 @@ describe('packageProject', () => {
   });
 
   it('excludes paths in the exclude array', async () => {
-    const proj = join(root, 'p'); await writeMiniProject(proj);
+    const proj = join(root, 'p');
+    await writeMiniProject(proj);
     await mkdir(join(proj, '.rokudev-tools/sourcemaps'), { recursive: true });
     await writeFile(join(proj, '.rokudev-tools/sourcemaps/main.brs.map'), '{}');
     const out = join(root, 'p.zip');
-    await packageProject({ projectDir: proj, outputZip: out, exclude: ['.rokudev-tools/sourcemaps'] });
+    await packageProject({
+      projectDir: proj,
+      outputZip: out,
+      exclude: ['.rokudev-tools/sourcemaps'],
+    });
     const bytes = await readFile(out);
     expect(bytes.toString('latin1')).not.toContain('main.brs.map');
   });

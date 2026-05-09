@@ -27,10 +27,10 @@ registerToolsModule((tools) => {
   tools.set('lint', {
     name: 'lint',
     description:
-      'Run a BrightScript/BrighterScript compile (bsc) on an existing project directory '
-      + 'without mutating it. Stages the project into a temporary directory first, '
-      + 'delegates to compileProject, remaps diagnostics back to project_dir paths, '
-      + 'then cleans up the temporary directory. Returns {ok, diagnostics}.',
+      'Run a BrightScript/BrighterScript compile (bsc) on an existing project directory ' +
+      'without mutating it. Stages the project into a temporary directory first, ' +
+      'delegates to compileProject, remaps diagnostics back to project_dir paths, ' +
+      'then cleans up the temporary directory. Returns {ok, diagnostics}.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -43,9 +43,7 @@ registerToolsModule((tools) => {
       const projectDir = args['project_dir'] as string;
 
       // Create a unique staging tmpdir for the project copy.
-      const tmpDir = await mkdtemp(
-        join(tmpdir(), `brs-gen-lint-${randomUUID().slice(0, 8)}-`),
-      );
+      const tmpDir = await mkdtemp(join(tmpdir(), `brs-gen-lint-${randomUUID().slice(0, 8)}-`));
 
       let ok: boolean;
       let diagnostics: CompileDiagnostic[];
@@ -61,9 +59,7 @@ registerToolsModule((tools) => {
         if (result.ok) {
           // Success path: remap any warning-level diagnostics to projectDir paths.
           ok = true;
-          diagnostics = result.diagnostics.map((d) =>
-            remapDiagnosticFile(d, tmpDir, projectDir),
-          );
+          diagnostics = result.diagnostics.map((d) => remapDiagnosticFile(d, tmpDir, projectDir));
         } else {
           // Failure path: two sub-cases.
           //
