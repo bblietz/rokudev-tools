@@ -5,3 +5,4 @@ coverage
 pnpm-lock.yaml
 corpus/build
 docs/superpowers
+packages/brs-gen/tests/__golden__

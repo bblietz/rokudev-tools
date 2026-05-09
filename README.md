@@ -32,3 +32,17 @@ Not in this release: BDP debugger (Plan 2), generator + module merger (Plan 3), 
 - `debug_attach` surfaces `details.invalidated_breakpoints` for breakpoints carried over from a previous session that has since detached/exited (per spec §4.5.4).
 
 Out of v0.2: conditional breakpoints, watch expressions, hot-reload (deferred per spec §4.5).
+
+## What's in v0.3 (Plan 3)
+
+- `brs-gen` MCP server (new): generates Roku channels from an `AppSpec` plus bundled templates and composable feature modules. Deterministic, byte-reproducible output; mandatory in-process `bsc` compile via `brighterscript`.
+- 10 MCP tools: `list_templates`, `get_template_schema`, `list_modules`, `get_module_schema`, `generate_app`, `package_app`, `validate_manifest`, `validate_assets`, `spec_upgrade`, `lint`.
+- 1 stub template: `stub_hello` (deliberately minimal; exercises the pipeline end-to-end).
+- 1 stub module: `stub_label` (exercises every merger feature — file overlay, manifest patching, component patching, dependency injection).
+
+Known follow-ups (flagged for later plans):
+
+- Tool response payloads are double-wrapped by the bootstrap dispatcher; clients currently need to double-unwrap. To be fixed in a later cleanup.
+- `stub_hello`'s `MainScene.xml` references `uri="MainScene.bs"`; after the compile stage's `.bs → .brs` sweep, `bsc` re-lint reports error 1004 on the stale reference. The e2e lint assertion is soft-asserted for this reason. Plan 4 real templates will author post-compile references (`MainScene.brs`) to avoid this.
+
+Out of v0.3: real templates (Plan 4), real feature modules (Plan 5), freeform LLM path (Plan 6), LSP tools (Plan 7), `brs-docs` MCP (later plan), skills + plugin (later plan). No real-device verification gate in this plan — the stub channel is deliberately uninteresting; Plan 4 will add the first T27-style gate when real templates land.

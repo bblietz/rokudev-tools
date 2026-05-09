@@ -1,6 +1,6 @@
 {
   "name": "brs-gen",
-  "version": "0.3.0-dev.0",
+  "version": "0.3.0",
   "description": "BrightScript channel generator MCP server (templates + composable feature modules).",
   "type": "module",
   "bin": {
@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src tests --ext .ts",
+    "lint": "tsc --noEmit -p tsconfig.json",
     "format:check": "prettier --check src tests"
   },
   "dependencies": {
