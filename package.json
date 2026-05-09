@@ -1,7 +1,7 @@
 {
   "name": "rokudev-tools",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=20"
