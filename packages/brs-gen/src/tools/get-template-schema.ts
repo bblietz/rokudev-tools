@@ -2,6 +2,10 @@ import { registerToolsModule } from './_register.js';
 import { getCatalog } from './_catalog-singleton.js';
 import { zodToJsonSchemaDraft7 } from '../spec/to-json-schema.js';
 import { fail } from '@rokudev/device-client';
+import { findPkgRoot, importTemplateSchema } from '../util/paths.js';
+
+// Resolved once per process; works under both src/ (vite-node) and dist/.
+const pkgRoot = await findPkgRoot(import.meta.url);
 
 registerToolsModule((tools) => {
   tools.set('get_template_schema', {
@@ -24,9 +28,8 @@ registerToolsModule((tools) => {
           known: [...cat.templates.keys()].sort(),
         });
       }
-      const url = new URL(`../../templates/${id}/schema.ts`, import.meta.url);
-      const mod = (await import(url.href)) as { Schema?: unknown; Example?: unknown };
-      if (!mod.Schema || !mod.Example) {
+      const mod = await importTemplateSchema(pkgRoot, id);
+      if (!mod?.Schema || !mod.Example) {
         throw fail(
           'CATALOG_INVALID',
           `template ${id}'s schema.ts must export both 'Schema' and 'Example'`,

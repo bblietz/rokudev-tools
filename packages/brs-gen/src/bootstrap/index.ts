@@ -1,6 +1,3 @@
-import { readFile } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -8,22 +5,7 @@ import { checkSiblings, type VersionState } from './version-check.js';
 import { loadCatalog } from '../catalog/loader.js';
 import { setCatalog } from '../tools/_catalog-singleton.js';
 import { registerAllTools, type ToolDef } from '../tools/_register.js';
-
-async function readServerVersion(): Promise<string> {
-  const myDir = dirname(fileURLToPath(import.meta.url));
-  // Walk up from src/bootstrap/ or dist/ to find package.json.
-  for (const dir of [myDir, resolve(myDir, '..'), resolve(myDir, '../..')]) {
-    try {
-      const pkg = JSON.parse(await readFile(resolve(dir, 'package.json'), 'utf8')) as {
-        version?: string;
-      };
-      if (pkg.version) return pkg.version;
-    } catch {
-      // continue
-    }
-  }
-  return '0.0.0';
-}
+import { findPkgRoot, readPkgVersion } from '../util/paths.js';
 
 function isFailure(v: unknown): v is { ok: false; code: string; message: string } {
   return (
@@ -36,11 +18,11 @@ function isFailure(v: unknown): v is { ok: false; code: string; message: string 
 
 export async function runServer(): Promise<void> {
   const versionResult: VersionState = await checkSiblings(import.meta.url);
-  const version = await readServerVersion();
 
-  // Compute the package root (packages/brs-gen/) — works both from src/bootstrap/
-  // at test/dev time and from dist/ at runtime.
-  const bundledRoot = fileURLToPath(new URL('../../', import.meta.url));
+  // Compute the package root (packages/brs-gen/) — works both from
+  // src/bootstrap/ (vite-node) and dist/bootstrap/ (published).
+  const bundledRoot = await findPkgRoot(import.meta.url);
+  const version = await readPkgVersion(bundledRoot);
   const catalog = await loadCatalog(bundledRoot);
   setCatalog(catalog);
 

@@ -1,6 +1,5 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join, relative } from 'node:path';
 import semver from 'semver';
 import { fail, DevPortal } from '@rokudev/device-client';
 import { registerToolsModule } from './_register.js';
@@ -16,38 +15,10 @@ import { writeProject } from '../build/write.js';
 import { compileProject } from '../build/compile.js';
 import { packageProject } from '../build/zip.js';
 import type { ModuleToml } from '../catalog/module-toml.js';
-
-/**
- * Walk up from a file:// URL until a package.json is found. Works both from
- * packages/brs-gen/src/tools/ (vite-node, vitest) and from
- * packages/brs-gen/dist/tools/ (published), since both sit inside the same
- * package root. Earlier code used `new URL('../../', import.meta.url)` which
- * resolved to `packages/brs-gen/dist/` in compiled mode and broke every
- * subsequent template/module asset read.
- */
-async function findPkgRoot(fromUrl: string): Promise<string> {
-  let dir = dirname(fileURLToPath(fromUrl));
-  for (let i = 0; i < 8; i++) {
-    try {
-      await stat(join(dir, 'package.json'));
-      return dir;
-    } catch {
-      // keep climbing
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  throw new Error(`could not locate package.json from ${fromUrl}`);
-}
+import { findPkgRoot, importTemplateSchema, readPkgVersion } from '../util/paths.js';
 
 const pkgRoot = await findPkgRoot(import.meta.url);
-const PKG_VERSION =
-  (
-    JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8')) as {
-      version?: string;
-    }
-  ).version ?? '0.0.0';
+const PKG_VERSION = await readPkgVersion(pkgRoot);
 
 /**
  * Resolve the `spec` argument into a parsed object. Accepts:
@@ -100,38 +71,6 @@ async function resolveSpecInput(raw: unknown): Promise<any> {
       given_path: raw,
     });
   }
-}
-
-/**
- * Dynamically import a template's strict Zod schema. Tries `schema.ts` first
- * (vitest / vite-node reads the source tree directly), then `schema.js`
- * (published `dist/` trees that ship compiled template schemas). Returns
- * `null` if neither exists so callers can silently skip the strict pass.
- */
-async function importTemplateSchema(
-  pkgRootPath: string,
-  templateId: string,
-): Promise<{
-  Schema?: { safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } } };
-} | null> {
-  for (const ext of ['ts', 'js'] as const) {
-    const p = join(pkgRootPath, 'templates', templateId, `schema.${ext}`);
-    try {
-      await stat(p);
-    } catch {
-      continue;
-    }
-    try {
-      return (await import(pathToFileURL(p).href)) as {
-        Schema?: { safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } } };
-      };
-    } catch {
-      // A schema file exists but cannot be imported (e.g. syntax error). Fall
-      // through to the next extension, then surface as "no schema" to preserve
-      // the prior silent-skip behavior.
-    }
-  }
-  return null;
 }
 
 /**
@@ -267,7 +206,10 @@ registerToolsModule((tools) => {
       //     Resolved through pkgRoot so dist/ and src/ both work.
       const templateMod = await importTemplateSchema(pkgRoot, spec.template);
       if (templateMod?.Schema) {
-        const strict = templateMod.Schema.safeParse(spec);
+        const schemaMod = templateMod.Schema as {
+          safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } };
+        };
+        const strict = schemaMod.safeParse(spec);
         if (!strict.success) {
           throw fail(
             'APP_SPEC_INVALID',
