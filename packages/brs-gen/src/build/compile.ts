@@ -1,6 +1,6 @@
 import { ProgramBuilder } from 'brighterscript';
 import { dirname, join, relative } from 'node:path';
-import { copyFile, mkdir, readdir, rename, rm, unlink } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { fail, type Failure } from '@rokudev/device-client';
 
 export type CompileDiagnostic = {
@@ -139,6 +139,24 @@ export async function compileProject(projectDir: string): Promise<CompileResult>
       } catch {
         /* .bs may not exist (e.g. bslib.brs has no .bs counterpart) */
       }
+    }
+  }
+
+  // Post-compile XML sweep: rewrite uri="*.bs" -> uri="*.brs" in all XML
+  // files under projectDir. The template sources reference .bs URIs so that
+  // bsc can resolve them at compile time; post-compile the .bs files are gone
+  // and the XML must reference the .brs counterparts that were placed in-tree
+  // above. Without this patch a second bsc pass (e.g. lint) fails with
+  // error 1004 ("Referenced file does not exist").
+  const xmlFiles = (await walkRel(projectDir, projectDir)).filter(
+    (p) => p.endsWith('.xml') && !p.startsWith('.rokudev-tools/'),
+  );
+  for (const rel of xmlFiles) {
+    const xmlPath = join(projectDir, rel);
+    const original = await readFile(xmlPath, 'utf8');
+    const patched = original.replace(/\buri="([^"]+)\.bs"/g, 'uri="$1.brs"');
+    if (patched !== original) {
+      await writeFile(xmlPath, patched, 'utf8');
     }
   }
 

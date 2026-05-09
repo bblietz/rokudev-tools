@@ -256,21 +256,10 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
     expect(payload['ok']).toBe(true);
   }, 30_000);
 
-  it('lint runs end-to-end over a generated project and returns a structured envelope', async () => {
-    // Note: the stub_hello template's MainScene.xml references MainScene.bs
-    // by URI, but generate_app's post-compile sweep renames .bs files to
-    // .brs. A second bsc pass (which is exactly what `lint` does) therefore
-    // surfaces bsc code 1004 ("Referenced file does not exist") for the
-    // XML script uri. That's a template-fidelity issue (to be addressed in
-    // a follow-up: either rewrite the XML uri during compile, or ship the
-    // template with a .brs uri), not a lint-tool bug. For the e2e smoke we
-    // assert only that:
-    //
-    //   - the tool returns a well-formed envelope (no transport error),
-    //   - the envelope carries { ok, diagnostics } with the right shapes.
-    //
-    // When the template issue is resolved, this test should be tightened
-    // back to `ok === true` and `errors.length === 0`.
+  it('lint reports no errors on the generated project', async () => {
+    // The post-compile sweep in compileProject patches uri="*.bs" to
+    // uri="*.brs" in all XML files, so a second bsc pass (lint) finds the
+    // correct .brs counterparts and reports no errors.
     const gen = await client.request('tools/call', {
       name: 'generate_app',
       arguments: {
@@ -288,8 +277,8 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
     });
     expect(lintResp.error).toBeUndefined();
     const payload = parseToolPayload(lintResp.result);
-    expect(typeof payload['ok']).toBe('boolean');
-    expect(Array.isArray(payload['diagnostics'])).toBe(true);
+    expect(payload['ok']).toBe(true);
+    expect((payload['diagnostics'] as any[]).filter((d: any) => d.severity === 'error')).toEqual([]);
   }, 45_000);
 
   it('provenance.json byte-equals the golden', async () => {

@@ -61,6 +61,24 @@ describe('compileProject', () => {
     expect(r.failure.details?.diagnostics).toBeDefined();
   });
 
+  it('patches uri="*.bs" to uri="*.brs" in XML files after compile', async () => {
+    await writeMiniProject(root, 'sub Main(args as dynamic) as void\n  print "hi"\nend sub\n');
+    await mkdir(join(root, 'components'), { recursive: true });
+    await writeFile(
+      join(root, 'components/MainScene.bs'),
+      'sub init()\nend sub\n',
+    );
+    await writeFile(
+      join(root, 'components/MainScene.xml'),
+      '<?xml version="1.0" encoding="utf-8" ?>\n<component name="MainScene" extends="Scene">\n    <script type="text/brightscript" uri="MainScene.bs" />\n</component>\n',
+    );
+    const r = await compileProject(root);
+    expect(r.ok).toBe(true);
+    const xml = await readFile(join(root, 'components/MainScene.xml'), 'utf8');
+    expect(xml).toContain('uri="MainScene.brs"');
+    expect(xml).not.toContain('uri="MainScene.bs"');
+  });
+
   it('produces byte-equal output across two invocations on the same input', async () => {
     await writeMiniProject(root, 'sub Main(args as dynamic) as void\n  print "hi"\nend sub\n');
     const a = await compileProject(root);
