@@ -6,9 +6,7 @@ import { findPkgRoot } from './paths.js';
 describe('findPkgRoot', () => {
   it('resolves to the brs-gen package root from a nested src path', async () => {
     // Simulate being called from a deeply-nested src file.
-    const nestedUrl = pathToFileURL(
-      join(import.meta.dirname, 'deeply', 'nested', 'file.ts'),
-    ).href;
+    const nestedUrl = pathToFileURL(join(import.meta.dirname, 'deeply', 'nested', 'file.ts')).href;
     const root = await findPkgRoot(nestedUrl);
     // The resolved root must contain package.json and have the right package name.
     const { readFile } = await import('node:fs/promises');

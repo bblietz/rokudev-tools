@@ -64,10 +64,7 @@ describe('compileProject', () => {
   it('patches uri="*.bs" to uri="*.brs" in XML files after compile', async () => {
     await writeMiniProject(root, 'sub Main(args as dynamic) as void\n  print "hi"\nend sub\n');
     await mkdir(join(root, 'components'), { recursive: true });
-    await writeFile(
-      join(root, 'components/MainScene.bs'),
-      'sub init()\nend sub\n',
-    );
+    await writeFile(join(root, 'components/MainScene.bs'), 'sub init()\nend sub\n');
     await writeFile(
       join(root, 'components/MainScene.xml'),
       '<?xml version="1.0" encoding="utf-8" ?>\n<component name="MainScene" extends="Scene">\n    <script type="text/brightscript" uri="MainScene.bs" />\n</component>\n',

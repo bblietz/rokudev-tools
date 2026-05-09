@@ -267,7 +267,9 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
     expect(lintResp.error).toBeUndefined();
     const payload = parseToolPayload(lintResp.result);
     expect(payload['ok']).toBe(true);
-    expect((payload['diagnostics'] as any[]).filter((d: any) => d.severity === 'error')).toEqual([]);
+    expect((payload['diagnostics'] as any[]).filter((d: any) => d.severity === 'error')).toEqual(
+      [],
+    );
   }, 45_000);
 
   it('provenance.json byte-equals the golden', async () => {

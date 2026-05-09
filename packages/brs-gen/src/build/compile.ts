@@ -1,6 +1,15 @@
 import { ProgramBuilder } from 'brighterscript';
 import { dirname, join, relative } from 'node:path';
-import { copyFile, mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
 import { fail, type Failure } from '@rokudev/device-client';
 
 export type CompileDiagnostic = {
