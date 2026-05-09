@@ -40,8 +40,4 @@ Out of v0.2: conditional breakpoints, watch expressions, hot-reload (deferred pe
 - 1 stub template: `stub_hello` (deliberately minimal; exercises the pipeline end-to-end).
 - 1 stub module: `stub_label` (exercises every merger feature — file overlay, manifest patching, component patching, dependency injection).
 
-Known follow-ups (flagged for later plans):
-
-- Tool response payloads are double-wrapped by the bootstrap dispatcher; clients currently need to double-unwrap. To be fixed in a later cleanup.
-
 Out of v0.3: real templates (Plan 4), real feature modules (Plan 5), freeform LLM path (Plan 6), LSP tools (Plan 7), `brs-docs` MCP (later plan), skills + plugin (later plan). No real-device verification gate in this plan — the stub channel is deliberately uninteresting; Plan 4 will add the first T27-style gate when real templates land.
