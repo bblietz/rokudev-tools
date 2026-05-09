@@ -50,10 +50,10 @@ function getHandler(): ToolDef['handler'] {
 }
 
 function parsePayload(result: unknown): Record<string, unknown> {
-  const r = result as { content?: Array<{ text?: string }> };
-  const text = r.content?.[0]?.text;
-  if (!text) throw new Error('no text payload on result');
-  return JSON.parse(text) as Record<string, unknown>;
+  if (!result || typeof result !== 'object') {
+    throw new Error('no payload on result');
+  }
+  return result as Record<string, unknown>;
 }
 
 describe('generate_app tool', () => {

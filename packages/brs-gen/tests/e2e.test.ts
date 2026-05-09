@@ -146,14 +146,12 @@ class McpChild {
 /**
  * Extract the JSON payload from a tool/call response.
  *
- * brs-gen has a double-wrap for historical reasons: each tool handler
- * returns `{ content: [{ type: 'text', text: '<json>' }] }` directly, and
- * then the bootstrap wraps THAT return value in ANOTHER
- * `{ content: [{ type: 'text', text: JSON.stringify(handlerResult) }] }`
- * envelope. So the outer MCP response body, when JSON-parsed, is itself an
- * object with `.content[0].text` containing the real payload JSON.
+ * Tool handlers in brs-gen return plain payload objects; the bootstrap
+ * wraps them once at the MCP boundary as
+ * `{ content: [{ type: 'text', text: JSON.stringify(handlerResult) }] }`.
+ * A single JSON.parse on `content[0].text` yields the real payload.
  *
- * Failures from a thrown `Failure` land in the outer envelope with
+ * Failures from a thrown `Failure` land in the envelope with
  * `isError: true` and the Failure serialised in `content[0].text`.
  */
 function parseToolPayload(result: unknown): Record<string, unknown> {
@@ -165,20 +163,11 @@ function parseToolPayload(result: unknown): Record<string, unknown> {
   if (typeof outerText !== 'string') {
     throw new Error(`tool response missing text content: ${JSON.stringify(result)}`);
   }
-  const firstParse = JSON.parse(outerText) as Record<string, unknown>;
+  const parsed = JSON.parse(outerText) as Record<string, unknown>;
   if (outer.isError) {
-    throw new Error(`tool returned isError: ${JSON.stringify(firstParse)}`);
+    throw new Error(`tool returned isError: ${JSON.stringify(parsed)}`);
   }
-  // Unwrap the handler's own content envelope if present.
-  const innerContent = (
-    firstParse as {
-      content?: Array<{ type?: string; text?: string }>;
-    }
-  ).content;
-  if (Array.isArray(innerContent) && typeof innerContent[0]?.text === 'string') {
-    return JSON.parse(innerContent[0].text) as Record<string, unknown>;
-  }
-  return firstParse;
+  return parsed;
 }
 
 describe('brs-gen e2e: MCP smoke + golden fixtures', () => {

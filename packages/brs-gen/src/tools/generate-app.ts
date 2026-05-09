@@ -400,14 +400,7 @@ registerToolsModule((tools) => {
       if (warnings.length > 0) {
         payload['details'] = { warnings };
       }
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(payload),
-          },
-        ],
-      };
+      return payload;
     },
   });
 });

@@ -28,8 +28,11 @@ describe('get_template_schema tool', () => {
       modules: new Map(),
       warnings: [],
     });
-    const r = await handler({ id: 'stub_hello' });
-    const parsed = JSON.parse((r as any).content[0].text);
+    const parsed = (await handler({ id: 'stub_hello' })) as {
+      id: string;
+      schema: { $schema: string };
+      example_spec: unknown;
+    };
     expect(parsed.id).toBe('stub_hello');
     expect(parsed.schema.$schema).toBe('http://json-schema.org/draft-07/schema#');
     expect(parsed.example_spec).toBeDefined();

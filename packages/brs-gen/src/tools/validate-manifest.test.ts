@@ -51,8 +51,7 @@ describe('validate_manifest tool', () => {
       template: { id: 'stub_hello', version: '0.1.0' },
     });
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       manifest_keys: string[];
       drift: { missing_in_manifest: string[]; extra_in_manifest: string[] };
@@ -79,8 +78,7 @@ describe('validate_manifest tool', () => {
       template: { id: 'stub_hello', version: '0.1.0' },
     });
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       drift: { missing_in_manifest: string[]; extra_in_manifest: string[] };
       details?: { warnings: Array<{ code: string; message: string }> };
@@ -107,8 +105,7 @@ describe('validate_manifest tool', () => {
       template: { id: 'stub_hello', version: '0.1.0' },
     });
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       drift: { missing_in_manifest: string[]; extra_in_manifest: string[] };
       details?: { warnings: Array<{ code: string }> };
@@ -163,8 +160,7 @@ describe('validate_manifest tool', () => {
       template: { id: 'stub_hello', version: '0.1.0' },
     });
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       manifest_keys: string[];
       drift: { missing_in_manifest: string[]; extra_in_manifest: string[] };
@@ -188,8 +184,7 @@ describe('validate_manifest tool', () => {
       template: { id: 'stub_hello', version: '0.1.0' },
     });
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       manifest_keys: string[];
       drift: { missing_in_manifest: string[]; extra_in_manifest: string[] };

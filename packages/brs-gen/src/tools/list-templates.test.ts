@@ -37,9 +37,10 @@ describe('list_templates tool', () => {
       warnings: [],
     });
 
-    const result = await handler({});
-    const parsed = JSON.parse((result as any).content[0].text);
-    expect(parsed.templates.map((t: any) => t.id)).toEqual(['alpha', 'zeta']);
-    expect(parsed.templates[0]).toEqual({ id: 'alpha', version: '0.1.0', description: 'a' });
+    const result = (await handler({})) as {
+      templates: Array<{ id: string; version: string; description: string }>;
+    };
+    expect(result.templates.map((t) => t.id)).toEqual(['alpha', 'zeta']);
+    expect(result.templates[0]).toEqual({ id: 'alpha', version: '0.1.0', description: 'a' });
   });
 });

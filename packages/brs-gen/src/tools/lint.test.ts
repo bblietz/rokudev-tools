@@ -97,8 +97,7 @@ describe('lint tool', () => {
       'sub Main(args as dynamic) as void\n  print "hello"\nend sub\n',
     );
 
-    const r = await handler({ project_dir: projectDir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: projectDir })) as {
       ok: boolean;
       diagnostics: unknown[];
     };
@@ -118,8 +117,7 @@ describe('lint tool', () => {
       'sub Main(args as dynamic) as void\n  print "unterminated\nend sub\n',
     );
 
-    const r = await handler({ project_dir: projectDir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: projectDir })) as {
       ok: boolean;
       diagnostics: Array<{ severity: string; message: string }>;
     };
@@ -179,8 +177,7 @@ describe('lint tool', () => {
       'sub Main(args as dynamic) as void\n  print "unterminated\nend sub\n',
     );
 
-    const r = await handler({ project_dir: projectDir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: projectDir })) as {
       ok: boolean;
       diagnostics: Array<{ file: string; severity: string }>;
     };

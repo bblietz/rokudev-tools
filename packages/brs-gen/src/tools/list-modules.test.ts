@@ -43,9 +43,10 @@ describe('list_modules tool', () => {
   afterEach(() => _resetCatalog());
 
   it('returns modules sorted by id with id/version/spec_compat/description', async () => {
-    const result = await handler({});
-    const parsed = JSON.parse((result as any).content[0].text);
-    expect(parsed.modules.map((m: any) => m.id)).toEqual(['alpha', 'zebra']);
+    const parsed = (await handler({})) as {
+      modules: Array<{ id: string; version: string; spec_compat: string; description: string }>;
+    };
+    expect(parsed.modules.map((m) => m.id)).toEqual(['alpha', 'zebra']);
     expect(parsed.modules[0]).toEqual({
       id: 'alpha',
       version: '0.1.0',

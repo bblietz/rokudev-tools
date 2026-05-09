@@ -46,8 +46,14 @@ describe('get_module_schema tool', () => {
   afterEach(() => _resetCatalog());
 
   it('returns id, version, spec_compat, config_schema, example_config, and wiring', async () => {
-    const result = await handler({ id: 'stub_label' });
-    const parsed = JSON.parse((result as any).content[0].text);
+    const parsed = (await handler({ id: 'stub_label' })) as {
+      id: string;
+      version: string;
+      spec_compat: string;
+      config_schema: unknown;
+      example_config: unknown;
+      wiring: { exports: unknown[]; requires: unknown[] };
+    };
     expect(parsed.id).toBe('stub_label');
     expect(parsed.version).toBe('0.1.0');
     expect(parsed.spec_compat).toBe('>=1');
@@ -93,8 +99,7 @@ describe('get_module_schema tool', () => {
     const tools = new Map<string, ToolDef>();
     registerAllTools(tools);
     const tool = tools.get('get_module_schema')!;
-    const raw = await tool.handler({ id: 'nullable_mod' });
-    const result = JSON.parse((raw as any).content[0].text);
+    const result = (await tool.handler({ id: 'nullable_mod' })) as { example_config: unknown };
     expect(result.example_config).toEqual({ label: 'hello' });
   });
 });

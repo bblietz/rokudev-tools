@@ -38,18 +38,11 @@ registerToolsModule((tools) => {
       }
       const jsonSchema = zodToJsonSchemaDraft7(mod.Schema as any, `${id}Schema`);
       return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              id,
-              version: t.template.version,
-              spec_compat: t.template.spec_compat,
-              schema: jsonSchema,
-              example_spec: mod.Example,
-            }),
-          },
-        ],
+        id,
+        version: t.template.version,
+        spec_compat: t.template.spec_compat,
+        schema: jsonSchema,
+        example_spec: mod.Example,
       };
     },
   });

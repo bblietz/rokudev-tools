@@ -22,8 +22,7 @@ describe('package_app tool', () => {
     await mkdir(join(dir, 'source'));
     await writeFile(join(dir, 'source', 'main.brs'), "' hello\n");
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as any).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       zip_path: string;
       zip_bytes: number;
@@ -55,8 +54,7 @@ describe('package_app tool', () => {
     const outDir = await mkdtemp(join(tmpdir(), 'brs-gen-t23-out-'));
     const customZip = join(outDir, 'custom.zip');
 
-    const r = await handler({ project_dir: dir, output_zip: customZip });
-    const payload = JSON.parse((r as any).content[0].text) as {
+    const payload = (await handler({ project_dir: dir, output_zip: customZip })) as {
       ok: boolean;
       zip_path: string;
       zip_bytes: number;

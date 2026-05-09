@@ -59,8 +59,7 @@ describe('validate_assets tool', () => {
     await writePng(dir, 'images/icon.png');
     await writePng(dir, 'images/splash.png');
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       missing: string[];
       oversize: string[];
@@ -78,8 +77,7 @@ describe('validate_assets tool', () => {
     await writeManifest(dir, 'mm_icon_focus_hd=images/icon.png\n');
     // Do NOT write the icon file.
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       failure: {
         code: string;
@@ -102,8 +100,7 @@ describe('validate_assets tool', () => {
     await writeManifest(dir, 'mm_icon_focus_hd=images/icon.png\n');
     await writeNonPng(dir, 'images/icon.png');
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       failure: {
         code: string;
@@ -127,8 +124,7 @@ describe('validate_assets tool', () => {
     // Write 1 MB file starting with PNG header.
     await writePng(dir, 'images/icon.png', 1_048_576);
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       failure: {
         code: string;
@@ -151,8 +147,7 @@ describe('validate_assets tool', () => {
     await writeManifest(dir, 'mm_icon_focus_hd=pkg:/images/icon.png\n');
     await writePng(dir, 'images/icon.png');
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       missing: string[];
       oversize: string[];
@@ -179,8 +174,7 @@ describe('validate_assets tool', () => {
     // splash_big.png: oversize with PNG header.
     await writePng(dir, 'images/splash_big.png', 1_048_576);
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       failure: {
         code: string;
@@ -211,8 +205,7 @@ describe('validate_assets tool', () => {
     );
     await writePng(dir, 'images/icon.png');
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       missing: string[];
       oversize: string[];
@@ -228,8 +221,7 @@ describe('validate_assets tool', () => {
     const dir = await makeDir();
     // No manifest written.
 
-    const r = await handler({ project_dir: dir });
-    const payload = JSON.parse((r as { content: [{ text: string }] }).content[0].text) as {
+    const payload = (await handler({ project_dir: dir })) as {
       ok: boolean;
       failure: { code: string; message: string };
     };

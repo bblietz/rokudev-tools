@@ -85,14 +85,13 @@ registerToolsModule((tools) => {
       const isNoOp = specVersionBefore === 2 && specVersionAfter === 2 && !result.warning;
 
       if (isNoOp) {
-        const payload = {
+        return {
           ok: true,
           spec_version_before: specVersionBefore,
           spec_version_after: specVersionAfter,
           written_to: null,
           diff: '',
         };
-        return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
       }
 
       // 7. Determine write target.
@@ -101,14 +100,13 @@ registerToolsModule((tools) => {
       // 8. Write file (trailing newline for POSIX hygiene).
       await writeFile(writtenTo, afterStr + '\n', 'utf8');
 
-      const payload = {
+      return {
         ok: true,
         spec_version_before: specVersionBefore,
         spec_version_after: specVersionAfter,
         written_to: writtenTo,
         diff,
       };
-      return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
     },
   });
 });

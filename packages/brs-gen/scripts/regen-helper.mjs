@@ -35,18 +35,16 @@ export async function generateAppForRegen({ outputDir, spec, outputZip }) {
   const def = tools.get('generate_app');
   if (!def) throw new Error('generate_app not registered after importing all.js');
 
-  const result = await def.handler({
+  const payload = await def.handler({
     spec,
     output_dir: outputDir,
     zip: { output_zip: outputZip },
   });
 
-  // generate_app returns { content: [{ type: 'text', text: '<json>' }] }.
-  const text = result?.content?.[0]?.text;
-  if (typeof text !== 'string') {
-    throw new Error('generate_app did not return a text content payload');
+  // generate_app returns the plain payload object directly.
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('generate_app did not return a payload object');
   }
-  const payload = JSON.parse(text);
   if (payload.ok !== true) {
     throw new Error(`generate_app failed: ${JSON.stringify(payload)}`);
   }

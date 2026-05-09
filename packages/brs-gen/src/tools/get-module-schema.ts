@@ -57,19 +57,12 @@ registerToolsModule((tools) => {
         });
       }
       return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              id: m.module.id,
-              version: m.module.version,
-              spec_compat: m.module.spec_compat,
-              config_schema: m.module_config_schema,
-              example_config: synthesizeExample(m.module_config_schema as Record<string, unknown>),
-              wiring: { exports: m.module_wiring.exports, requires: m.module_wiring.requires },
-            }),
-          },
-        ],
+        id: m.module.id,
+        version: m.module.version,
+        spec_compat: m.module.spec_compat,
+        config_schema: m.module_config_schema,
+        example_config: synthesizeExample(m.module_config_schema as Record<string, unknown>),
+        wiring: { exports: m.module_wiring.exports, requires: m.module_wiring.requires },
       };
     },
   });

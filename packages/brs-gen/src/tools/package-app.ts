@@ -51,16 +51,9 @@ registerToolsModule((tools) => {
       const zipStat = await stat(outputZip);
 
       return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              ok: true,
-              zip_path: outputZip,
-              zip_bytes: zipStat.size,
-            }),
-          },
-        ],
+        ok: true,
+        zip_path: outputZip,
+        zip_bytes: zipStat.size,
       };
     },
   });

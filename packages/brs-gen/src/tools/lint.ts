@@ -83,14 +83,7 @@ registerToolsModule((tools) => {
         await rm(tmpDir, { recursive: true, force: true });
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ ok, diagnostics }),
-          },
-        ],
-      };
+      return { ok, diagnostics };
     },
   });
 });

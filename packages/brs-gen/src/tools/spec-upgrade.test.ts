@@ -54,8 +54,7 @@ describe('spec_upgrade tool', () => {
     written_to: string | null;
     diff: string;
   } {
-    const res = r as { content: [{ text: string }] };
-    return JSON.parse(res.content[0].text) as {
+    return r as {
       ok: boolean;
       spec_version_before: number;
       spec_version_after: number;

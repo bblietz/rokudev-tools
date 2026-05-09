@@ -58,7 +58,7 @@ registerToolsModule((tools) => {
       } catch (err) {
         const e = err as NodeJS.ErrnoException;
         const reason = e?.code === 'ENOENT' ? 'manifest not found' : (e?.message ?? String(err));
-        const payload = {
+        return {
           ok: false as const,
           failure: {
             stage: 'validate' as const,
@@ -67,7 +67,6 @@ registerToolsModule((tools) => {
             details: { missing: [], not_png: [], oversize: [], wrong_dimensions: [] },
           },
         };
-        return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
       }
 
       const parsed = parseManifest(manifestText);
@@ -124,16 +123,15 @@ registerToolsModule((tools) => {
       const totalFailures = missing.length + not_png.length + oversize.length;
 
       if (totalFailures === 0) {
-        const payload = {
+        return {
           ok: true as const,
           missing: [] as string[],
           oversize: [] as string[],
           wrong_dimensions: [] as string[],
         };
-        return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
       }
 
-      const payload = {
+      return {
         ok: false as const,
         failure: {
           stage: 'validate' as const,
@@ -147,7 +145,6 @@ registerToolsModule((tools) => {
           },
         },
       };
-      return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
     },
   });
 });
