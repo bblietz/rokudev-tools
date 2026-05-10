@@ -354,13 +354,21 @@ scene_nodes = [
   7.  per-module config validation                     [existing]
 
   ── NEW asset resolution pass ─────────────────────────────
-  7a. resolveAssetPath(branding.icon, specOrigin)   → absolute fs path
-  7b. readFile → source Buffer
-  7c. validateAssetSource(source, ICON_SOURCE_MIN, ...)
-  7d. bucketAsset(source, 'icon',   'images/icon')  → Map<path, Buffer>
-  7e. bucketAsset(source, 'splash', 'images/splash')→ Map<path, Buffer>
-  7f. manifestEntriesForBuckets('icon', ...)        → Record<manifest_key, pkg:/path>
-  7g. manifestEntriesForBuckets('splash', ...)      → Record<manifest_key, pkg:/path>
+  ── icon ──
+  7a. resolveAssetPath(branding.icon, specOrigin)       → absolute fs path
+  7b. readFile                                           → icon source Buffer
+  7c. validateAssetSource(iconSource, ICON_SOURCE_MIN)
+  7d. bucketAsset(iconSource, 'icon', 'images/icon')     → Map<path, Buffer>
+  7e. manifestEntriesForBuckets('icon', 'images/icon')   → Record<manifest_key, pkg:/path>
+  ── splash ──
+  7f. resolveAssetPath(branding.splash, specOrigin)      → absolute fs path
+  7g. readFile                                           → splash source Buffer
+  7h. validateAssetSource(splashSource, SPLASH_SOURCE_MIN)
+  7i. bucketAsset(splashSource, 'splash', 'images/splash') → Map<path, Buffer>
+  7j. manifestEntriesForBuckets('splash', 'images/splash') → Record<manifest_key, pkg:/path>
+  ── merge ──
+  7k. assetBuckets         = iconBuckets    ∪ splashBuckets
+  7l. assetManifestEntries = iconManifest   ∪ splashManifest
   ──────────────────────────────────────────────────────────
 
   8.  load template/module file bytes                  [existing]
