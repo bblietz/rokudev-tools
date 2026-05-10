@@ -33,3 +33,19 @@ describe('buildProvenance', () => {
     expect(buildProvenance(input)).toBe(buildProvenance(input));
   });
 });
+
+describe('provenance with asset manifest keys', () => {
+  it('manifest_keys include asset keys alphabetically sorted', () => {
+    const jsonStr = buildProvenance({
+      spec_version: 2,
+      template: { id: 't', version: '0.1.0' },
+      modules: [],
+      init_order: [],
+      manifest_keys: ['title', 'mm_icon_focus_hd', 'splash_screen_uhd'],
+      brs_gen_version: '0.4.0-dev.0',
+    });
+    const parsed = JSON.parse(jsonStr);
+    // buildProvenance sorts arrays (except init_order). Assert order.
+    expect(parsed.manifest_keys).toEqual(['mm_icon_focus_hd', 'splash_screen_uhd', 'title']);
+  });
+});
