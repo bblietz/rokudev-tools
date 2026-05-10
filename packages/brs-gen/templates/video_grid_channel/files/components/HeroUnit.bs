@@ -1,0 +1,13 @@
+sub init()
+  m.poster   = m.top.findNode("poster")
+  m.title    = m.top.findNode("title")
+  m.synopsis = m.top.findNode("synopsis")
+end sub
+
+sub onContentChanged()
+  c = m.top.content
+  if c = invalid then return
+  m.poster.uri = c.hdPosterUrl
+  m.title.text = c.title
+  m.synopsis.text = c.description
+end sub

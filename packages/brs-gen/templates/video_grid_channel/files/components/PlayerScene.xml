@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="PlayerScene" extends="Group">
+  <script type="text/brightscript" uri="PlayerScene.bs" />
+  <interface>
+    <field id="content" type="node" onChange="onContentSet" />
+    <field id="state" type="string" alwaysNotify="true" />
+  </interface>
+  <children>
+    <Video id="video" width="1920" height="1080" enableUI="true" />
+    <Label id="errorOverlay" translation="[60, 60]" color="0xFF4444FF" visible="false" />
+  </children>
+</component>

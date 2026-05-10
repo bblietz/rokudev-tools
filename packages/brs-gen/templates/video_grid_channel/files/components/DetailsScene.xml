@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="DetailsScene" extends="Group">
+  <script type="text/brightscript" uri="DetailsScene.bs" />
+  <interface>
+    <field id="content" type="node" onChange="onContentChanged" />
+    <field id="close" type="boolean" alwaysNotify="true" />
+  </interface>
+  <children>
+    <Rectangle id="scrim" width="1920" height="1080" color="0x000000CC" />
+    <Poster id="poster" translation="[120, 120]" width="640" height="360" loadDisplayMode="scaleToZoom" />
+    <Label id="title" translation="[800, 140]" font="font:LargeBoldSystemFont" color="0xFFFFFFFF" />
+    <Label id="description" translation="[800, 200]" width="900" color="0xCCCCCCFF" wrap="true" />
+    <Label id="cta" translation="[800, 440]" text="Press Select to play" color="0xFFFFFFFF" />
+  </children>
+</component>

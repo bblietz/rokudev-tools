@@ -1,0 +1,40 @@
+sub init()
+  m.poster      = m.top.findNode("poster")
+  m.title       = m.top.findNode("title")
+  m.description = m.top.findNode("description")
+end sub
+
+sub onContentChanged()
+  c = m.top.content
+  if c = invalid then return
+  m.poster.uri = c.hdPosterUrl
+  m.title.text = c.title
+  m.description.text = c.description
+end sub
+
+function onKeyEvent(key as string, press as boolean) as boolean
+  if press then
+    if key = "OK" or key = "select" then
+      player = m.top.getParent().createChild("PlayerScene")
+      player.content = m.top.content
+      player.setFocus(true)
+      player.observeField("state", "onPlayerState")
+      m.playerRef = player
+      return true
+    else if key = "back" then
+      m.top.close = true
+      return true
+    end if
+  end if
+  return false
+end function
+
+sub onPlayerState()
+  p = m.playerRef
+  if p = invalid then return
+  if p.state = "done" then
+    m.top.getParent().removeChild(p)
+    m.playerRef = invalid
+    m.top.setFocus(true)
+  end if
+end sub

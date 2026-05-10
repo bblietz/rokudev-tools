@@ -1,0 +1,52 @@
+sub init()
+  m.video = m.top.findNode("video")
+  m.error = m.top.findNode("errorOverlay")
+  m.video.observeField("state", "onVideoState")
+end sub
+
+sub onContentSet()
+  startPlayback()
+end sub
+
+function onKeyEvent(key as string, press as boolean) as boolean
+  if press and key = "back" then
+    m.video.control = "stop"
+    m.top.state = "done"
+    return true
+  end if
+  return false
+end function
+
+sub startPlayback()
+  c = m.top.content
+  if c = invalid or c.stream = invalid or c.stream = "" then
+    m.error.text = "No stream URL for this content."
+    m.error.visible = true
+    return
+  end if
+
+  Modules_OnPlayerSceneBeforePlay(m)
+
+  content = CreateObject("roSGNode", "ContentNode")
+  content.title = c.title
+  content.streamFormat = c.streamFormat
+  stream = CreateObject("roSGNode", "ContentNode")
+  stream.url = c.stream
+  content.appendChild(stream)
+
+  m.video.content = content
+  m.video.control = "play"
+end sub
+
+sub onVideoState()
+  s = m.video.state
+  if s = "error" then
+    m.error.text = "Playback error: " + m.video.errorCode.ToStr() + " " + m.video.errorMsg
+    m.error.visible = true
+    m.top.state = "error"
+  else if s = "finished" then
+    m.top.state = "done"
+  else
+    m.top.state = s
+  end if
+end sub

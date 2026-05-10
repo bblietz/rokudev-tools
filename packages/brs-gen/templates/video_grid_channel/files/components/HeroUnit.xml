@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="HeroUnit" extends="Group">
+  <script type="text/brightscript" uri="HeroUnit.bs" />
+  <interface>
+    <field id="content" type="node" onChange="onContentChanged" />
+  </interface>
+  <children>
+    <Poster id="poster" width="1800" height="450" loadDisplayMode="scaleToZoom" />
+    <Label id="title" translation="[40, 340]" width="1100" font="font:LargeBoldSystemFont" color="0xFFFFFFFF" />
+    <Label id="synopsis" translation="[40, 390]" width="1100" color="0xCCCCCCFF" wrap="true" />
+  </children>
+</component>
