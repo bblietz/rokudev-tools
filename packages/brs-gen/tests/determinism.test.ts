@@ -9,6 +9,9 @@ import { buildEmittedProject } from '../src/merger/build.js';
 import { renderTemplateFiles } from '../src/render/ejs.js';
 import { compileProject } from '../src/build/compile.js';
 import { packageProject } from '../src/build/zip.js';
+import { setCatalogForTests } from '../src/tools/_catalog-singleton.js';
+import { registerAllTools, type ToolDef } from '../src/tools/_register.js';
+import '../src/tools/generate-app.js';
 
 // Package root = packages/brs-gen/. This file lives at
 // packages/brs-gen/tests/determinism.test.ts, so `..` from its URL is the
@@ -197,4 +200,83 @@ describe('determinism', () => {
       await rm(proj, { recursive: true, force: true });
     }
   });
+
+  it('video_grid_channel full-pipeline byte equality across two in-process runs', async () => {
+    const dirA = tmp('vg-det-a');
+    const dirB = tmp('vg-det-b');
+    await mkdir(dirA, { recursive: true });
+    await mkdir(dirB, { recursive: true });
+    try {
+      const resultA = await generateVideoGrid(dirA);
+      const resultB = await generateVideoGrid(dirB);
+
+      expect(resultA.ok).toBe(true);
+      expect(resultB.ok).toBe(true);
+
+      // Compare bucketed image buffers
+      for (const rel of [
+        'images/icon_hd.png',
+        'images/icon_fhd.png',
+        'images/splash_hd.png',
+        'images/splash_fhd.png',
+        'images/splash_uhd.png',
+      ]) {
+        const a = await readFile(join(dirA, 'project', rel));
+        const b = await readFile(join(dirB, 'project', rel));
+        expect(a.equals(b)).toBe(true);
+      }
+
+      // Compare final zip bytes
+      const zipA = await readFile(join(dirA, 'project.zip'));
+      const zipB = await readFile(join(dirB, 'project.zip'));
+      expect(zipA.equals(zipB)).toBe(true);
+    } finally {
+      await rm(dirA, { recursive: true, force: true });
+      await rm(dirB, { recursive: true, force: true });
+    }
+  });
 });
+
+// ---------------------------------------------------------------------------
+// Helper: invoke the generate_app handler for video_grid_channel using the
+// same canonical spec that T20 snapshots and T23 e2e use.
+// ---------------------------------------------------------------------------
+
+function getGenerateAppHandler(): ToolDef['handler'] {
+  const tools = new Map<string, ToolDef>();
+  registerAllTools(tools);
+  const def = tools.get('generate_app');
+  if (!def) throw new Error('generate_app tool not registered');
+  return def.handler;
+}
+
+async function generateVideoGrid(workDir: string): Promise<{ ok: boolean }> {
+  const cat = await loadCatalog(PKG_ROOT);
+  setCatalogForTests(cat);
+
+  const handler = getGenerateAppHandler();
+  const iconPath = join(PKG_ROOT, 'tests', '__fixtures__', 'icon-uhd.png');
+  const splashPath = join(PKG_ROOT, 'tests', '__fixtures__', 'splash-uhd.png');
+
+  const result = await handler({
+    spec: {
+      spec_version: 2,
+      template: 'video_grid_channel',
+      modules: [],
+      app: { name: 'Acme TV', major_version: 0, minor_version: 1, build_version: 0 },
+      branding: {
+        primary_color: '#E50914',
+        icon: iconPath,
+        splash: splashPath,
+      },
+      content: {
+        feed_url: 'https://demo.avideo.com/roku.json',
+        feed_format: 'roku_direct_publisher_json',
+      },
+    },
+    output_dir: join(workDir, 'project'),
+    zip: { output_zip: join(workDir, 'project.zip') },
+  });
+
+  return result as { ok: boolean };
+}
