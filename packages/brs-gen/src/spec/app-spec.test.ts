@@ -67,3 +67,51 @@ describe('AppSpecV1Wrapper', () => {
     ).toBe(false);
   });
 });
+
+describe('AppSpecV2Wrapper + branding/content', () => {
+  const baseApp = { name: 'X', major_version: 1, minor_version: 0, build_version: 0 };
+
+  it('accepts a wrapper without branding or content (back-compat)', () => {
+    const r = AppSpecV2Wrapper.safeParse({
+      spec_version: 2,
+      template: 'stub_hello',
+      modules: [],
+      app: baseApp,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts a wrapper with branding + content', () => {
+    const r = AppSpecV2Wrapper.safeParse({
+      spec_version: 2,
+      template: 'video_grid_channel',
+      modules: [],
+      app: baseApp,
+      branding: { primary_color: '#E50914', icon: 'icon.png', splash: 'splash.png' },
+      content: { feed_url: 'https://ex.com/f.json', feed_format: 'roku_direct_publisher_json' },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects an invalid branding primary_color at wrapper time', () => {
+    const r = AppSpecV2Wrapper.safeParse({
+      spec_version: 2,
+      template: 'video_grid_channel',
+      modules: [],
+      app: baseApp,
+      branding: { primary_color: 'red' },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects invalid feed_url at wrapper time', () => {
+    const r = AppSpecV2Wrapper.safeParse({
+      spec_version: 2,
+      template: 'video_grid_channel',
+      modules: [],
+      app: baseApp,
+      content: { feed_url: 'not-a-url', feed_format: 'roku_direct_publisher_json' },
+    });
+    expect(r.success).toBe(false);
+  });
+});

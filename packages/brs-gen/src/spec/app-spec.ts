@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { BrandingSchema } from './branding.js';
+import { ContentSchema } from './content.js';
 
 const NonNegInt = z.number().int().min(0);
 
@@ -20,18 +22,18 @@ export const ModuleReference = z
   .strict();
 export type ModuleReference = z.infer<typeof ModuleReference>;
 
-// Wrapper parses only the 4 wrapper fields. Per-template top-level fields
-// (e.g. `branding` for a future video_grid_channel) are accepted via
-// `.passthrough()` and validated by the template's bundled schema in a
-// second parse pass (happens at tool-layer in T20's get_template_schema /
-// T22's generate_app). Do NOT chain `.strict()` here; Zod's passthrough
-// supersedes strict so the combination is only confusing.
+// Wrapper names every field it knows about; unknown fields still pass
+// through (via .passthrough()) so template-strict schemas get to see them.
+// branding / content are optional at the wrapper level; templates make
+// them required in their own strict schema (see templates/<id>/schema.ts).
 export const AppSpecV2Wrapper = z
   .object({
     spec_version: z.literal(2),
     template: z.string().min(1),
     modules: z.array(ModuleReference),
     app: AppMeta,
+    branding: BrandingSchema.optional(),
+    content: ContentSchema.optional(),
   })
   .passthrough();
 
