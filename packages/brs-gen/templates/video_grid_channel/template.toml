@@ -1,0 +1,30 @@
+[template]
+id = "video_grid_channel"
+version = "0.1.0"
+spec_compat = ">=2"
+description = "Hero + category rows + details + player. Consumes Roku Direct Publisher JSON."
+
+[template.manifest_defaults]
+title           = "<%= spec.app.name %>"
+major_version   = "<%= spec.app.major_version %>"
+minor_version   = "<%= spec.app.minor_version %>"
+build_version   = "<%= spec.app.build_version %>"
+splash_color    = "<%= spec.branding.primary_color %>"
+ui_resolutions  = "fhd,hd"
+bs_const        = "DEBUG=0"
+# mm_icon_focus_* and splash_screen_* are injected by the asset pipeline.
+
+[template.exports]
+init_hooks = [
+  { scope = "MainScene",   phase = "before_content_load", file = "components/MainScene.bs",   signature = "(m as object) as void" },
+  { scope = "MainScene",   phase = "after_content_load",  file = "components/MainScene.bs",   signature = "(m as object) as void" },
+  { scope = "MainScene",   phase = "after_hero_load",     file = "components/MainScene.bs",   signature = "(m as object) as void" },
+  { scope = "PlayerScene", phase = "before_play",         file = "components/PlayerScene.bs", signature = "(m as object) as void" },
+  { scope = "Main",        phase = "before_scene_show",   file = "source/Main.bs",            signature = "(args as dynamic) as void" },
+]
+scene_nodes = [
+  { name = "MainScene",    file = "components/MainScene.xml" },
+  { name = "DetailsScene", file = "components/DetailsScene.xml" },
+  { name = "PlayerScene",  file = "components/PlayerScene.xml" },
+  { name = "HeroUnit",     file = "components/HeroUnit.xml" },
+]
