@@ -70,9 +70,12 @@ const T27 = join(HERE, 'fixtures');
 await mkdir(FIX, { recursive: true });
 await mkdir(T27, { recursive: true });
 
-// Unit fixtures: solid charcoal.
+// Unit fixtures: solid charcoal. Splash must meet SPLASH_SOURCE_MIN
+// (3840x2160) so validateAssetSource accepts it; icon must meet
+// ICON_SOURCE_MIN (336x218). Spec §10.5 pins these; the plan's P6 heuristic
+// of 1920x1080 for splash was incorrect and would trip source_too_small.
 await writeFile(join(FIX, 'icon-uhd.png'), solidPng(336, 218, 30, 30, 30));
-await writeFile(join(FIX, 'splash-uhd.png'), solidPng(1920, 1080, 30, 30, 30));
+await writeFile(join(FIX, 'splash-uhd.png'), solidPng(3840, 2160, 30, 30, 30));
 
 // T27 fixtures: clearly "test channel". Dark red icon, dark navy splash.
 await writeFile(join(T27, 't27-icon-uhd.png'), solidPng(3840, 2160, 229, 9, 20));
