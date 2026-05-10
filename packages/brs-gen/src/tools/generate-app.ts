@@ -1,5 +1,5 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import semver from 'semver';
 import { fail, DevPortal } from '@rokudev/device-client';
 import { registerToolsModule } from './_register.js';
@@ -21,27 +21,24 @@ const pkgRoot = await findPkgRoot(import.meta.url);
 const PKG_VERSION = await readPkgVersion(pkgRoot);
 
 /**
- * Resolve the `spec` argument into a parsed object. Accepts:
- *   - an object (returned as-is),
- *   - an inline JSON string (may include a leading BOM / whitespace),
- *   - a filesystem path to a JSON file.
- *
- * Any IO or JSON-parse failure is wrapped in a typed `APP_SPEC_INVALID`
- * Failure so MCP callers get a stable error shape instead of a raw Node
- * `SyntaxError` or `ENOENT`.
+ * Resolve the `spec` argument. Returns both the parsed object AND
+ * `specOrigin`: the absolute path of the spec file if the input was a
+ * filesystem path, or null for inline (object / JSON string) specs.
+ * `specOrigin` is load-bearing for resolving relative asset paths
+ * (branding.icon / branding.splash) — see src/assets/resolve.ts.
  */
-// Return type is `any` to match the original IIFE which yielded the
+// Return type spec is `any` to match the original IIFE which yielded the
 // untyped result of `JSON.parse`. Downstream promoteV1ToV2 accepts
 // `AppSpecV1 | AppSpecV2`; Zod wrapper parse is the real type guard.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function resolveSpecInput(raw: unknown): Promise<any> {
-  if (typeof raw !== 'string') return raw;
+async function resolveSpecInput(raw: unknown): Promise<{ spec: any; specOrigin: string | null }> {
+  if (typeof raw !== 'string') return { spec: raw, specOrigin: null };
   // Strip BOM before the inline-JSON sniff; trim leading/trailing whitespace
   // so '  { ... }\n' still classifies as inline.
   const stripped = raw.replace(/^\uFEFF/, '').trim();
   if (stripped.startsWith('{')) {
     try {
-      return JSON.parse(stripped);
+      return { spec: JSON.parse(stripped), specOrigin: null };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw fail('APP_SPEC_INVALID', `spec is not valid JSON: ${msg}`, {
@@ -50,21 +47,20 @@ async function resolveSpecInput(raw: unknown): Promise<any> {
     }
   }
   // Treat as filesystem path.
+  const absPath = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
   let contents: string;
   try {
-    contents = await readFile(raw, 'utf8');
+    contents = await readFile(absPath, 'utf8');
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e && e.code === 'ENOENT') {
       throw fail('APP_SPEC_INVALID', `spec file not found: ${raw}`, { given: raw });
     }
     const msg = e?.message ?? String(err);
-    throw fail('APP_SPEC_INVALID', `failed to read spec file: ${raw}: ${msg}`, {
-      given: raw,
-    });
+    throw fail('APP_SPEC_INVALID', `failed to read spec file: ${raw}: ${msg}`, { given: raw });
   }
   try {
-    return JSON.parse(contents);
+    return { spec: JSON.parse(contents), specOrigin: absPath };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw fail('APP_SPEC_INVALID', `spec file contains invalid JSON: ${raw}: ${msg}`, {
@@ -171,7 +167,7 @@ registerToolsModule((tools) => {
       // 1. Parse input: object passthrough, inline JSON (leading '{', BOM/ws
       //    tolerated), or filesystem path. All IO / parse failures are wrapped
       //    in APP_SPEC_INVALID by resolveSpecInput.
-      const specInput = await resolveSpecInput(args['spec']);
+      const { spec: specInput, specOrigin } = await resolveSpecInput(args['spec']);
 
       // 1a. Reject freeform specs explicitly (Plan 6 lands this path).
       if (specInput && typeof specInput === 'object' && 'freeform' in specInput) {
