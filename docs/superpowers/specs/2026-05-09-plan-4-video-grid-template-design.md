@@ -290,22 +290,6 @@ version = "0.1.0"
 spec_compat = ">=2"
 description = "Hero + category rows + details + player. Consumes RDP JSON."
 
-[template.files]
-add = [
-  "manifest.ejs",
-  "source/Main.bs",
-  "source/Feed.bs",
-  "source/HttpTask.bs",
-  "components/MainScene.xml",
-  "components/MainScene.bs",
-  "components/HeroUnit.xml",
-  "components/HeroUnit.bs",
-  "components/DetailsScene.xml",
-  "components/DetailsScene.bs",
-  "components/PlayerScene.xml",
-  "components/PlayerScene.bs",
-]
-
 [template.manifest_defaults]
 title           = "<%= spec.app.name %>"
 major_version   = "<%= spec.app.major_version %>"
@@ -318,11 +302,11 @@ bs_const        = "DEBUG=0"
 
 [template.exports]
 init_hooks = [
-  { name = "MainScene.init/before_content_load", file = "components/MainScene.bs" },
-  { name = "MainScene.init/after_content_load",  file = "components/MainScene.bs" },
-  { name = "MainScene.init/after_hero_load",     file = "components/MainScene.bs" },
-  { name = "PlayerScene.init/before_play",       file = "components/PlayerScene.bs" },
-  { name = "Main/before_scene_show",             file = "source/Main.bs" },
+  { scope = "MainScene",   phase = "before_content_load", file = "components/MainScene.bs",   signature = "(m as object) as void" },
+  { scope = "MainScene",   phase = "after_content_load",  file = "components/MainScene.bs",   signature = "(m as object) as void" },
+  { scope = "MainScene",   phase = "after_hero_load",     file = "components/MainScene.bs",   signature = "(m as object) as void" },
+  { scope = "PlayerScene", phase = "before_play",         file = "components/PlayerScene.bs", signature = "(m as object) as void" },
+  { scope = "Main",        phase = "before_scene_show",   file = "source/Main.bs",            signature = "(args as dynamic) as void" },
 ]
 scene_nodes = [
   { name = "MainScene",    file = "components/MainScene.xml" },
@@ -330,8 +314,14 @@ scene_nodes = [
   { name = "PlayerScene",  file = "components/PlayerScene.xml" },
   { name = "HeroUnit",     file = "components/HeroUnit.xml" },
 ]
-# No supported_modules allowlist at v0.4.0.
+# No `supported_modules` allowlist at v0.4.0.
 ```
+
+**Schema note:** The dotted TOML syntax above (`[template.exports]`, `[template.manifest_defaults]`) maps to the flat schema keys `template_exports` and `template_manifest_defaults` via the catalog loader's `flatten()` pass (`src/catalog/loader.ts:21-41`). The TOML source file uses the dotted form; the validated Zod shape uses underscores. This matches the `stub_hello/template.toml` convention.
+
+**Template files enumeration:** Unlike `module.toml` (which declares `module_files.add`), templates do not declare a file list. The catalog loader and `generate_app` discover template files by walking `packages/brs-gen/templates/<id>/files/` recursively. The sketch above intentionally omits a `[template.files]` section — it would fail strict schema validation.
+
+**Init-hook `scope` + `phase`:** Both are BrightScript identifiers (`/^[A-Za-z_][A-Za-z0-9_]*$/`). The merger's `__init_hooks.bs` emitter composes them into dispatch functions named `Modules_On<Scope><PhasePascal>` (Plan 3 T12). The slash-joined form mentioned in the PRD (e.g. `"MainScene.init/before_content_load"`) was prose shorthand; the actual wire form is the two-field `{scope, phase}` pair.
 
 ### 7.3 Runtime behavior
 
@@ -523,15 +513,15 @@ All CI-runnable tests are deterministic and require no external services. T27 (�
 
 | Layer | v0.3.1 | Plan 4 target | Delta |
 |---|---|---|---|
-| brs-gen unit | 192 | ~218 | +~26 |
+| brs-gen unit (co-located `.test.ts` under `src/`) | 192 | ~223 | +~31 (§10.1 ~23 new modules + §10.2 +8 tool-level additions) |
 | brs-gen integration/snapshot | 5 | 10 | +5 |
 | brs-gen e2e | 5 | 8 | +3 |
 | brs-gen determinism | 4 | 5 | +1 |
 | brs-gen conflict-matrix | 1 | 1 | 0 |
-| brs-gen total | 195 | ~230-245 | ~+35-50 |
+| brs-gen total | 195 | ~235 | ~+40 |
 | @rokudev/device-client | 294 | 294 | 0 |
 | rokudev-device | 184 | 184 | 0 |
-| **Monorepo** | **672** | **~705-722** | **~+35-50** |
+| **Monorepo** | **672** | **~712** | **~+40** |
 
 ### 10.5 Fixtures and goldens
 
