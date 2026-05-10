@@ -7,6 +7,9 @@ import { loadCatalog } from '../src/catalog/loader.js';
 import { buildEmittedProject } from '../src/merger/build.js';
 import { renderTemplateFiles } from '../src/render/ejs.js';
 import { writeProject } from '../src/build/write.js';
+import { setCatalogForTests } from '../src/tools/_catalog-singleton.js';
+import { registerAllTools, type ToolDef } from '../src/tools/_register.js';
+import '../src/tools/generate-app.js';
 
 // Package root = packages/brs-gen/. This file lives at
 // packages/brs-gen/tests/snapshots.test.ts, so `..` from its URL is the
@@ -145,6 +148,122 @@ describe('stub catalog snapshot', () => {
     const sortedList = await sortedPathSizeList(projectDir);
     await expect(JSON.stringify(sortedList, null, 2) + '\n').toMatchFileSnapshot(
       '__snapshots__/files.snap',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// video_grid_channel snapshots (T20)
+// ---------------------------------------------------------------------------
+// Runs the FULL generate_app pipeline (merger + compileProject) once in
+// beforeAll, then each test snapshots a single post-compile output file.
+// The post-compile state is used because: (a) the XML uri sweep rewrites
+// .bs -> .brs references, (b) TemplateConfig emits to .brs after bsc
+// transpile, and (c) .bs sources are removed. Snapshots therefore reflect
+// the channel exactly as it would be sideloaded.
+// ---------------------------------------------------------------------------
+
+const FIXTURES_DIR = join(PKG_ROOT, 'tests/__fixtures__');
+
+function getGenerateAppHandler(): ToolDef['handler'] {
+  const tools = new Map<string, ToolDef>();
+  registerAllTools(tools);
+  const def = tools.get('generate_app');
+  if (!def) throw new Error('generate_app tool not registered');
+  return def.handler;
+}
+
+// Walk projectDir recursively, return sorted forward-slash relative paths,
+// excluding entries under `.rokudev-tools/staging` and `.rokudev-tools/sourcemaps`.
+async function sortedRelPaths(root: string): Promise<string[]> {
+  const out: string[] = [];
+  const EXCLUDES = ['.rokudev-tools/staging', '.rokudev-tools/sourcemaps'];
+  async function walk(current: string): Promise<void> {
+    for (const e of await readdir(current, { withFileTypes: true })) {
+      const full = join(current, e.name);
+      const rel = relative(root, full).split(/[\\/]/).join('/');
+      if (EXCLUDES.some((ex) => rel === ex || rel.startsWith(`${ex}/`))) continue;
+      if (e.isDirectory()) {
+        await walk(full);
+      } else if (e.isFile()) {
+        out.push(rel);
+      }
+    }
+  }
+  await walk(root);
+  out.sort();
+  return out;
+}
+
+describe('video_grid_channel snapshots', () => {
+  let parentDir: string;
+  let projectDir: string;
+
+  beforeAll(async () => {
+    // Load catalog and inject into the singleton so the handler can pick it up.
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+
+    parentDir = await mkdtemp(join(tmpdir(), 'brs-gen-t20-'));
+    projectDir = join(parentDir, 'project');
+
+    const handler = getGenerateAppHandler();
+    const iconPath = join(FIXTURES_DIR, 'icon-uhd.png');
+    const splashPath = join(FIXTURES_DIR, 'splash-uhd.png');
+
+    const result = await handler({
+      spec: {
+        spec_version: 2,
+        template: 'video_grid_channel',
+        modules: [],
+        app: { name: 'Acme TV', major_version: 0, minor_version: 1, build_version: 0 },
+        branding: {
+          primary_color: '#E50914',
+          icon: iconPath,
+          splash: splashPath,
+        },
+        content: {
+          feed_url: 'https://demo.avideo.com/roku.json',
+          feed_format: 'roku_direct_publisher_json',
+        },
+      },
+      output_dir: projectDir,
+    });
+
+    const payload = result as Record<string, unknown>;
+    if (!payload['ok']) {
+      throw new Error(`generate_app failed in beforeAll: ${JSON.stringify(payload)}`);
+    }
+  });
+
+  afterAll(async () => {
+    if (parentDir) await rm(parentDir, { recursive: true, force: true });
+  });
+
+  it('manifest matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'manifest'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/video-grid/manifest.snap.txt');
+  });
+
+  it('MainScene.xml (post-compile, .brs refs) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/video-grid/MainScene.xml.snap.txt');
+  });
+
+  it('HeroUnit.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/HeroUnit.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/video-grid/HeroUnit.xml.snap.txt');
+  });
+
+  it('template-config.brs matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'source/_template/config.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/video-grid/template-config.brs.snap.txt');
+  });
+
+  it('files listing (sorted, excl staging+sourcemaps) matches saved snapshot', async () => {
+    const paths = await sortedRelPaths(projectDir);
+    await expect(paths.join('\n') + '\n').toMatchFileSnapshot(
+      '__snapshots__/video-grid/files-listing.snap.txt',
     );
   });
 });

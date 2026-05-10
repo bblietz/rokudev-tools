@@ -6,3 +6,4 @@ pnpm-lock.yaml
 corpus/build
 docs/superpowers
 packages/brs-gen/tests/__golden__
+packages/brs-gen/tests/__snapshots__/video-grid

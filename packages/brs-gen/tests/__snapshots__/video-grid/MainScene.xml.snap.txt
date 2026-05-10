@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MainScene" extends="Scene">
+  <script type="text/brightscript" uri="MainScene.brs" />
+  <script type="text/brightscript" uri="pkg:/source/Feed.brs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.brs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.brs" />
+  <children>
+    <Rectangle id="background" width="1920" height="1080" color="0x000000FF" />
+    <HeroUnit id="hero" translation="[60, 40]" />
+    <RowList
+      id="rowList"
+      translation="[60, 540]"
+      itemSize="[1800, 260]"
+      numRows="3"
+      rowLabelOffset="[0, 0]"
+      showRowLabel="true"
+    />
+    <Timer id="rotateTimer" duration="6" repeat="true" />
+    <Label id="errorLabel" translation="[60, 500]" color="0xFF4444FF" visible="false" />
+  </children>
+</component>
