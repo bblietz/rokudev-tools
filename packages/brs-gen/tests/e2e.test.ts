@@ -13,6 +13,10 @@
 //   4. lint returns ok: true with zero error diagnostics.
 //   5. The generated .rokudev-tools/provenance.json byte-equals
 //      tests/__golden__/stub.provenance.json.
+//   6. generate_app on the video_grid_channel spec produces a byte-equal zip
+//      against tests/__golden__/video-grid.zip.
+//   7. validate_manifest on the video_grid_channel project returns ok: true.
+//   8. lint on the video_grid_channel project returns ok: true with zero errors.
 //
 // TZ=UTC is forced for this test AND the spawned child because yazl 2.5.x
 // encodes DOS mtime via local-time Date methods. Without a pinned TZ, the
@@ -26,7 +30,7 @@
 
 process.env.TZ = 'UTC';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, afterAll, beforeEach, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -288,4 +292,105 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
     const expected = await readFile(join(GOLDEN_DIR, 'stub.provenance.json'));
     expect(actual.equals(expected)).toBe(true);
   }, 30_000);
+
+  // ---------------------------------------------------------------------------
+  // video_grid_channel tests (T23)
+  //
+  // Option B: beforeAll generates the project once; all 3 tests share it.
+  // The generate step is expensive (sharp resizes + bsc compile), so a single
+  // shared run is materially faster than 3 independent runs.
+  // ---------------------------------------------------------------------------
+  describe('video_grid_channel', () => {
+    const FIXTURES_DIR = join(PKG_ROOT, 'tests', '__fixtures__');
+
+    // Inline spec with absolute asset paths so no spec file needs to be
+    // written to disk. resolveAssetPath passes absolute paths through as-is.
+    const VIDEO_GRID_SPEC = {
+      spec_version: 2,
+      template: 'video_grid_channel',
+      modules: [],
+      app: { name: 'Acme TV', major_version: 0, minor_version: 1, build_version: 0 },
+      branding: {
+        primary_color: '#E50914',
+        icon: join(FIXTURES_DIR, 'icon-uhd.png'),
+        splash: join(FIXTURES_DIR, 'splash-uhd.png'),
+      },
+      content: {
+        feed_url: 'https://demo.avideo.com/roku.json',
+        feed_format: 'roku_direct_publisher_json',
+      },
+    };
+
+    let vgWorkDir: string;
+    let vgOutputDir: string;
+    let vgZipPath: string;
+    let vgClient: McpChild;
+
+    beforeAll(async () => {
+      vgWorkDir = await mkdtemp(join(tmpdir(), 'brs-gen-e2e-vg-'));
+      vgOutputDir = join(vgWorkDir, 'project');
+      vgZipPath = join(vgWorkDir, 'project.zip');
+
+      vgClient = new McpChild();
+      const initResp = await vgClient.request('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'brs-gen-e2e-vg', version: '1' },
+      });
+      if (initResp.error) {
+        throw new Error(`video_grid initialize failed: ${JSON.stringify(initResp.error)}`);
+      }
+
+      const gen = await vgClient.request('tools/call', {
+        name: 'generate_app',
+        arguments: {
+          spec: VIDEO_GRID_SPEC,
+          output_dir: vgOutputDir,
+          zip: { output_zip: vgZipPath },
+        },
+      });
+      if (gen.error) {
+        throw new Error(`video_grid generate_app failed: ${JSON.stringify(gen.error)}`);
+      }
+      parseToolPayload(gen.result); // throws on isError
+    }, 120_000);
+
+    afterAll(async () => {
+      vgClient.kill();
+      await rm(vgWorkDir, { recursive: true, force: true });
+    });
+
+    it('generate_app on video_grid_channel produces byte-equal golden zip + provenance', async () => {
+      const emitted = await readFile(vgZipPath);
+      const golden = await readFile(join(GOLDEN_DIR, 'video-grid.zip'));
+      expect(emitted.equals(golden)).toBe(true);
+
+      const emittedProv = await readFile(join(vgOutputDir, '.rokudev-tools', 'provenance.json'));
+      const goldenProv = await readFile(join(GOLDEN_DIR, 'video-grid.provenance.json'));
+      expect(emittedProv.equals(goldenProv)).toBe(true);
+    }, 10_000);
+
+    it('validate_manifest returns ok:true on the video_grid_channel project', async () => {
+      const vm = await vgClient.request('tools/call', {
+        name: 'validate_manifest',
+        arguments: { project_dir: vgOutputDir },
+      });
+      expect(vm.error).toBeUndefined();
+      const payload = parseToolPayload(vm.result);
+      expect(payload['ok']).toBe(true);
+    }, 15_000);
+
+    it('lint reports no errors on the video_grid_channel project', async () => {
+      const lintResp = await vgClient.request('tools/call', {
+        name: 'lint',
+        arguments: { project_dir: vgOutputDir },
+      });
+      expect(lintResp.error).toBeUndefined();
+      const payload = parseToolPayload(lintResp.result);
+      expect(payload['ok']).toBe(true);
+      expect((payload['diagnostics'] as any[]).filter((d: any) => d.severity === 'error')).toEqual(
+        [],
+      );
+    }, 45_000);
+  });
 });
