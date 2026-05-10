@@ -38,6 +38,16 @@ Out of v0.2: conditional breakpoints, watch expressions, hot-reload (deferred pe
 - `brs-gen` MCP server (new): generates Roku channels from an `AppSpec` plus bundled templates and composable feature modules. Deterministic, byte-reproducible output; mandatory in-process `bsc` compile via `brighterscript`.
 - 10 MCP tools: `list_templates`, `get_template_schema`, `list_modules`, `get_module_schema`, `generate_app`, `package_app`, `validate_manifest`, `validate_assets`, `spec_upgrade`, `lint`.
 - 1 stub template: `stub_hello` (deliberately minimal; exercises the pipeline end-to-end).
-- 1 stub module: `stub_label` (exercises every merger feature — file overlay, manifest patching, component patching, dependency injection).
+- 1 stub module: `stub_label` (exercises every merger feature - file overlay, manifest patching, component patching, dependency injection).
 
-Out of v0.3: real templates (Plan 4), real feature modules (Plan 5), freeform LLM path (Plan 6), LSP tools (Plan 7), `brs-docs` MCP (later plan), skills + plugin (later plan). No real-device verification gate in this plan — the stub channel is deliberately uninteresting; Plan 4 will add the first T27-style gate when real templates land.
+Out of v0.3: real templates (Plan 4), real feature modules (Plan 5), freeform LLM path (Plan 6), LSP tools (Plan 7), `brs-docs` MCP (later plan), skills + plugin (later plan). No real-device verification gate in this plan - the stub channel is deliberately uninteresting; Plan 4 will add the first T27-style gate when real templates land.
+
+## What's in v0.4 (Plan 4)
+
+- First production-reference template: `video_grid_channel`. Hero + category rows + details + player. Consumes a Roku Direct Publisher JSON feed; plays via SceneGraph's `Video` node.
+- `AppSpec` gains optional `branding.{icon, splash, primary_color}` and `content.{feed_url, feed_format}` fields.
+- New `sharp`-based asset pipeline. User supplies one high-res PNG; brs-gen buckets it into Roku's HD/FHD/UHD sizes and injects the manifest keys.
+- New `TemplateConfig()` BrightScript emitter at `source/_template/config.brs` exposes template-level AppSpec fields to runtime code.
+- T27 real-device verification gate established (sideload, launch, navigate, playback). PASS evidence in spec Appendix A. Plans 4a-4e reuse the shared helpers in `scripts/_t27-lib.mjs`.
+
+Out of v0.4: remaining v1 templates (`screensaver`, `news_channel`, `game_shell`, `blank_scenegraph`, `music_player`, each a follow-up plan); feature modules (Plan 5); freeform LLM path (Plan 6); LSP tools (Plan 7); `brs-docs` MCP (later plan).
