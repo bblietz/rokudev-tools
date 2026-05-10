@@ -1,0 +1,84 @@
+sub init()
+  m.hero      = m.top.findNode("hero")
+  m.rowList   = m.top.findNode("rowList")
+  m.rotateTimer = m.top.findNode("rotateTimer")
+  m.errorLabel = m.top.findNode("errorLabel")
+
+  ' Fire module-opt hook before any content load.
+  Modules_OnMainSceneBeforeContentLoad(m)
+
+  ' Default focus on the hero.
+  m.hero.setFocus(true)
+  m.top.observeField("focusedChild", "onFocusChanged")
+
+  ' Kick feed fetch.
+  m.feedTask = CreateObject("roSGNode", "HttpTask")
+  m.feedTask.observeField("state", "onFeedState")
+  m.feedTask.url = TemplateConfig().feed_url
+  m.feedTask.control = "run"
+end sub
+
+sub onFeedState()
+  if m.feedTask.state <> "stop" then return
+
+  if m.feedTask.error <> invalid and m.feedTask.error <> "" then
+    m.errorLabel.text = "Feed load failed: " + m.feedTask.error
+    m.errorLabel.visible = true
+    return
+  end if
+
+  root = Feed_ParseRdpJson(m.feedTask.result)
+  m.rowList.content = root
+
+  Modules_OnMainSceneAfterContentLoad(m)
+
+  ' Seed hero with the first item of the first category.
+  if root.getChildCount() > 0 then
+    firstRow = root.getChild(0)
+    if firstRow.getChildCount() > 0 then
+      m.hero.content = firstRow.getChild(0)
+      Modules_OnMainSceneAfterHeroLoad(m)
+    end if
+  end if
+
+  ' Start auto-rotation.
+  m.rotateTimer.observeField("fire", "onRotateTick")
+  m.rotateTimer.control = "start"
+
+  m.heroIdx = 0
+  m.rowList.observeField("rowItemSelected", "onItemSelected")
+end sub
+
+sub onRotateTick()
+  if m.hero.hasFocus() then return     ' do not rotate when user is focused on hero
+  root = m.rowList.content
+  if root = invalid or root.getChildCount() = 0 then return
+  firstRow = root.getChild(0)
+  n = firstRow.getChildCount()
+  if n = 0 then return
+  m.heroIdx = (m.heroIdx + 1) mod n
+  m.hero.content = firstRow.getChild(m.heroIdx)
+end sub
+
+sub onFocusChanged()
+  ' no-op for now; placeholder for module-injected hooks.
+end sub
+
+sub onItemSelected()
+  idx = m.rowList.rowItemSelected
+  rowIdx = idx[0]
+  itemIdx = idx[1]
+  row = m.rowList.content.getChild(rowIdx)
+  item = row.getChild(itemIdx)
+
+  details = m.top.createChild("DetailsScene")
+  details.observeField("close", "onDetailsClose")
+  details.content = item
+  details.setFocus(true)
+end sub
+
+sub onDetailsClose()
+  details = m.top.findNode("DetailsScene")
+  if details <> invalid then m.top.removeChild(details)
+  m.rowList.setFocus(true)
+end sub
