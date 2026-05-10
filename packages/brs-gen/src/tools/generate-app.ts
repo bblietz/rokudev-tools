@@ -2,6 +2,11 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import semver from 'semver';
 import { fail, DevPortal } from '@rokudev/device-client';
+import { resolveAssetPath } from '../assets/resolve.js';
+import { validateAssetSource } from '../assets/validate.js';
+import { bucketAsset, manifestEntriesForBuckets } from '../assets/pipeline.js';
+import { ICON_SOURCE_MIN, SPLASH_SOURCE_MIN } from '../assets/constants.js';
+import { emitTemplateConfigBs } from '../merger/emit-template-config.js';
 import { registerToolsModule } from './_register.js';
 import { getCatalog } from './_catalog-singleton.js';
 import { AppSpecV2Wrapper } from '../spec/app-spec.js';
@@ -278,6 +283,42 @@ registerToolsModule((tools) => {
         if (!cr.ok) throw cr.failure;
       }
 
+      // 7a-7l. NEW: asset resolution + bucketing. Only fires when branding is
+      //        present on the validated spec; stub_hello and other asset-less
+      //        templates flow through untouched.
+      let assetBuckets: Map<string, Buffer> | undefined;
+      let assetManifestEntries: Record<string, string> | undefined;
+      const branding = (appSpec as { branding?: { icon?: string; splash?: string } }).branding;
+      if (branding && (branding.icon || branding.splash)) {
+        const bucketsMerged = new Map<string, Buffer>();
+        const entriesMerged: Record<string, string> = {};
+
+        if (branding.icon) {
+          const iconPath = resolveAssetPath(branding.icon, specOrigin);
+          const iconSrc = await readFile(iconPath);
+          await validateAssetSource(iconSrc, ICON_SOURCE_MIN, {
+            field: 'branding.icon',
+            path: iconPath,
+          });
+          const iconBuckets = await bucketAsset(iconSrc, 'icon', 'images/icon');
+          for (const [k, v] of iconBuckets) bucketsMerged.set(k, v);
+          Object.assign(entriesMerged, manifestEntriesForBuckets('icon', 'images/icon'));
+        }
+        if (branding.splash) {
+          const splashPath = resolveAssetPath(branding.splash, specOrigin);
+          const splashSrc = await readFile(splashPath);
+          await validateAssetSource(splashSrc, SPLASH_SOURCE_MIN, {
+            field: 'branding.splash',
+            path: splashPath,
+          });
+          const splashBuckets = await bucketAsset(splashSrc, 'splash', 'images/splash');
+          for (const [k, v] of splashBuckets) bucketsMerged.set(k, v);
+          Object.assign(entriesMerged, manifestEntriesForBuckets('splash', 'images/splash'));
+        }
+        assetBuckets = bucketsMerged;
+        assetManifestEntries = entriesMerged;
+      }
+
       // 8. Load template + module file bytes from the bundled dirs.
       const templateFiles = await readTemplateFiles(
         join(pkgRoot, 'templates', tmpl.template.id, 'files'),
@@ -290,6 +331,27 @@ registerToolsModule((tools) => {
         template_version: tmpl.template.version,
       });
 
+      // 9a. NEW: emit TemplateConfig() derived from validated AppSpec fields.
+      //     Only fires when the template actually uses it. The heuristic is
+      //     "either branding.primary_color or content.* is present"; for v0.4 that
+      //     maps 1:1 to video_grid_channel. Future templates can tighten.
+      let templateConfigBrs: string | undefined;
+      const content = (appSpec as { content?: { feed_url?: string; feed_format?: string } })
+        .content;
+      if ((branding as { primary_color?: string } | undefined)?.primary_color || content) {
+        const cfg: Record<string, string> = {
+          channel_name: appSpec.app.name,
+        };
+        const brandingWithColor = branding as
+          | { primary_color?: string; icon?: string; splash?: string }
+          | undefined;
+        if (brandingWithColor?.primary_color)
+          cfg['primary_color'] = brandingWithColor.primary_color;
+        if (content?.feed_url) cfg['feed_url'] = content.feed_url;
+        if (content?.feed_format) cfg['feed_format'] = content.feed_format;
+        templateConfigBrs = emitTemplateConfigBs(cfg);
+      }
+
       // 10. Assemble EmittedProject (conflicts, topo-sort, wiring, manifest merge,
       //     config.bs + __init_hooks.bs emission, provenance).
       const project = await buildEmittedProject({
@@ -299,6 +361,9 @@ registerToolsModule((tools) => {
         renderedTemplateFiles,
         moduleFileBytes,
         brsGenVersion: PKG_VERSION,
+        ...(assetBuckets !== undefined ? { assetBuckets } : {}),
+        ...(assetManifestEntries !== undefined ? { assetManifestEntries } : {}),
+        ...(templateConfigBrs !== undefined ? { templateConfigBrs } : {}),
       });
 
       // 11. Write to disk.

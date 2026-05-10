@@ -435,6 +435,41 @@ describe('generate_app tool', () => {
     });
   });
 
+  describe('Plan 4 asset block regression (stub_hello)', () => {
+    // TODO(T14-followup): full video_grid_channel happy-path + 3 validation tests
+    // land here after T19 makes the template available in the catalog.
+
+    it('stub_hello path unaffected by Plan 4 asset block (no branding -> no asset buckets)', async () => {
+      const parent = await freshTmp('t14-noasset');
+      try {
+        const handler = getHandler();
+        const result = await handler({
+          spec: {
+            spec_version: 2,
+            template: 'stub_hello',
+            modules: [],
+            app: { name: 'X', major_version: 1, minor_version: 0, build_version: 0 },
+          },
+          output_dir: join(parent, 'project'),
+        });
+        const payload = parsePayload(result);
+        expect(payload['ok']).toBe(true);
+
+        // No splash_screen_uhd key: stub_hello manifest_defaults don't include it,
+        // and the asset pipeline was not triggered (no branding.splash supplied).
+        const manifestKeys = payload['manifest_keys'] as string[];
+        expect(manifestKeys).not.toEqual(expect.arrayContaining(['splash_screen_uhd']));
+
+        // No source/_template/config.brs file emitted (templateConfigBrs path skipped).
+        expect(await pathExists(join(parent, 'project', 'source/_template/config.brs'))).toBe(
+          false,
+        );
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe('sideload happy path (mocked portal)', () => {
     // Only this sub-block mocks @rokudev/device-client so the real fail() /
     // RegistryReader / etc. remain intact for every other test in the file.
