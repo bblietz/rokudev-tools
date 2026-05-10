@@ -525,7 +525,7 @@ All CI-runnable tests are deterministic and require no external services. T27 (�
 
 ### 10.5 Fixtures and goldens
 
-- `packages/brs-gen/tests/__fixtures__/icon-uhd.png` — 336×210 or larger; 2-5 KB. Deterministic hand-authored via extended `scripts/gen-stub-pngs.mjs`.
+- `packages/brs-gen/tests/__fixtures__/icon-uhd.png` — 336×218 or larger; 2-5 KB. Deterministic hand-authored via extended `scripts/gen-stub-pngs.mjs`. (336×218 matches §5.1's `ICON_SOURCE_MIN` — min-of-all-bucket-dimensions so every bucket downscales cleanly without upscale.)
 - `packages/brs-gen/tests/__fixtures__/splash-uhd.png` — 3840×2160 at minimal color depth; ~30-60 KB.
 - `packages/brs-gen/tests/__golden__/video-grid.zip` + `video-grid.provenance.json`. In `.prettierignore` like stub goldens.
 
@@ -576,7 +576,7 @@ Plan 4 is done when all of the following hold:
 3. `generate_app` with a complete video_grid_channel AppSpec produces a project tree containing: `manifest` with all Roku-required image refs; `images/icon_{hd,fhd}.png` + `images/splash_{hd,fhd,uhd}.png` at spec dimensions; `source/_template/config.brs` containing the configured fields; `source/Main.brs`, `source/Feed.brs`, `source/HttpTask.brs`, all `components/*.brs` and `components/*.xml`.
 4. Post-compile sweep converts all `.bs` to `.brs` and rewrites XML `uri` refs correctly.
 5. Integrated bsc compile passes with zero error-severity diagnostics.
-6. Full test suite passes at ~705-722 tests across the monorepo (exact count per §10.4). `pnpm run release-prep` clean.
+6. Full test suite passes at ~712 tests across the monorepo (point estimate; acceptable ±8 variance for parameterized tests per §10.4). `pnpm run release-prep` clean.
 7. T27 verification PASS recorded in §Appendix A of this spec (Roku model, firmware, timestamp, screenshots, log path).
 8. v0.4.0 tag annotated, pushed. GitHub release page published with the same style as v0.3.0.
 9. Memory file (`~/.claude/projects/-.../memory/MEMORY.md`) updated: Plan 4 COMPLETE, v0.4.0 tag, new test count, template-level design notes.
