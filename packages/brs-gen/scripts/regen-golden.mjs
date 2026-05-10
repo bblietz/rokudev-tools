@@ -4,6 +4,8 @@
 //
 //   tests/__golden__/stub.zip
 //   tests/__golden__/stub.provenance.json
+//   tests/__golden__/video-grid.zip
+//   tests/__golden__/video-grid.provenance.json
 //
 // Run this by hand whenever a load-bearing change to the deterministic
 // pipeline (template files, module files, manifest-key strategies, zip
@@ -44,11 +46,13 @@ const CANONICAL_SPEC = {
 };
 
 async function main() {
+  await mkdir(GOLDEN_DIR, { recursive: true });
+
+  // Regen stub goldens.
   const work = join(tmpdir(), `brs-gen-regen-${randomUUID()}`);
   const outputDir = join(work, 'project');
   const outputZip = join(work, 'project.zip');
   await mkdir(work, { recursive: true });
-  await mkdir(GOLDEN_DIR, { recursive: true });
 
   try {
     const { zip_path, output_dir } = await generateAppForRegen({
@@ -70,15 +74,68 @@ async function main() {
     await rm(work, { recursive: true, force: true });
   }
 
+  // Regen video-grid goldens.
+  await regenVideoGrid();
+
   process.stdout.write(
     '\n========================================================================\n' +
       'Golden files regenerated:\n' +
       `  ${join(GOLDEN_DIR, 'stub.zip')}\n` +
       `  ${join(GOLDEN_DIR, 'stub.provenance.json')}\n` +
-      'Please commit both files with a clear cause in the message\n' +
-      '(e.g. "regen goldens: bump stub_hello template version").\n' +
+      `  ${join(GOLDEN_DIR, 'video-grid.zip')}\n` +
+      `  ${join(GOLDEN_DIR, 'video-grid.provenance.json')}\n` +
+      'Please commit all four files with a clear cause in the commit message\n' +
+      '(e.g. "regen goldens: bump video_grid_channel template version").\n' +
       '========================================================================\n',
   );
+}
+
+async function regenVideoGrid() {
+  // Use the persistent unit fixtures as branding sources.
+  const spec = {
+    spec_version: 2,
+    template: 'video_grid_channel',
+    modules: [],
+    app: { name: 'Acme TV', major_version: 0, minor_version: 1, build_version: 0 },
+    branding: {
+      primary_color: '#E50914',
+      icon: '../__fixtures__/icon-uhd.png',
+      splash: '../__fixtures__/splash-uhd.png',
+    },
+    content: {
+      // Pinned 2026-05-10; keep in sync with templates/video_grid_channel/schema.ts Example.
+      feed_url: 'https://demo.avideo.com/roku.json',
+      feed_format: 'roku_direct_publisher_json',
+    },
+  };
+  // Write spec to a tmpdir INSIDE tests/ so the relative branding paths
+  // (../__fixtures__/...) resolve against tests/__fixtures__/.
+  const tmpSpecDir = join(PKG_ROOT, 'tests', '__tmp_regen__');
+  await mkdir(tmpSpecDir, { recursive: true });
+  try {
+    const specPath = join(tmpSpecDir, 'video-grid-spec.json');
+    await writeFile(specPath, JSON.stringify(spec));
+
+    const work = join(tmpdir(), `brs-gen-regen-vg-${randomUUID()}`);
+    const outputDir = join(work, 'project');
+    const outputZip = join(work, 'project.zip');
+    await mkdir(work, { recursive: true });
+
+    try {
+      const { zip_path, output_dir } = await generateAppForRegen({
+        outputDir,
+        spec: specPath,
+        outputZip,
+      });
+      await copyFile(zip_path, join(GOLDEN_DIR, 'video-grid.zip'));
+      const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
+      await writeFile(join(GOLDEN_DIR, 'video-grid.provenance.json'), provenance);
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
+  } finally {
+    await rm(tmpSpecDir, { recursive: true, force: true });
+  }
 }
 
 main().catch((err) => {
