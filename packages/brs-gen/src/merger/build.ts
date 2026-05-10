@@ -124,7 +124,7 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
   const templateConfigFiles: Array<{ path: string; content: string }> = [];
   if (input.templateConfigBrs !== undefined) {
     templateConfigFiles.push({
-      path: 'source/_template/config.brs',
+      path: 'source/_template/config.bs',
       content: input.templateConfigBrs,
     });
   }

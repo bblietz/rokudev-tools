@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <component name="PlayerScene" extends="Group">
   <script type="text/brightscript" uri="PlayerScene.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
   <interface>
     <field id="content" type="node" onChange="onContentSet" />
     <field id="state" type="string" alwaysNotify="true" />

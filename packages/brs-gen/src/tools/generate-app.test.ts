@@ -3,6 +3,7 @@ import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:f
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 import { loadCatalog } from '../catalog/loader.js';
 import { setCatalogForTests } from './_catalog-singleton.js';
 import { registerAllTools, type ToolDef } from './_register.js';
@@ -54,6 +55,14 @@ function parsePayload(result: unknown): Record<string, unknown> {
     throw new Error('no payload on result');
   }
   return result as Record<string, unknown>;
+}
+
+async function makeSourcePng(width: number, height: number): Promise<Buffer> {
+  return sharp({
+    create: { width, height, channels: 3, background: { r: 0x00, g: 0x00, b: 0x00 } },
+  })
+    .png({ compressionLevel: 9, palette: false })
+    .toBuffer();
 }
 
 describe('generate_app tool', () => {
@@ -436,9 +445,6 @@ describe('generate_app tool', () => {
   });
 
   describe('Plan 4 asset block regression (stub_hello)', () => {
-    // TODO(T14-followup): full video_grid_channel happy-path + 3 validation tests
-    // land here after T19 makes the template available in the catalog.
-
     it('stub_hello path unaffected by Plan 4 asset block (no branding -> no asset buckets)', async () => {
       const parent = await freshTmp('t14-noasset');
       try {
@@ -466,6 +472,161 @@ describe('generate_app tool', () => {
         );
       } finally {
         await rm(parent, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('generate_app video_grid_channel happy path', () => {
+    it('produces bucketed icon+splash files, template-config.brs, and asset manifest keys', async () => {
+      const work = await mkdtemp(join(tmpdir(), 'brs-gen-p4-'));
+      try {
+        await writeFile(join(work, 'icon.png'), await makeSourcePng(336, 218));
+        await writeFile(join(work, 'splash.png'), await makeSourcePng(3840, 2160));
+
+        const spec = {
+          spec_version: 2,
+          template: 'video_grid_channel',
+          modules: [],
+          app: { name: 'Sample', major_version: 0, minor_version: 1, build_version: 0 },
+          branding: { primary_color: '#E50914', icon: 'icon.png', splash: 'splash.png' },
+          content: {
+            feed_url: 'https://example.com/feed.json',
+            feed_format: 'roku_direct_publisher_json',
+          },
+        };
+        const specPath = join(work, 'spec.json');
+        await writeFile(specPath, JSON.stringify(spec));
+
+        const handler = getHandler();
+        const result = await handler({
+          spec: specPath,
+          output_dir: join(work, 'project'),
+        });
+        const out = parsePayload(result);
+        expect(out['ok']).toBe(true);
+        expect(out['manifest_keys']).toEqual(
+          expect.arrayContaining([
+            'mm_icon_focus_hd',
+            'mm_icon_focus_fhd',
+            'splash_screen_hd',
+            'splash_screen_fhd',
+            'splash_screen_uhd',
+          ]),
+        );
+        const projectDir = join(work, 'project');
+        for (const rel of [
+          'images/icon_hd.png',
+          'images/icon_fhd.png',
+          'images/splash_hd.png',
+          'images/splash_fhd.png',
+          'images/splash_uhd.png',
+          'source/_template/config.brs',
+        ]) {
+          const bytes = await readFile(join(projectDir, rel));
+          expect(bytes.byteLength).toBeGreaterThan(0);
+        }
+        const cfg = (await readFile(join(projectDir, 'source/_template/config.brs'))).toString(
+          'utf8',
+        );
+        expect(cfg).toContain('feed_url: "https://example.com/feed.json"');
+        expect(cfg).toContain('primary_color: "#E50914"');
+      } finally {
+        await rm(work, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects icon source_too_small with ASSET_VALIDATION_FAILED', async () => {
+      const work = await mkdtemp(join(tmpdir(), 'brs-gen-p4-small-'));
+      try {
+        // 100x100 is below ICON_SOURCE_MIN (336x218).
+        await writeFile(join(work, 'icon.png'), await makeSourcePng(100, 100));
+        await writeFile(join(work, 'splash.png'), await makeSourcePng(3840, 2160));
+
+        const spec = {
+          spec_version: 2,
+          template: 'video_grid_channel',
+          modules: [],
+          app: { name: 'Tiny', major_version: 0, minor_version: 1, build_version: 0 },
+          branding: { primary_color: '#000000', icon: 'icon.png', splash: 'splash.png' },
+          content: {
+            feed_url: 'https://example.com/feed.json',
+            feed_format: 'roku_direct_publisher_json',
+          },
+        };
+        const specPath = join(work, 'spec.json');
+        await writeFile(specPath, JSON.stringify(spec));
+
+        const handler = getHandler();
+        await expect(
+          handler({ spec: specPath, output_dir: join(work, 'project') }),
+        ).rejects.toMatchObject({
+          code: 'ASSET_VALIDATION_FAILED',
+          details: expect.objectContaining({ reason: 'source_too_small' }),
+        });
+      } finally {
+        await rm(work, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects non-PNG icon with ASSET_VALIDATION_FAILED reason not_a_png', async () => {
+      const work = await mkdtemp(join(tmpdir(), 'brs-gen-p4-notpng-'));
+      try {
+        // Write plain text instead of a PNG.
+        await writeFile(join(work, 'icon.png'), Buffer.from('this is not a png file', 'utf8'));
+        await writeFile(join(work, 'splash.png'), await makeSourcePng(3840, 2160));
+
+        const spec = {
+          spec_version: 2,
+          template: 'video_grid_channel',
+          modules: [],
+          app: { name: 'Bad', major_version: 0, minor_version: 1, build_version: 0 },
+          branding: { primary_color: '#000000', icon: 'icon.png', splash: 'splash.png' },
+          content: {
+            feed_url: 'https://example.com/feed.json',
+            feed_format: 'roku_direct_publisher_json',
+          },
+        };
+        const specPath = join(work, 'spec.json');
+        await writeFile(specPath, JSON.stringify(spec));
+
+        const handler = getHandler();
+        await expect(
+          handler({ spec: specPath, output_dir: join(work, 'project') }),
+        ).rejects.toMatchObject({
+          code: 'ASSET_VALIDATION_FAILED',
+          details: expect.objectContaining({ reason: 'not_a_png' }),
+        });
+      } finally {
+        await rm(work, { recursive: true, force: true });
+      }
+    });
+
+    it('accepts absolute paths for branding.icon / branding.splash', async () => {
+      const work = await mkdtemp(join(tmpdir(), 'brs-gen-p4-abs-'));
+      try {
+        const iconAbs = join(work, 'icon.png');
+        const splashAbs = join(work, 'splash.png');
+        await writeFile(iconAbs, await makeSourcePng(336, 218));
+        await writeFile(splashAbs, await makeSourcePng(3840, 2160));
+
+        const spec = {
+          spec_version: 2,
+          template: 'video_grid_channel',
+          modules: [],
+          app: { name: 'X', major_version: 0, minor_version: 1, build_version: 0 },
+          branding: { primary_color: '#000000', icon: iconAbs, splash: splashAbs },
+          content: {
+            feed_url: 'https://example.com/f.json',
+            feed_format: 'roku_direct_publisher_json',
+          },
+        };
+        // Pass spec INLINE as an object so specOrigin is null; only the absolute branch works.
+        const handler = getHandler();
+        const result = await handler({ spec, output_dir: join(work, 'project') });
+        const out = parsePayload(result);
+        expect(out['ok']).toBe(true);
+      } finally {
+        await rm(work, { recursive: true, force: true });
       }
     });
   });

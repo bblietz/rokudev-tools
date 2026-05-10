@@ -183,7 +183,7 @@ describe('buildEmittedProject asset integration', () => {
     expect(project.manifest.get('mm_icon_focus_hd')).toBe('pkg:/custom.png');
   });
 
-  it('emits source/_template/config.brs when templateConfigBrs is provided', async () => {
+  it('emits source/_template/config.bs when templateConfigBrs is provided', async () => {
     const project = await buildEmittedProject({
       spec: {
         spec_version: 2,
@@ -199,7 +199,7 @@ describe('buildEmittedProject asset integration', () => {
       templateConfigBrs:
         "' marker\nfunction TemplateConfig() as object\n  return {}\nend function\n",
     });
-    const entry = project.files.find((f) => f.path === 'source/_template/config.brs');
+    const entry = project.files.find((f) => f.path === 'source/_template/config.bs');
     expect(entry).toBeTruthy();
     expect(String(entry!.content)).toContain("' marker");
   });
@@ -218,6 +218,6 @@ describe('buildEmittedProject asset integration', () => {
       moduleFileBytes: new Map(),
       brsGenVersion: '0.4.0-dev.0',
     });
-    expect(project.files.find((f) => f.path === 'source/_template/config.brs')).toBeUndefined();
+    expect(project.files.find((f) => f.path === 'source/_template/config.bs')).toBeUndefined();
   });
 });
