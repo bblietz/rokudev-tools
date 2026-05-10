@@ -7,6 +7,7 @@ coverage/
 *.tsbuildinfo
 .rokudev-tools/
 .vscode/
+.superpowers/
 
 # Never commit user-level config
 ~/.config/rokudev/
