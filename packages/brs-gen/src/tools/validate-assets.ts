@@ -2,12 +2,25 @@ import { open, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseManifest } from './validate-manifest.js';
 import { registerToolsModule } from './_register.js';
+import { ICON_BUCKETS, SPLASH_BUCKETS } from '../assets/constants.js';
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 const ONE_MB = 1_048_576;
 
 /** Keys in the Roku manifest that reference image asset paths. */
 const ASSET_KEY_RE = /^(mm_icon_focus_.*|splash_screen_.*)$/;
+
+/**
+ * Return the expected pixel dimensions for a known manifest key, or null if
+ * the key is not a bucket we validate dimensions for.
+ */
+function expectedDimsFor(manifestKey: string): { w: number; h: number } | null {
+  for (const b of ICON_BUCKETS)
+    if (b.manifestKey === manifestKey) return { w: b.width, h: b.height };
+  for (const b of SPLASH_BUCKETS)
+    if (b.manifestKey === manifestKey) return { w: b.width, h: b.height };
+  return null;
+}
 
 /**
  * Strip a leading `pkg:/` prefix from a manifest image value, returning the
@@ -72,10 +85,10 @@ registerToolsModule((tools) => {
       const parsed = parseManifest(manifestText);
 
       // 2. Collect asset paths referenced by matching keys.
-      const assetPaths: string[] = [];
+      const assetEntries: Array<{ relPath: string; manifestKey: string }> = [];
       for (const [key, value] of Object.entries(parsed)) {
         if (ASSET_KEY_RE.test(key) && value.trim().length > 0) {
-          assetPaths.push(stripPkgPrefix(value.trim()));
+          assetEntries.push({ relPath: stripPkgPrefix(value.trim()), manifestKey: key });
         }
       }
 
@@ -83,8 +96,9 @@ registerToolsModule((tools) => {
       const missing: string[] = [];
       const not_png: string[] = [];
       const oversize: string[] = [];
+      const wrong_dimensions: string[] = [];
 
-      for (const relPath of assetPaths) {
+      for (const { relPath, manifestKey } of assetEntries) {
         const fullPath = join(projectDir, relPath);
 
         // Check existence and size via stat.
@@ -102,10 +116,10 @@ registerToolsModule((tools) => {
           oversize.push(relPath);
         }
 
-        // Read first 4 bytes to check PNG magic.
+        // Read first 24 bytes to check PNG magic and IHDR dimensions.
         let header: Buffer;
         try {
-          header = await readFirstBytes(fullPath, 4);
+          header = await readFirstBytes(fullPath, 24);
         } catch {
           // Can't read header — already flagged as missing if stat failed.
           // If stat succeeded but read failed, we treat as not-PNG.
@@ -114,13 +128,30 @@ registerToolsModule((tools) => {
           }
           continue;
         }
-        if (header.length < 4 || !header.equals(PNG_MAGIC)) {
+        if (header.length < 4 || !header.subarray(0, 4).equals(PNG_MAGIC)) {
           not_png.push(relPath);
+          continue;
+        }
+        // Decode IHDR dimensions: width at offset 16, height at offset 20 (big-endian u32).
+        // Bytes 12-15 must spell "IHDR" — if they don't, skip dimension check
+        // (the file may be a minimal stub or truncated PNG; we don't fail it here).
+        const expected = expectedDimsFor(manifestKey);
+        if (
+          expected !== null &&
+          header.length >= 24 &&
+          header.subarray(12, 16).toString('ascii') === 'IHDR'
+        ) {
+          const w = header.readUInt32BE(16);
+          const h = header.readUInt32BE(20);
+          if (w !== expected.w || h !== expected.h) {
+            wrong_dimensions.push(relPath);
+          }
         }
       }
 
       // 4. Build response.
-      const totalFailures = missing.length + not_png.length + oversize.length;
+      const totalFailures =
+        missing.length + not_png.length + oversize.length + wrong_dimensions.length;
 
       if (totalFailures === 0) {
         return {
@@ -141,7 +172,7 @@ registerToolsModule((tools) => {
             missing,
             not_png,
             oversize,
-            wrong_dimensions: [] as string[],
+            wrong_dimensions,
           },
         },
       };

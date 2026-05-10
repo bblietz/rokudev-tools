@@ -1,7 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { fileURLToPath } from 'node:url';
 import { registerAllTools, type ToolDef } from './_register.js';
 import './get-template-schema.js';
 import { setCatalogForTests } from './_catalog-singleton.js';
+import { loadCatalog } from '../catalog/loader.js';
+
+const PKG_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 describe('get_template_schema tool', () => {
   let handler: ToolDef['handler'];
@@ -41,5 +45,44 @@ describe('get_template_schema tool', () => {
   it('throws UNKNOWN_TEMPLATE for unknown id', async () => {
     setCatalogForTests({ templates: new Map(), modules: new Map(), warnings: [] });
     await expect(handler({ id: 'nope' })).rejects.toMatchObject({ code: 'UNKNOWN_TEMPLATE' });
+  });
+});
+
+describe('get_template_schema tool — real catalog', () => {
+  let handler: ToolDef['handler'];
+
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+  });
+
+  beforeEach(() => {
+    const tools = new Map<string, ToolDef>();
+    registerAllTools(tools);
+    const t = tools.get('get_template_schema');
+    if (!t) throw new Error('not registered');
+    handler = t.handler;
+  });
+
+  it('surfaces video_grid_channel required branding + content fields', async () => {
+    const r = (await handler({ id: 'video_grid_channel' })) as {
+      ok: boolean;
+      schema: {
+        required?: string[];
+        properties?: Record<string, { required?: string[] } | undefined>;
+      };
+    };
+    expect((r as any).ok).not.toBe(false);
+    const schema = (r as any).schema as {
+      required?: string[];
+      properties?: Record<string, { required?: string[] } | undefined>;
+    };
+    expect(schema.required).toEqual(expect.arrayContaining(['branding', 'content']));
+    expect(schema.properties?.branding?.required).toEqual(
+      expect.arrayContaining(['primary_color', 'icon', 'splash']),
+    );
+    expect(schema.properties?.content?.required).toEqual(
+      expect.arrayContaining(['feed_url', 'feed_format']),
+    );
   });
 });

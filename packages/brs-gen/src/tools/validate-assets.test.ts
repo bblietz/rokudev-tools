@@ -230,4 +230,70 @@ describe('validate_assets tool', () => {
     expect(payload.failure.code).toBe('ASSET_VALIDATION_FAILED');
     expect(payload.failure.message).toMatch(/manifest/i);
   });
+
+  // ---------------------------------------------------------------------------
+  // Dimension check tests (Part B)
+  // ---------------------------------------------------------------------------
+
+  /** Minimal PNG: 8-byte sig + IHDR chunk with the given width x height. */
+  function pngHeader(width: number, height: number): Buffer {
+    const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    // IHDR chunk: length=13, type='IHDR', data (13 bytes), crc (4 bytes).
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(13, 0);
+    const type = Buffer.from('IHDR', 'ascii');
+    const data = Buffer.alloc(13);
+    data.writeUInt32BE(width, 0);
+    data.writeUInt32BE(height, 4);
+    data[8] = 8; // bit depth
+    data[9] = 2; // color type RGB
+    const crc = Buffer.alloc(4);
+    return Buffer.concat([sig, len, type, data, crc]);
+  }
+
+  it('9. flags wrong_dimensions when icon_hd.png is 100x100 (expected 290x218)', async () => {
+    const dir = await makeDir();
+    await writeManifest(dir, 'mm_icon_focus_hd=images/icon_hd.png\n');
+    const fullPath = join(dir, 'images/icon_hd.png');
+    await mkdir(join(dir, 'images'), { recursive: true });
+    await writeFile(fullPath, pngHeader(100, 100));
+
+    const payload = (await handler({ project_dir: dir })) as {
+      ok: boolean;
+      failure: {
+        code: string;
+        details: {
+          missing: string[];
+          not_png: string[];
+          oversize: string[];
+          wrong_dimensions: string[];
+        };
+      };
+    };
+
+    expect(payload.ok).toBe(false);
+    expect(payload.failure.code).toBe('ASSET_VALIDATION_FAILED');
+    expect(payload.failure.details.wrong_dimensions).toEqual(['images/icon_hd.png']);
+    expect(payload.failure.details.not_png).toEqual([]);
+    expect(payload.failure.details.missing).toEqual([]);
+  });
+
+  it('10. passes cleanly when icon_hd.png is 290x218 exactly', async () => {
+    const dir = await makeDir();
+    await writeManifest(dir, 'mm_icon_focus_hd=images/icon_hd.png\n');
+    const fullPath = join(dir, 'images/icon_hd.png');
+    await mkdir(join(dir, 'images'), { recursive: true });
+    await writeFile(fullPath, pngHeader(290, 218));
+
+    const payload = (await handler({ project_dir: dir })) as {
+      ok: boolean;
+      missing: string[];
+      oversize: string[];
+      wrong_dimensions: string[];
+    };
+
+    expect(payload.ok).toBe(true);
+    expect(payload.wrong_dimensions).toEqual([]);
+    expect(payload.missing).toEqual([]);
+  });
 });
