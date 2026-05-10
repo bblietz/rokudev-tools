@@ -34,4 +34,11 @@ describe('detectConflicts', () => {
     if (r.ok) throw new Error('narrowing');
     expect(r.failure.code).toBe('FILE_COLLISION');
   });
+
+  it('FILE_COLLISION when a module contributes a path under source/_template/', () => {
+    const r = detectConflicts([mod('a', ['source/_template/config.brs'])], []);
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error('narrowing');
+    expect(r.failure.code).toBe('FILE_COLLISION');
+  });
 });

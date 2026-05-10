@@ -26,6 +26,14 @@ type BuildInput = {
   renderedTemplateFiles: ReadonlyArray<{ path: string; content: string | Buffer }>;
   moduleFileBytes: ReadonlyMap<string, Buffer>;
   brsGenVersion: string;
+  /** Asset files to copy verbatim into the project (e.g. icon PNGs). */
+  assetBuckets?: ReadonlyMap<string, Buffer>;
+  /** Manifest key/value pairs from asset resolution. Applied set-if-unset:
+   *  template_manifest_defaults entries take priority. */
+  assetManifestEntries?: Readonly<Record<string, string>>;
+  /** Pre-rendered BrightScript for source/_template/config.brs.
+   *  Omitted from output when undefined. */
+  templateConfigBrs?: string;
 };
 
 export async function buildEmittedProject(input: BuildInput): Promise<EmittedProject> {
@@ -58,6 +66,13 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
         `failed to render EJS template for manifest key ${k}: ${e instanceof Error ? e.message : String(e)}`,
         { stage: 'build', key: k, raw_value: v },
       );
+    }
+  }
+  if (input.assetManifestEntries) {
+    for (const [k, v] of Object.entries(input.assetManifestEntries)) {
+      if (!(k in renderedDefaults)) {
+        renderedDefaults[k] = v;
+      }
     }
   }
   const manifestRes = mergeManifest(renderedDefaults, moduleContribs);
@@ -99,6 +114,21 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
     }
   }
 
+  const assetFiles: Array<{ path: string; content: Buffer }> = [];
+  if (input.assetBuckets) {
+    for (const [p, b] of input.assetBuckets) {
+      assetFiles.push({ path: p, content: b });
+    }
+  }
+
+  const templateConfigFiles: Array<{ path: string; content: string }> = [];
+  if (input.templateConfigBrs !== undefined) {
+    templateConfigFiles.push({
+      path: 'source/_template/config.brs',
+      content: input.templateConfigBrs,
+    });
+  }
+
   // Manifest file (sorted lines)
   const manifestLines =
     [...manifestRes.manifest.entries()]
@@ -125,7 +155,9 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
   const all = [
     ...input.renderedTemplateFiles,
     ...moduleFiles,
+    ...assetFiles,
     ...configFiles,
+    ...templateConfigFiles,
     { path: 'source/_modules/__init_hooks.bs', content: initHooksContent },
     manifestFile,
     provenanceFile,

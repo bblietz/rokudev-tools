@@ -24,6 +24,16 @@ export function detectConflicts(modules: ModuleToml[], templateFilePaths: string
   for (const p of templateFilePaths) owners.set(p, '<template>');
   for (const m of modules) {
     for (const p of m.module_files.add) {
+      if (p.startsWith('source/_template/')) {
+        return {
+          ok: false,
+          failure: fail(
+            'FILE_COLLISION',
+            `module ${m.module.id} cannot add path ${p}: source/_template/ is reserved for template-config files`,
+            { stage: 'conflicts', path: p, owner_a: '<template-reserved>', owner_b: m.module.id },
+          ),
+        };
+      }
       const existing = owners.get(p);
       if (existing !== undefined) {
         return {
