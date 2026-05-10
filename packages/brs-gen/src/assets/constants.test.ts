@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  ICON_BUCKETS,
-  SPLASH_BUCKETS,
-  ICON_SOURCE_MIN,
-  SPLASH_SOURCE_MIN,
-} from './constants.js';
+import { ICON_BUCKETS, SPLASH_BUCKETS, ICON_SOURCE_MIN, SPLASH_SOURCE_MIN } from './constants.js';
 
 describe('asset bucket matrix', () => {
   it('icon buckets are hd=290x218 and fhd=336x210', () => {
