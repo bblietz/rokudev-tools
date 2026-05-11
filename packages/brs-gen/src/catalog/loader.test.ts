@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdir, writeFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, writeFile, rm, cp } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { loadCatalog } from './loader.js';
 
 function tmp() {
@@ -112,5 +113,60 @@ scene_nodes = []
 `;
     await writeFile(join(root, 'templates', 't', 'template.toml'), colliding);
     await expect(loadCatalog(root)).rejects.toMatchObject({ code: 'CATALOG_INVALID' });
+  });
+});
+
+describe('template_branding_defaults existence check', () => {
+  const FIXTURE_ROOT = join(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../tests/fixtures',
+  );
+
+  it('loads a template whose branding_defaults.icon path exists', async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'catalog-static-branding-'));
+    await mkdir(join(tmp, 'templates'), { recursive: true });
+    await mkdir(join(tmp, 'modules'), { recursive: true });
+    await cp(
+      join(FIXTURE_ROOT, 'template-with-static-branding-default'),
+      join(tmp, 'templates', 'template-with-static-branding-default'),
+      { recursive: true },
+    );
+    const cat = await loadCatalog(tmp);
+    expect(cat.templates.has('template-with-static-branding-default')).toBe(true);
+  });
+
+  it('rejects a template whose branding_defaults.icon path is missing', async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'catalog-missing-branding-'));
+    await mkdir(join(tmp, 'templates', 'bad-branding'), { recursive: true });
+    await mkdir(join(tmp, 'modules'), { recursive: true });
+    await writeFile(
+      join(tmp, 'templates', 'bad-branding', 'template.toml'),
+      `[template]
+id = "bad-branding"
+version = "0.0.1"
+spec_compat = ">=2"
+description = "x"
+
+[template.manifest_defaults]
+title = "x"
+
+[template.exports]
+init_hooks = []
+scene_nodes = []
+
+[template.branding_defaults]
+icon = "assets/missing.png"
+primary_color = "#000000"
+`,
+    );
+    await mkdir(join(tmp, 'templates', 'bad-branding', 'files'), { recursive: true });
+    await writeFile(
+      join(tmp, 'templates', 'bad-branding', 'files', 'manifest.ejs'),
+      'placeholder\n',
+    );
+    await expect(loadCatalog(tmp)).rejects.toMatchObject({
+      code: 'CATALOG_INVALID',
+      message: expect.stringContaining('assets/missing.png'),
+    });
   });
 });

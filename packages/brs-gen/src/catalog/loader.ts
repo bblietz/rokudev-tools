@@ -153,6 +153,24 @@ export async function loadCatalog(root: string): Promise<Catalog> {
     const tomlPath = join(root, 'templates', d.name, 'template.toml');
     const t = await loadOne<TemplateToml>(tomlPath, d.name, 'template.id', TemplateTomlSchema);
     validateHookScopeCasing(t, tomlPath);
+    // template_branding_defaults.icon/splash paths must resolve to real files.
+    const brandingDefaults = t.template_branding_defaults;
+    if (brandingDefaults) {
+      for (const key of ['icon', 'splash'] as const) {
+        const rel = brandingDefaults[key];
+        if (!rel) continue;
+        const onDisk = join(root, 'templates', d.name, rel);
+        try {
+          await readFile(onDisk);
+        } catch {
+          throw fail(
+            'CATALOG_INVALID',
+            `${tomlPath}: template ${d.name} declares branding_defaults.${key}=${rel} which does not exist at ${onDisk}`,
+            { template_id: d.name, key, path: rel },
+          );
+        }
+      }
+    }
     templates.set(d.name, t);
   }
   for (const d of await readdir(join(root, 'modules'), { withFileTypes: true })) {
