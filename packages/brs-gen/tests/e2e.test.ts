@@ -393,4 +393,94 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
       );
     }, 45_000);
   });
+
+  // ---------------------------------------------------------------------------
+  // blank_scenegraph tests (Plan 4a T10)
+  //
+  // Option B: beforeAll generates the project once; all 3 tests share it.
+  // ---------------------------------------------------------------------------
+  describe('blank_scenegraph', () => {
+    const CANONICAL_BLANK_SPEC = {
+      spec_version: 2,
+      template: 'blank_scenegraph',
+      modules: [],
+      app: { name: 'Blank E2E', major_version: 0, minor_version: 1, build_version: 0 },
+    };
+
+    let blankWorkDir: string;
+    let blankOutputDir: string;
+    let blankZipPath: string;
+    let blankClient: McpChild;
+
+    beforeAll(async () => {
+      blankWorkDir = await mkdtemp(join(tmpdir(), 'brs-gen-e2e-blank-'));
+      blankOutputDir = join(blankWorkDir, 'project');
+      blankZipPath = join(blankWorkDir, 'project.zip');
+
+      blankClient = new McpChild();
+      const initResp = await blankClient.request('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'brs-gen-e2e-blank', version: '1' },
+      });
+      if (initResp.error) {
+        throw new Error(`blank_scenegraph initialize failed: ${JSON.stringify(initResp.error)}`);
+      }
+
+      const gen = await blankClient.request('tools/call', {
+        name: 'generate_app',
+        arguments: {
+          spec: CANONICAL_BLANK_SPEC,
+          output_dir: blankOutputDir,
+          zip: { output_zip: blankZipPath },
+        },
+      });
+      if (gen.error) {
+        throw new Error(`blank_scenegraph generate_app failed: ${JSON.stringify(gen.error)}`);
+      }
+      parseToolPayload(gen.result); // throws on isError
+    }, 60_000);
+
+    afterAll(async () => {
+      blankClient.kill();
+      await rm(blankWorkDir, { recursive: true, force: true });
+    });
+
+    it('generate_app on blank_scenegraph produces byte-equal golden zip + provenance', async () => {
+      const emitted = await readFile(blankZipPath);
+      const golden = await readFile(join(GOLDEN_DIR, 'blank.zip'));
+      expect(emitted.equals(golden)).toBe(true);
+
+      const emittedProv = await readFile(
+        join(blankOutputDir, '.rokudev-tools', 'provenance.json'),
+      );
+      const goldenProv = await readFile(join(GOLDEN_DIR, 'blank.provenance.json'));
+      expect(emittedProv.equals(goldenProv)).toBe(true);
+    }, 10_000);
+
+    it('validate_manifest returns ok:true on the blank_scenegraph project', async () => {
+      const vm = await blankClient.request('tools/call', {
+        name: 'validate_manifest',
+        arguments: { project_dir: blankOutputDir },
+      });
+      expect(vm.error).toBeUndefined();
+      const payload = parseToolPayload(vm.result);
+      expect(payload['ok']).toBe(true);
+    }, 15_000);
+
+    it('lint reports no errors on the blank_scenegraph project', async () => {
+      const lintResp = await blankClient.request('tools/call', {
+        name: 'lint',
+        arguments: { project_dir: blankOutputDir },
+      });
+      expect(lintResp.error).toBeUndefined();
+      const payload = parseToolPayload(lintResp.result);
+      expect(payload['ok']).toBe(true);
+      expect(
+        (payload['diagnostics'] as Array<{ severity: string }>).filter(
+          (d) => d.severity === 'error',
+        ),
+      ).toEqual([]);
+    }, 45_000);
+  });
 });

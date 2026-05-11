@@ -77,6 +77,9 @@ async function main() {
   // Regen video-grid goldens.
   await regenVideoGrid();
 
+  // Regen blank goldens.
+  await regenBlank();
+
   process.stdout.write(
     '\n========================================================================\n' +
       'Golden files regenerated:\n' +
@@ -84,8 +87,10 @@ async function main() {
       `  ${join(GOLDEN_DIR, 'stub.provenance.json')}\n` +
       `  ${join(GOLDEN_DIR, 'video-grid.zip')}\n` +
       `  ${join(GOLDEN_DIR, 'video-grid.provenance.json')}\n` +
-      'Please commit all four files with a clear cause in the commit message\n' +
-      '(e.g. "regen goldens: bump video_grid_channel template version").\n' +
+      `  ${join(GOLDEN_DIR, 'blank.zip')}\n` +
+      `  ${join(GOLDEN_DIR, 'blank.provenance.json')}\n` +
+      'Please commit all six files with a clear cause in the commit message\n' +
+      '(e.g. "regen goldens: add blank_scenegraph goldens").\n' +
       '========================================================================\n',
   );
 }
@@ -135,6 +140,33 @@ async function regenVideoGrid() {
     }
   } finally {
     await rm(tmpSpecDir, { recursive: true, force: true });
+  }
+}
+
+async function regenBlank() {
+  const CANONICAL_BLANK_SPEC = {
+    spec_version: 2,
+    template: 'blank_scenegraph',
+    modules: [],
+    app: { name: 'Blank E2E', major_version: 0, minor_version: 1, build_version: 0 },
+  };
+
+  const work = join(tmpdir(), `brs-gen-regen-blank-${randomUUID()}`);
+  const outputDir = join(work, 'project');
+  const outputZip = join(work, 'project.zip');
+  await mkdir(work, { recursive: true });
+
+  try {
+    const { zip_path, output_dir } = await generateAppForRegen({
+      outputDir,
+      spec: CANONICAL_BLANK_SPEC,
+      outputZip,
+    });
+    await copyFile(zip_path, join(GOLDEN_DIR, 'blank.zip'));
+    const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
+    await writeFile(join(GOLDEN_DIR, 'blank.provenance.json'), provenance);
+  } finally {
+    await rm(work, { recursive: true, force: true });
   }
 }
 
