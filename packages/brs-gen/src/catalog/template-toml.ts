@@ -46,6 +46,17 @@ export const TemplateTomlSchema = z
       .object({ codes: z.array(z.string()) })
       .strict()
       .optional(),
+    template_branding_defaults: z
+      .object({
+        icon: z.string().optional(),
+        splash: z.string().optional(),
+        primary_color: z
+          .string()
+          .regex(/^#[0-9A-Fa-f]{6}$/, 'must be a 6-digit hex color like #RRGGBB')
+          .optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

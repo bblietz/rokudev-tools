@@ -94,3 +94,51 @@ describe('TemplateTomlSchema', () => {
     expect(r.error.issues[0]?.message).toMatch(/valid BrightScript identifier/);
   });
 });
+
+describe('template_branding_defaults', () => {
+  function baseValidTemplate() {
+    return {
+      template: { id: 'x', version: '0.1.0', spec_compat: '>=2', description: 'x' },
+      template_manifest_defaults: { title: 'x' },
+      template_exports: { init_hooks: [], scene_nodes: [] },
+    };
+  }
+
+  it('accepts branding_defaults with all three sub-keys', () => {
+    const input = {
+      ...baseValidTemplate(),
+      template_branding_defaults: {
+        icon: 'assets/icon.png',
+        splash: 'assets/splash.png',
+        primary_color: '#123456',
+      },
+    };
+    const r = TemplateTomlSchema.safeParse(input);
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts branding_defaults with only primary_color', () => {
+    const input = {
+      ...baseValidTemplate(),
+      template_branding_defaults: { primary_color: '#000000' },
+    };
+    expect(TemplateTomlSchema.safeParse(input).success).toBe(true);
+  });
+
+  it('rejects invalid hex in primary_color', () => {
+    const input = {
+      ...baseValidTemplate(),
+      template_branding_defaults: { primary_color: 'not-a-hex' },
+    };
+    const r = TemplateTomlSchema.safeParse(input);
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects unknown sub-keys under branding_defaults (strict)', () => {
+    const input = {
+      ...baseValidTemplate(),
+      template_branding_defaults: { primary_color: '#000000', bogus: 'x' },
+    };
+    expect(TemplateTomlSchema.safeParse(input).success).toBe(false);
+  });
+});
