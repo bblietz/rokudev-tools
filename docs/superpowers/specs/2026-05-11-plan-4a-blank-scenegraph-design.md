@@ -99,12 +99,14 @@ import { z } from 'zod';
 import { AppSpecBase } from '../../src/spec/app-spec.js';
 import { BrandingSchema } from '../../src/spec/branding.js';
 
-// Blank explicitly FORBIDS the content block (blank has no content concept).
-// branding is fully optional (both icon and splash optional; primary_color optional).
+// Blank explicitly FORBIDS the content block (AppSpecBase declares content as
+// optional, so .strict() alone is insufficient — we must override with
+// z.never().optional() to allow "key absent" / "key: undefined" but reject
+// any actual value).
 export const Schema = AppSpecBase.extend({
   template: z.literal('blank_scenegraph'),
   branding: BrandingSchema.partial().optional(),
-  content: z.never().optional(),  // or .undefined() + .strict() equivalent
+  content: z.never().optional(),
 }).strict();
 
 export const Example = {
@@ -115,16 +117,18 @@ export const Example = {
 };
 ```
 
-The `Example` intentionally has no `branding` block — proves the zero-input path works end-to-end.
+The `Example` intentionally has no `branding` block — proves the zero-input path works end-to-end. `content` absence is the canonical case; the `z.never().optional()` override above additionally rejects attempts to pass `content: {...}` with a clear error.
 
 ### 5.3 `files/manifest.ejs`
+
+The EJS context is the merged manifest dict (template.toml's `[template.manifest]` + module manifest deltas + app-shaped keys computed by the engine — see Plan 3 §manifest merger). All values flow through `<%= ... %>`; no literals.
 
 ```
 title=<%= app.name %>
 major_version=<%= app.major_version %>
 minor_version=<%= app.minor_version %>
 build_version=<%= app.build_version %>
-ui_resolutions=hd,fhd
+ui_resolutions=<%= ui_resolutions %>
 splash_color=<%= splash_color %>
 <% if (mm_icon_focus_hd) { %>mm_icon_focus_hd=<%= mm_icon_focus_hd %>
 <% } %><% if (mm_icon_focus_fhd) { %>mm_icon_focus_fhd=<%= mm_icon_focus_fhd %>
@@ -134,7 +138,17 @@ splash_color=<%= splash_color %>
 <% } %>
 ```
 
-The conditional emits preserve existing "omit key if asset absent" semantics.
+**EJS context shape** (what the merger passes in):
+
+| Key | Source | Present? |
+|---|---|---|
+| `app.name`, `app.major_version`, `app.minor_version`, `app.build_version` | AppSpec `app` block | Always |
+| `ui_resolutions` | template.toml `[template.manifest].ui_resolutions` | Always (blank template ships `"hd,fhd"`) |
+| `splash_color` | template.toml `[template.manifest].splash_color` | Always (blank ships `"#000000"`) |
+| `mm_icon_focus_hd`, `mm_icon_focus_fhd` | Asset pipeline output, set via `manifestEntriesForBuckets` | When icon resolved |
+| `splash_screen_hd`, `splash_screen_fhd`, `splash_screen_uhd` | Asset pipeline output | When splash resolved |
+
+The conditional emits preserve existing "omit key if asset absent" semantics. The `<%= ui_resolutions %>` / `<%= splash_color %>` values are effectively fixed for blank (template.toml declares them), but the EJS-via-merger path is what every other brs-gen template uses, and we preserve it here for consistency.
 
 ### 5.4 `components/MainScene.xml`
 
@@ -205,6 +219,8 @@ Validation rules at parse time:
 - Same for `branding_defaults.splash`.
 - If `branding_defaults` is declared with no sub-keys, error: `TEMPLATE_TOML_INVALID { reason: "branding_defaults declared but empty" }`.
 
+Since no v1 template ships a static `branding_defaults.icon` / `.splash` path, the existence-check's happy path is exercised via a **test fixture template** under `packages/brs-gen/tests/fixtures/template-with-static-branding-default/` (containing a minimal `template.toml` declaring a real path + a 336×218 PNG file at that path). The schema-rejection path (declared path missing, etc.) uses in-memory TOML strings per existing catalog test conventions.
+
 ### 6.2 `src/assets/synthesize.ts` (new)
 
 ```ts
@@ -233,6 +249,8 @@ export async function synthesizeSolidPng(
 Error codes:
 - `ASSET_INVALID_COLOR` — color string doesn't match `/^#[0-9A-Fa-f]{6}$/`.
 - `ASSET_SYNTHESIS_FAILED` — sharp throws unexpectedly.
+
+**sharp/libvips pin (load-bearing for determinism):** the exact pin lives at `packages/brs-gen/package.json` (currently `"sharp": "0.34.5"`). The byte-equality gate test in §9.1 asserts `sharp.versions.sharp === '0.34.5'` before comparing sha256 — prevents silent drift if a future dev bumps the sharp version without regenerating the pinned sha256.
 
 ### 6.3 `src/assets/resolve.ts`
 
@@ -266,11 +284,11 @@ spec.branding?.primary_color
   ?? "#000000"
 ```
 
-The synthesized PNG is written to a per-generation scratch directory inside the project's `.rokudev-tools-tmp/` (cleaned at end of generation).
+The synthesized PNG is written to a per-generation scratch directory at `<outputDir>-synth-<random>/` (parallel in style to `writeProject`'s existing `<outputDir>-tmp-<random>/`). The scratch dir is `fs.rm(..., { recursive: true })`'d in a `finally` block at the end of `generate_app`. It is NEVER placed inside `outputDir` — the scratch dir and the output dir are siblings so the atomic rename of the project tree doesn't race with synthesis cleanup.
 
 ### 6.5 `src/merger/conflicts.ts`
 
-Add `assets/` to the template-territory fence (mirrors `source/_template/`). Modules cannot contribute under `assets/`.
+Add `assets/` to the template-territory fence (mirrors `source/_template/`). Modules cannot contribute under `assets/`. Violation raises `MODULE_TEMPLATE_TERRITORY_VIOLATION { module, path }` (same error code the existing `source/_template/` fence uses; re-used rather than coining a new one).
 
 ## 7. Data flow — asset resolution (authoritative)
 
@@ -303,9 +321,10 @@ Pre-existing `ASSET_*` codes from Plan 4 (`ASSET_NOT_FOUND`, `ASSET_TOO_SMALL`, 
 ### 9.1 Unit tests (brs-gen)
 
 - `src/assets/synthesize.test.ts` (new)
-  - Known color + dimensions → exact sha256 (libvips drift gate)
-  - Dimensions match ICON_SOURCE_MIN / SPLASH_SOURCE_MIN
-  - Invalid color throws `ASSET_INVALID_COLOR`
+  - Asserts `sharp.versions.sharp === '0.34.5'` as precondition, then known color + dimensions → exact sha256 (libvips drift gate).
+  - **Scope: dev-machine platform only.** This test does not attempt cross-arch byte-equality. If a different libvips build (different OS/arch) is used, the test may fail; per §3 non-goals that's a fix-forward follow-up. CI runners and dev machines must share a platform for this test to be meaningful — if CI diverges, either switch CI to the pinned platform or mark the test skipped on the divergent runner and run locally only.
+  - Dimensions match ICON_SOURCE_MIN / SPLASH_SOURCE_MIN.
+  - Invalid color throws `ASSET_INVALID_COLOR`.
 - `src/assets/resolve.test.ts` (extend)
   - Precedence: operator > template static > synthesized
   - effectivePrimaryColor precedence: spec > template_default > "#000000"
@@ -338,7 +357,7 @@ Regenerated via `TZ=UTC node scripts/regen-golden.mjs` (already the Plan 3+ work
 
 ### 9.5 Determinism
 
-`tests/determinism.test.ts` adds a blank_scenegraph full-pipeline byte-equality test across two in-process runs. Catches synthesis determinism regressions on the dev machine.
+`tests/determinism.test.ts` adds a blank_scenegraph full-pipeline byte-equality test across two in-process runs, executed under **`TZ=UTC`** (mandatory — the zip builder's DOS mtime encoding is local-time per memory's known-trap entry; cross-timezone byte equality requires UTC). Catches synthesis determinism regressions on the dev machine. This test runs alongside the Plan 4 `video_grid_channel` determinism test; both go green or both go red.
 
 ## 10. T27 real-device verification
 
@@ -381,13 +400,15 @@ Total: ~8 steps, ~20 seconds on-device. No rows, no Details, no playback.
 2. `TZ=UTC node scripts/regen-golden.mjs` followed by `pnpm -C packages/brs-gen test` — still green (determinism).
 3. `t27-blank.mjs` Phase A: zero-branding spec PASS on operator's Roku.
 4. `t27-blank.mjs` Phase B: module composition PASS.
-5. `videorid_channel` existing T27 driver still PASS (no regression from engine change).
+5. `video_grid_channel` existing T27 driver still PASS (no regression from engine change).
 6. Secret-leak invariant: `JSON.stringify(synthesisResult)` contains no dev_password / signing_password (no new code paths that would).
 
 ## 14. Open questions / to-resolve-in-plan
 
-- Where does the scratch directory for synthesized PNGs live? Candidate: `<projectDir>-synth-<random>/` alongside the existing `-tmp-` dir, cleaned on atomic rename. Decide in Plan 4a's task decomposition.
-- Does the Example spec include `branding.primary_color` for documentation value, or stay bare to prove zero-input works? Plan-level decision.
+- **RESOLVED** (inline): scratch dir is `<outputDir>-synth-<random>/`, parallel to `<outputDir>-tmp-<random>/`, cleaned in a `finally` block — see §6.4.
+- **RESOLVED** (inline): Example spec stays bare (no `branding` block) — proves zero-input path works end-to-end, which is the load-bearing invariant blank_scenegraph is ultimately selling. Operator docs (Plan 6 skill) can later demonstrate the branding-override path separately.
+
+No outstanding open questions. Plan decomposition may proceed.
 
 ---
 
