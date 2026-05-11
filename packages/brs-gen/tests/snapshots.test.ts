@@ -267,3 +267,66 @@ describe('video_grid_channel snapshots', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// blank_scenegraph snapshots (T7 of Plan 4a)
+// ---------------------------------------------------------------------------
+// Runs the FULL generate_app pipeline (merger + compileProject) once in
+// beforeAll, then each test snapshots a single post-compile output file.
+// The post-compile state is used so the XML uri sweep (.bs -> .brs) is
+// reflected in the snapshot, matching exactly what would be sideloaded.
+// ---------------------------------------------------------------------------
+
+describe('blank_scenegraph snapshots', () => {
+  let parentDir: string;
+  let projectDir: string;
+
+  beforeAll(async () => {
+    // Load catalog and inject into the singleton so the handler can pick it up.
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+
+    parentDir = await mkdtemp(join(tmpdir(), 'brs-gen-blank-snap-'));
+    projectDir = join(parentDir, 'project');
+
+    const handler = getGenerateAppHandler();
+
+    const result = await handler({
+      spec: {
+        spec_version: 2,
+        template: 'blank_scenegraph',
+        modules: [],
+        app: { name: 'Blank Snap', major_version: 0, minor_version: 1, build_version: 0 },
+      },
+      output_dir: projectDir,
+    });
+
+    const payload = result as Record<string, unknown>;
+    if (!payload['ok']) {
+      throw new Error(`generate_app failed in beforeAll: ${JSON.stringify(payload)}`);
+    }
+  }, 30_000);
+
+  afterAll(async () => {
+    if (parentDir) await rm(parentDir, { recursive: true, force: true });
+  });
+
+  it('manifest matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'manifest'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/blank_scenegraph/manifest.snap.txt');
+  });
+
+  it('MainScene.xml (post-compile, .brs refs) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot(
+      '__snapshots__/blank_scenegraph/MainScene.xml.snap.txt',
+    );
+  });
+
+  it('MainScene.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot(
+      '__snapshots__/blank_scenegraph/MainScene.brs.snap.txt',
+    );
+  });
+});

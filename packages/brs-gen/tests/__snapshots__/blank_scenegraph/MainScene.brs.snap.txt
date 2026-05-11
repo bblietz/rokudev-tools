@@ -1,0 +1,4 @@
+sub init()
+    Modules_OnMainSceneAfterSceneShow(m)
+end sub
+'//# sourceMappingURL=./MainScene.brs.map
