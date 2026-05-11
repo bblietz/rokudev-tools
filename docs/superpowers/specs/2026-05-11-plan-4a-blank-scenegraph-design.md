@@ -64,6 +64,10 @@ packages/brs-gen/templates/blank_scenegraph/
 
 ### 5.1 `template.toml`
 
+Engine convention (see `packages/brs-gen/src/catalog/loader.ts` `flatten()`): smol-toml parses `[template.<child>]` into nested `template.<child>`, then the loader hoists sub-tables to flat sibling keys (`template_<child>`). The Zod schema sees flat keys.
+
+TOML shape authored by template authors:
+
 ```toml
 [template]
 id = "blank_scenegraph"
@@ -71,26 +75,30 @@ version = "0.1.0"
 spec_compat = ">=2"
 description = "Minimal module-friendly starter channel. Scene + MainScene + one init hook; no content, no UI beyond a focus-capable Group."
 
-[template.exports]
-scene_nodes = ["MainScene"]
-
-[[template.exports.init_hooks]]
-name = "MainScene.init/after_scene_show"
-scope = "MainScene"
-phase = "after_scene_show"
-
-# No supported_modules.allowlist → open (PRD §3.2.6.1 default).
-
-[template.manifest]
-# Base manifest values. Channel name/version come from AppSpec.app.*
-# via merger's "set" strategy.
+[template.manifest_defaults]
+# Values are EJS templates rendered against the AppSpec.
+# The merger emits the final manifest from this map + asset pipeline entries.
+title          = "<%= spec.app.name %>"
+major_version  = "<%= spec.app.major_version %>"
+minor_version  = "<%= spec.app.minor_version %>"
+build_version  = "<%= spec.app.build_version %>"
+splash_color   = "#000000"
 ui_resolutions = "hd,fhd"
-splash_color = "#000000"
+
+[template.exports]
+init_hooks = [
+  { scope = "MainScene", phase = "after_scene_show", file = "components/MainScene.bs", signature = "(m as object) as void" },
+]
+scene_nodes = [
+  { name = "MainScene", file = "components/MainScene.xml" },
+]
 
 [template.branding_defaults]
 primary_color = "#000000"
 # icon and splash are absent → engine synthesizes from primary_color.
 ```
+
+After `flatten()`, the Zod schema sees top-level keys: `template`, `template_manifest_defaults`, `template_exports`, `template_branding_defaults`. The engine invariant (`template.id` matches the directory name) is enforced by the loader per pre-existing convention.
 
 ### 5.2 `schema.ts`
 
@@ -121,34 +129,17 @@ The `Example` intentionally has no `branding` block — proves the zero-input pa
 
 ### 5.3 `files/manifest.ejs`
 
-The EJS context is the merged manifest dict (template.toml's `[template.manifest]` + module manifest deltas + app-shaped keys computed by the engine — see Plan 3 §manifest merger). All values flow through `<%= ... %>`; no literals.
+Per video_grid_channel's pattern (and engine convention), the actual manifest is NOT emitted from an authored `manifest.ejs` — it is synthesized by the merger from `template_manifest_defaults` + asset pipeline entries + module contributions. The `files/manifest.ejs` file exists only as a placeholder because git does not track empty directories. Blank ships the same placeholder:
 
 ```
-title=<%= app.name %>
-major_version=<%= app.major_version %>
-minor_version=<%= app.minor_version %>
-build_version=<%= app.build_version %>
-ui_resolutions=<%= ui_resolutions %>
-splash_color=<%= splash_color %>
-<% if (mm_icon_focus_hd) { %>mm_icon_focus_hd=<%= mm_icon_focus_hd %>
-<% } %><% if (mm_icon_focus_fhd) { %>mm_icon_focus_fhd=<%= mm_icon_focus_fhd %>
-<% } %><% if (splash_screen_hd) { %>splash_screen_hd=<%= splash_screen_hd %>
-<% } %><% if (splash_screen_fhd) { %>splash_screen_fhd=<%= splash_screen_fhd %>
-<% } %><% if (splash_screen_uhd) { %>splash_screen_uhd=<%= splash_screen_uhd %>
-<% } %>
+<%# This file is present only because git does not track empty directories.
+    The actual manifest is emitted by the merger from template_manifest_defaults
+    + asset entries + module contributions. This file is not read.
+-%>
+placeholder
 ```
 
-**EJS context shape** (what the merger passes in):
-
-| Key | Source | Present? |
-|---|---|---|
-| `app.name`, `app.major_version`, `app.minor_version`, `app.build_version` | AppSpec `app` block | Always |
-| `ui_resolutions` | template.toml `[template.manifest].ui_resolutions` | Always (blank template ships `"hd,fhd"`) |
-| `splash_color` | template.toml `[template.manifest].splash_color` | Always (blank ships `"#000000"`) |
-| `mm_icon_focus_hd`, `mm_icon_focus_fhd` | Asset pipeline output, set via `manifestEntriesForBuckets` | When icon resolved |
-| `splash_screen_hd`, `splash_screen_fhd`, `splash_screen_uhd` | Asset pipeline output | When splash resolved |
-
-The conditional emits preserve existing "omit key if asset absent" semantics. The `<%= ui_resolutions %>` / `<%= splash_color %>` values are effectively fixed for blank (template.toml declares them), but the EJS-via-merger path is what every other brs-gen template uses, and we preserve it here for consistency.
+The asset pipeline's `manifestEntriesForBuckets` contributes `mm_icon_focus_*` and `splash_screen_*` keys when icon / splash are resolved; absent keys are omitted from the final manifest.
 
 ### 5.4 `components/MainScene.xml`
 
@@ -202,20 +193,17 @@ Standard SceneGraph bootstrap. No branching, no module-contributable surface.
 
 ### 6.1 `src/catalog/template-toml.ts`
 
-Extend `TemplateTomlSchema`:
+Extend `TemplateTomlSchema` at the **top level** (post-flatten), alongside the existing sibling keys `template_exports`, `template_manifest_defaults`, `template_supported_modules`, `template_suppressed_warnings`:
 
 ```ts
-template: z.object({
-  // ...existing fields...
-  branding_defaults: z
-    .object({
-      icon: z.string().optional(),
-      splash: z.string().optional(),
-      primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-    })
-    .strict()
-    .optional(),
-}),
+template_branding_defaults: z
+  .object({
+    icon: z.string().optional(),
+    splash: z.string().optional(),
+    primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  })
+  .strict()
+  .optional(),
 ```
 
 Validation rules at parse time:
