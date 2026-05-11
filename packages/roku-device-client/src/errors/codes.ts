@@ -72,6 +72,8 @@ export const FAILURE_CODES = {
   LINT_FAILED: 'lint',
   COMPILE_FAILED: 'lint',
   ASSET_VALIDATION_FAILED: 'validate',
+  ASSET_INVALID_COLOR: 'validate',
+  ASSET_SYNTHESIS_FAILED: 'validate',
   MANIFEST_VALIDATION_FAILED: 'validate',
   // tool-surface
   NOT_IMPLEMENTED: 'validate',
