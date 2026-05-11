@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { describe, it, expect, afterAll, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { access, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { loadCatalog } from '../catalog/loader.js';
-import { setCatalogForTests } from './_catalog-singleton.js';
+import { setCatalogForTests, _resetCatalog } from './_catalog-singleton.js';
 import { registerAllTools, type ToolDef } from './_register.js';
 import './generate-app.js';
 
@@ -638,7 +638,29 @@ describe('generate_app tool', () => {
     // It does NOT declare a splash default. So with a spec that has no branding:
     //   icon   -> source='template-static'  (read from templates/<id>/assets/icon.png)
     //   splash -> source='synthesized'      (effectivePrimaryColor = '#123456')
-    // Loaded via the outer beforeAll (real catalog under PKG_ROOT/templates/).
+    //
+    // The fixture lives at tests/fixtures/template-with-static-branding-default/ and
+    // must NOT be committed into packages/brs-gen/templates/ (that would ship it as
+    // a real catalog entry). Instead, beforeAll copies it into PKG_ROOT/templates/
+    // temporarily so the module-level pkgRoot lookups in generate-app.ts resolve
+    // correctly, then injects the catalog via setCatalogForTests. afterAll removes
+    // the copy and restores the bundled catalog.
+    const FIXTURE_SRC = join(PKG_ROOT, 'tests/fixtures/template-with-static-branding-default');
+    const FIXTURE_DST = join(PKG_ROOT, 'templates/template-with-static-branding-default');
+
+    beforeAll(async () => {
+      await cp(FIXTURE_SRC, FIXTURE_DST, { recursive: true });
+      const cat = await loadCatalog(PKG_ROOT);
+      setCatalogForTests(cat);
+    });
+
+    afterAll(async () => {
+      await rm(FIXTURE_DST, { recursive: true, force: true });
+      // Restore the bundled catalog (without the fixture) so downstream
+      // describe blocks are unaffected.
+      const bundledCat = await loadCatalog(PKG_ROOT);
+      setCatalogForTests(bundledCat);
+    });
 
     it('uses template-static icon and synthesizes splash when spec has no branding', async () => {
       const parent = await freshTmp('tbrand');
