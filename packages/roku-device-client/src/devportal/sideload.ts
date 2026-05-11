@@ -58,14 +58,25 @@ export class DevPortal {
     const duration_ms = Date.now() - start;
     if (r.statusCode === 401) throw fail('DEVICE_AUTH_FAILED', 'dev portal rejected credentials');
     const text = r.bodyText;
+    // Failure markers MUST be checked before success markers. Roku Ultra
+    // firmware 15.x returns both "Application Received: stored." AND
+    // "Install Failed. <reason>" in the same response body when a compile
+    // error occurs during install (e.g. #Const error, missing component,
+    // malformed manifest). Keying on the success marker first silently
+    // declared success on real failures.
+    if (text.includes('Failed: Not in developer mode')) {
+      throw fail('DEVICE_NOT_DEV_MODE', 'device is not in developer mode');
+    }
+    if (text.includes('Install Failed')) {
+      throw fail('SIDELOAD_REJECTED', 'device rejected sideload', {
+        excerpt: text.slice(0, 400),
+      });
+    }
     if (text.includes('Identical to previous version')) {
       return { ok: true, status: 'identical', message: 'identical', duration_ms };
     }
     if (text.includes('Install Success.') || text.includes('Application Received')) {
       return { ok: true, status: 'installed', message: 'installed', duration_ms };
-    }
-    if (text.includes('Failed: Not in developer mode')) {
-      throw fail('DEVICE_NOT_DEV_MODE', 'device is not in developer mode');
     }
     throw fail('SIDELOAD_REJECTED', `device rejected sideload`, {
       excerpt: text.slice(0, 400),

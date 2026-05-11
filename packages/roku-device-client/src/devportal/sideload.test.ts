@@ -8,7 +8,13 @@ import { DevPortal } from './sideload.js';
 
 let server: Server;
 let port: number;
-let mode: 'success' | 'identical' | 'authfail' | 'notdev' = 'success';
+let mode:
+  | 'success'
+  | 'identical'
+  | 'authfail'
+  | 'notdev'
+  | 'compile-failed'
+  | 'install-failed-alone' = 'success';
 let lastBody: Buffer | undefined;
 
 beforeAll(async () => {
@@ -41,6 +47,21 @@ beforeAll(async () => {
           return;
         case 'notdev':
           res.end('Failed: Not in developer mode');
+          return;
+        case 'compile-failed':
+          // Real-device shape: Roku Ultra firmware 15.x sends BOTH the
+          // "Application Received" success marker AND an "Install Failed"
+          // failure marker in the same response body when a compile error
+          // occurs (e.g. #Const error in source). The silent-success bug:
+          // the parser used to match "Application Received" first and
+          // return ok:true despite the failure.
+          res.end(
+            '<font color="red">Application Received: stored.</font>' +
+              '<font color="red">Install Failed. #Const error pkg:/source/Feed.brs</font>',
+          );
+          return;
+        case 'install-failed-alone':
+          res.end('<font color="red">Install Failed. Generic failure reason</font>');
           return;
       }
     });
@@ -77,6 +98,30 @@ describe('DevPortal sideload/unload', () => {
     mode = 'notdev';
     await expect(new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath)).rejects.toMatchObject({
       code: 'DEVICE_NOT_DEV_MODE',
+    });
+  });
+
+  it('throws SIDELOAD_REJECTED when Install Failed coexists with Application Received', async () => {
+    // Regression: Plan 4 T27 hit a compile error where the device returned
+    // BOTH "Application Received: stored." (success marker) AND "Install
+    // Failed. #Const error ..." (real failure). The parser used to key on
+    // the success marker and return ok:true. Any failure marker must win.
+    mode = 'compile-failed';
+    await expect(
+      new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath),
+    ).rejects.toMatchObject({
+      code: 'SIDELOAD_REJECTED',
+      details: { excerpt: expect.stringContaining('Install Failed') },
+    });
+  });
+
+  it('throws SIDELOAD_REJECTED when Install Failed appears alone', async () => {
+    mode = 'install-failed-alone';
+    await expect(
+      new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath),
+    ).rejects.toMatchObject({
+      code: 'SIDELOAD_REJECTED',
+      details: { excerpt: expect.stringContaining('Install Failed') },
     });
   });
 
