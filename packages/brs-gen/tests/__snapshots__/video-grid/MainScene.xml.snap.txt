@@ -10,9 +10,13 @@
     <RowList
       id="rowList"
       translation="[60, 540]"
-      itemSize="[1800, 260]"
+      itemSize="[1800, 220]"
+      rowItemSize="[[300, 169], [300, 169], [300, 169]]"
       numRows="3"
-      showRowLabel="true"
+      rowHeights="[220, 220, 220]"
+      rowItemSpacing="[[24, 0], [24, 0], [24, 0]]"
+      showRowLabel="[true, true, true]"
+      rowLabelOffset="[[0, -8], [0, -8], [0, -8]]"
     />
     <Timer id="rotateTimer" duration="6" repeat="true" />
     <Label id="errorLabel" translation="[60, 500]" color="0xFF4444FF" visible="false" />

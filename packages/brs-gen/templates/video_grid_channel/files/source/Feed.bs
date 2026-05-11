@@ -52,7 +52,12 @@ sub Feed_AddItems(parent as dynamic, items as dynamic) as void
   for each it in items
     node = parent.CreateChild("ContentNode")
     node.title = Feed_StringOr(it.title, "")
-    node.description = Feed_StringOr(it.longDescription, Feed_StringOr(it.shortDescription, ""))
+    desc = Feed_StringOr(it.longDescription, Feed_StringOr(it.shortDescription, ""))
+    ' Avoid noisy duplication when the feed copies the title into the long
+    ' description (AVideo demo does this). Leave description empty so the
+    ' HeroUnit only shows the title.
+    if desc = node.title then desc = ""
+    node.description = desc
     node.hdPosterUrl = Feed_StringOr(it.thumbnail, "")
     ' RDP-spec items expose stream URLs via content.videos[0].url. Items
     ' missing this shape (e.g. AVideo's roku.json sample) end up with no

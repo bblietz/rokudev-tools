@@ -7,8 +7,9 @@ sub init()
   ' Fire module-opt hook before any content load.
   Modules_OnMainSceneBeforeContentLoad(m)
 
-  ' Default focus on the hero.
-  m.hero.setFocus(true)
+  ' Focus moves to the RowList once content is bound (in onFeedState).
+  ' HeroUnit is a Group with no focus children, so focusing it would trap
+  ' navigation; the rowList handles up/down/left/right natively.
   m.top.observeField("focusedChild", "onFocusChanged")
 
   ' Kick feed fetch.
@@ -47,6 +48,8 @@ sub onFeedState()
 
   m.heroIdx = 0
   m.rowList.observeField("rowItemSelected", "onItemSelected")
+  ' Bind focus to the rowList so Up/Down/Left/Right move through tiles.
+  m.rowList.setFocus(true)
 end sub
 
 sub onRotateTick()
