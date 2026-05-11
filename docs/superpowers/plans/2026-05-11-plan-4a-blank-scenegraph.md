@@ -562,6 +562,8 @@ Expected:
 
 - [ ] **Step 6: Paste the actual sha256 into the test**
 
+**Important:** the captured hash must come from a CLEAN run of synthesize.test.ts — not from a run that happened during in-progress edits to `synthesize.ts` or `package.json`. If you're unsure, re-run Step 5 once more right before pasting. Pinning a stale hash silently invalidates the determinism gate forever.
+
 In `synthesize.test.ts`, replace `PIN_REPLACE_ME` with the 64-hex-char hash you captured.
 
 - [ ] **Step 7: Run tests again — all pass on darwin-arm64**
@@ -858,6 +860,8 @@ Expected: new test FAILS (missing manifest_keys since nothing resolves template-
 
 - [ ] **Step 4: Refactor generate-app.ts to use the new resolver**
 
+**Note on spec §6.4 scratch dir:** the spec called for `<outputDir>-synth-<random>/` cleaned in a `finally` block. The Task 4 resolver returns Buffers in-memory (not file paths), so synthesized PNGs never touch disk before being passed to `bucketAsset`. The scratch dir requirement is implicitly satisfied with NO new code — there's nothing to clean up. If a future change moves synthesis to disk, restore the spec's plumbing.
+
 Replace lines ~286-320 in `packages/brs-gen/src/tools/generate-app.ts` with:
 
 ```ts
@@ -924,6 +928,8 @@ import { resolveAssetSource } from '../assets/resolve-with-default.js';
 Remove the now-unused `resolveAssetPath` + `validateAssetSource` imports **only if** nothing else in the file uses them. The refactor may leave them used elsewhere — check before removing.
 
 - [ ] **Step 5: Add `assets/` fence to `src/merger/conflicts.ts`**
+
+**Error code note:** spec §6.5 named a hypothetical `MODULE_TEMPLATE_TERRITORY_VIOLATION` code, but the existing `source/_template/` fence reuses the broader `FILE_COLLISION` code. To stay consistent with what's already there, we reuse `FILE_COLLISION` for `assets/` too. Update memory if/when a structural reason emerges to introduce a more specific code.
 
 Modify `packages/brs-gen/src/merger/conflicts.ts` lines ~27-36 — extend the `source/_template/` reserved-territory check to also include `assets/`:
 
@@ -1093,34 +1099,56 @@ primary_color = "#000000"
 
 - [ ] **Step 4: Create `schema.ts`**
 
+**Convention** (from `templates/video_grid_channel/schema.ts`): per-template schemas re-declare AppSpec fields **locally** rather than extending `AppSpecV2Wrapper`. This keeps each template's contract self-contained and avoids subtle interaction issues with the wrapper's `.passthrough()` semantics.
+
 Write `packages/brs-gen/templates/blank_scenegraph/schema.ts`:
 
 ```ts
+// packages/brs-gen/templates/blank_scenegraph/schema.ts
 import { z } from 'zod';
-// Relative imports follow video_grid_channel's schema.ts pattern; the
-// template is dynamically imported from pkgRoot by generate-app.ts.
-import { AppSpecV2 } from '../../src/spec/app-spec.js';
-import { BrandingSchema } from '../../src/spec/branding.js';
 
-// Blank explicitly FORBIDS the content block. AppSpecV2 declares content
-// as optional, so .strict() alone is insufficient — the z.never().optional()
-// override allows "key absent" / "key: undefined" but rejects any actual
-// value.
-export const Schema = AppSpecV2.extend({
-  template: z.literal('blank_scenegraph'),
-  branding: BrandingSchema.partial().optional(),
-  content: z.never().optional(),
-}).strict();
+// Convention: every template's schema.ts exports `Schema` and `Example`.
+// blank_scenegraph makes branding fully optional and explicitly FORBIDS
+// the content block (z.never().optional() allows "key absent" but rejects
+// any actual value).
+const Hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
+
+export const Schema = z
+  .object({
+    spec_version: z.literal(2),
+    template: z.literal('blank_scenegraph'),
+    modules: z.array(z.record(z.unknown())),
+    app: z
+      .object({
+        name: z.string().min(1),
+        major_version: z.number().int().min(0),
+        minor_version: z.number().int().min(0),
+        build_version: z.number().int().min(0),
+      })
+      .strict(),
+    branding: z
+      .object({
+        primary_color: Hex.optional(),
+        icon: z.string().min(1).optional(),
+        splash: z.string().min(1).optional(),
+      })
+      .strict()
+      .optional(),
+    content: z.never().optional(),
+  })
+  .strict();
 
 export const Example = {
-  spec_version: 2,
-  template: 'blank_scenegraph',
+  spec_version: 2 as const,
+  template: 'blank_scenegraph' as const,
   modules: [],
   app: { name: 'Blank Channel', major_version: 0, minor_version: 1, build_version: 0 },
-} as const;
+  // Intentionally no `branding` — proves the zero-input synthesized path
+  // works end-to-end. This is the load-bearing demonstration.
+};
 ```
 
-(Check the actual name of the AppSpec base export — it may be `AppSpecV2` or `AppSpecBase` depending on the current `src/spec/app-spec.ts` shape. Match whatever video_grid_channel's schema.ts imports.)
+Cross-reference: this mirrors `templates/video_grid_channel/schema.ts` line-for-line in structure, only relaxing field requiredness and forbidding `content`.
 
 - [ ] **Step 5: Create the file tree**
 
