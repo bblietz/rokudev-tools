@@ -19,6 +19,7 @@
       rowLabelOffset="[[0, -8], [0, -8], [0, -8]]"
     />
     <Timer id="rotateTimer" duration="6" repeat="true" />
+    <Label id="loadingLabel" translation="[60, 500]" font="font:MediumBoldSystemFont" color="0xCCCCCCFF" text="Loading..." />
     <Label id="errorLabel" translation="[60, 500]" color="0xFF4444FF" visible="false" />
   </children>
 </component>

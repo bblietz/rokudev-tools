@@ -1,6 +1,6 @@
 {
   "name": "brs-gen",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "BrightScript channel generator MCP server (templates + composable feature modules).",
   "type": "module",
   "bin": {
