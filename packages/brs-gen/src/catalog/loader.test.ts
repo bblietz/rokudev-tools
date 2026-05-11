@@ -121,9 +121,15 @@ describe('template_branding_defaults existence check', () => {
     dirname(fileURLToPath(import.meta.url)),
     '../../tests/fixtures',
   );
+  let tmps: string[] = [];
+  afterEach(async () => {
+    for (const t of tmps) await rm(t, { recursive: true, force: true });
+    tmps = [];
+  });
 
   it('loads a template whose branding_defaults.icon path exists', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'catalog-static-branding-'));
+    tmps.push(tmp);
     await mkdir(join(tmp, 'templates'), { recursive: true });
     await mkdir(join(tmp, 'modules'), { recursive: true });
     await cp(
@@ -137,6 +143,7 @@ describe('template_branding_defaults existence check', () => {
 
   it('rejects a template whose branding_defaults.icon path is missing', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'catalog-missing-branding-'));
+    tmps.push(tmp);
     await mkdir(join(tmp, 'templates', 'bad-branding'), { recursive: true });
     await mkdir(join(tmp, 'modules'), { recursive: true });
     await writeFile(
