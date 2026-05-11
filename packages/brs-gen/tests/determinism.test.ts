@@ -235,6 +235,28 @@ describe('determinism', () => {
       await rm(dirB, { recursive: true, force: true });
     }
   });
+
+  it('blank_scenegraph full-pipeline byte equality across two in-process runs', async () => {
+    const dirA = tmp('bs-det-a');
+    const dirB = tmp('bs-det-b');
+    await mkdir(dirA, { recursive: true });
+    await mkdir(dirB, { recursive: true });
+    try {
+      const resultA = await generateBlankScenegraph(dirA);
+      const resultB = await generateBlankScenegraph(dirB);
+
+      expect(resultA.ok).toBe(true);
+      expect(resultB.ok).toBe(true);
+
+      // Compare final zip bytes
+      const zipA = await readFile(join(dirA, 'project.zip'));
+      const zipB = await readFile(join(dirB, 'project.zip'));
+      expect(zipA.equals(zipB)).toBe(true);
+    } finally {
+      await rm(dirA, { recursive: true, force: true });
+      await rm(dirB, { recursive: true, force: true });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -248,6 +270,26 @@ function getGenerateAppHandler(): ToolDef['handler'] {
   const def = tools.get('generate_app');
   if (!def) throw new Error('generate_app tool not registered');
   return def.handler;
+}
+
+async function generateBlankScenegraph(workDir: string): Promise<{ ok: boolean }> {
+  const cat = await loadCatalog(PKG_ROOT);
+  setCatalogForTests(cat);
+
+  const handler = getGenerateAppHandler();
+
+  const result = await handler({
+    spec: {
+      spec_version: 2,
+      template: 'blank_scenegraph',
+      modules: [],
+      app: { name: 'Blank Determ', major_version: 0, minor_version: 1, build_version: 0 },
+    },
+    output_dir: join(workDir, 'project'),
+    zip: { output_zip: join(workDir, 'project.zip') },
+  });
+
+  return result as { ok: boolean };
 }
 
 async function generateVideoGrid(workDir: string): Promise<{ ok: boolean }> {
