@@ -40,13 +40,16 @@ export class DevPortalInspect {
       },
     });
     if (r1.statusCode === 401) throw fail('DEVICE_AUTH_FAILED', 'dev portal rejected credentials');
-    // Asset path is referenced in HTML as src="pkgs/dev.<ext>" or "pkgs/dev_screenshot.<ext>"
-    const m = r1.bodyText.match(/(\/pkgs\/dev[A-Za-z0-9_]*\.(?:jpg|png))/);
+    // Asset path is referenced in HTML as src="pkgs/dev.<ext>" (no leading
+    // slash on Ultra firmware 15.x) or src="/pkgs/dev_screenshot.<ext>" on
+    // older firmware. Optional query suffix like ?time=... is stripped.
+    const m = r1.bodyText.match(/\b(\/?pkgs\/dev[A-Za-z0-9_]*\.(?:jpg|png))/);
     if (!m)
       throw fail('SCREENSHOT_FAILED', 'no asset path in plugin_inspect response', {
         excerpt: r1.bodyText.slice(0, 400),
       });
-    const path = m[1]!;
+    const matched = m[1]!;
+    const path = matched.startsWith('/') ? matched : `/${matched}`;
     const r2 = await digestRequest({
       method: 'GET',
       url: `http://${this.host}:${this.port}${path}`,

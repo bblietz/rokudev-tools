@@ -7,48 +7,68 @@
 '     category[1]
 '
 ' Tolerant: missing optional fields are logged and skipped, never fatal.
-function Feed_ParseRdpJson(jsonText as string) as object
-  parsed = ParseJson(jsonText)
+function Feed_ParseRdpJson(jsonText as dynamic) as object
+  ' Parameter is `as dynamic` (not `as string`) so callers can pass invalid
+  ' or non-string values without triggering a runtime cast error. We guard
+  ' explicitly below.
   root = CreateObject("roSGNode", "ContentNode")
+  if jsonText = invalid then return root
+  if Type(jsonText) <> "roString" and Type(jsonText) <> "String" then return root
+  parsed = ParseJson(jsonText)
   if parsed = invalid then return root
 
-  categories = parsed.categories
-  if categories = invalid or categories.Count() = 0 then
-    ' Older RDP feeds expose a top-level "movies" array without categories.
-    ' Bucket them under a single "All" category.
-    movies = parsed.movies
-    if movies <> invalid and movies.Count() > 0 then
-      cat = root.CreateChild("ContentNode")
-      cat.title = "All"
-      Feed_AddItems(cat, movies)
-    end if
+  ' Prefer top-level `movies` array when present. AVideo, Roku Direct Publisher
+  ' v2, and most modern RDP feeds emit movies at the top level alongside
+  ' optional `categories` metadata (which often references playlists by name
+  ' rather than embedding items inline). We bucket the flat movies under a
+  ' single "All" category for v0.4. A future module/template will consume
+  ' the categories+playlists structure for category-aware row labels.
+  movies = parsed.movies
+  if movies <> invalid and movies.Count() > 0 then
+    cat = root.CreateChild("ContentNode")
+    cat.title = "All"
+    Feed_AddItems(cat, movies)
     return root
   end if
 
-  for each c in categories
-    cat = root.CreateChild("ContentNode")
-    cat.title = c.name
-    if c.playlistName <> invalid then
-      ' some RDP feeds key items by playlist name; assume flat for now.
-      Feed_AddItems(cat, c.items)
-    else if c.movies <> invalid then
-      Feed_AddItems(cat, c.movies)
-    end if
-  end for
+  ' Fallback: older RDP feeds embed items directly under each category.
+  categories = parsed.categories
+  if categories <> invalid and categories.Count() > 0 then
+    for each c in categories
+      cat = root.CreateChild("ContentNode")
+      cat.title = c.name
+      if c.movies <> invalid then
+        Feed_AddItems(cat, c.movies)
+      else if c.items <> invalid then
+        Feed_AddItems(cat, c.items)
+      end if
+    end for
+  end if
   return root
 end function
 
-sub Feed_AddItems(parent as object, items as object) as void
+sub Feed_AddItems(parent as dynamic, items as dynamic) as void
   if items = invalid then return
   for each it in items
     node = parent.CreateChild("ContentNode")
     node.title = Feed_StringOr(it.title, "")
     node.description = Feed_StringOr(it.longDescription, Feed_StringOr(it.shortDescription, ""))
     node.hdPosterUrl = Feed_StringOr(it.thumbnail, "")
+    ' RDP-spec items expose stream URLs via content.videos[0].url. Items
+    ' missing this shape (e.g. AVideo's roku.json sample) end up with no
+    ' playable URL on the node and PlayerScene shows the "no stream" overlay
+    ' rather than crashing. The node still renders fine in the row list.
     if it.content <> invalid and it.content.videos <> invalid and it.content.videos.Count() > 0 then
       v = it.content.videos[0]
-      node.stream = Feed_StringOr(v.url, "")
-      node.streamFormat = Feed_StringOr(v.videoType, "mp4")
+      streamUrl = Feed_StringOr(v.url, "")
+      if streamUrl <> "" then
+        ' ContentNode does not expose a `stream` field directly. PlayerScene
+        ' wraps the item in a parent ContentNode with the URL set on a child
+        ' (see PlayerScene.bs startPlayback). We stash the URL + format here
+        ' under a custom field name that PlayerScene reads.
+        node.url = streamUrl
+        node.streamFormat = Feed_StringOr(v.videoType, "mp4")
+      end if
     end if
   end for
 end sub

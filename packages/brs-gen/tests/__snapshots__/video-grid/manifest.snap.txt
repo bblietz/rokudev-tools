@@ -1,4 +1,4 @@
-bs_const=DEBUG=0
+bs_const=DEBUG=false
 build_version=0
 major_version=0
 minor_version=1

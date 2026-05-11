@@ -11,7 +11,7 @@ minor_version   = "<%= spec.app.minor_version %>"
 build_version   = "<%= spec.app.build_version %>"
 splash_color    = "<%= spec.branding.primary_color %>"
 ui_resolutions  = "fhd,hd"
-bs_const        = "DEBUG=0"
+bs_const        = "DEBUG=false"
 # mm_icon_focus_* and splash_screen_* are injected by the asset pipeline.
 
 [template.exports]

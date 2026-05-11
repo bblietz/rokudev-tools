@@ -19,7 +19,10 @@ end function
 
 sub startPlayback()
   c = m.top.content
-  if c = invalid or c.stream = invalid or c.stream = "" then
+  ' Stream URL is set on the item ContentNode under the standard `url` field
+  ' (see Feed.bs Feed_AddItems). Items without a stream URL surface a
+  ' user-visible "No stream URL" overlay rather than crashing.
+  if c = invalid or c.url = invalid or c.url = "" then
     m.error.text = "No stream URL for this content."
     m.error.visible = true
     return
@@ -27,12 +30,12 @@ sub startPlayback()
 
   Modules_OnPlayerSceneBeforePlay(m)
 
+  ' Roku's Video node consumes a ContentNode whose own fields encode the
+  ' stream (url + streamFormat). No nested child needed for the simple case.
   content = CreateObject("roSGNode", "ContentNode")
   content.title = c.title
+  content.url = c.url
   content.streamFormat = c.streamFormat
-  stream = CreateObject("roSGNode", "ContentNode")
-  stream.url = c.stream
-  content.appendChild(stream)
 
   m.video.content = content
   m.video.control = "play"

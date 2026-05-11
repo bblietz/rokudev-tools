@@ -12,7 +12,6 @@
       translation="[60, 540]"
       itemSize="[1800, 260]"
       numRows="3"
-      rowLabelOffset="[0, 0]"
       showRowLabel="true"
     />
     <Timer id="rotateTimer" duration="6" repeat="true" />
