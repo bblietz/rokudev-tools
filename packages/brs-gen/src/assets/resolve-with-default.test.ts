@@ -29,7 +29,8 @@ describe('resolveAssetSource — precedence', () => {
       noValidate: true,
     });
     expect(r.source).toBe('operator');
-    expect(r.bytes!.toString()).toBe('operator-png-bytes');
+    if (r.source === 'none') throw new Error('expected source !== none');
+    expect(r.bytes.toString()).toBe('operator-png-bytes');
   });
 
   it('returns template-static bytes when operator omits + template declares path', async () => {
@@ -49,7 +50,8 @@ describe('resolveAssetSource — precedence', () => {
       noValidate: true,
     });
     expect(r.source).toBe('template-static');
-    expect(r.bytes!.toString()).toBe('template-static-bytes');
+    if (r.source === 'none') throw new Error('expected source !== none');
+    expect(r.bytes.toString()).toBe('template-static-bytes');
   });
 
   it('synthesizes from effectivePrimaryColor when both operator and template-static are absent', async () => {
@@ -64,8 +66,9 @@ describe('resolveAssetSource — precedence', () => {
       noValidate: false,
     });
     expect(r.source).toBe('synthesized');
+    if (r.source === 'none') throw new Error('expected source !== none');
     // The byte length is non-zero and the PNG sig is correct.
-    expect(r.bytes!.subarray(0, 4).toString('hex')).toBe('89504e47'); // PNG magic
+    expect(r.bytes.subarray(0, 4).toString('hex')).toBe('89504e47'); // PNG magic
   });
 
   it('returns source:none when all three inputs are absent', async () => {

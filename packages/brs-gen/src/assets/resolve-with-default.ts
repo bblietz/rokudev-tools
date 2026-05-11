@@ -4,8 +4,9 @@ import { resolveAssetPath } from './resolve.js';
 import { validateAssetSource, type SizeRule } from './validate.js';
 import { synthesizeSolidPng } from './synthesize.js';
 import { ICON_SOURCE_MIN, SPLASH_SOURCE_MIN } from './constants.js';
+import type { AssetKind } from './pipeline.js';
 
-export type AssetKind = 'icon' | 'splash';
+export type { AssetKind };
 
 export type ResolvedAssetSource =
   | { source: 'operator'; bytes: Buffer }
