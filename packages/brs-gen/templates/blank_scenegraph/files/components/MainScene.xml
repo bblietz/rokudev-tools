@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MainScene" extends="Scene">
+  <script type="text/brightscript" uri="MainScene.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+  <children>
+    <Group id="rootGroup" />
+  </children>
+</component>

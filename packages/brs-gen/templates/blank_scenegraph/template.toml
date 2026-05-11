@@ -1,0 +1,24 @@
+[template]
+id = "blank_scenegraph"
+version = "0.1.0"
+spec_compat = ">=2"
+description = "Minimal module-friendly starter channel. Scene + MainScene + one init hook; no content."
+
+[template.manifest_defaults]
+title          = "<%= spec.app.name %>"
+major_version  = "<%= spec.app.major_version %>"
+minor_version  = "<%= spec.app.minor_version %>"
+build_version  = "<%= spec.app.build_version %>"
+splash_color   = "#000000"
+ui_resolutions = "hd,fhd"
+
+[template.exports]
+init_hooks = [
+  { scope = "MainScene", phase = "after_scene_show", file = "components/MainScene.bs", signature = "(m as object) as void" },
+]
+scene_nodes = [
+  { name = "MainScene", file = "components/MainScene.xml" },
+]
+
+[template.branding_defaults]
+primary_color = "#000000"
