@@ -1,0 +1,23 @@
+[template]
+id = "template-with-static-branding-default"
+version = "0.0.1"
+spec_compat = ">=2"
+description = "Test fixture. Declares a real static branding icon path."
+
+[template.manifest_defaults]
+title           = "<%= spec.app.name %>"
+major_version   = "<%= spec.app.major_version %>"
+minor_version   = "<%= spec.app.minor_version %>"
+build_version   = "<%= spec.app.build_version %>"
+splash_color    = "#000000"
+ui_resolutions  = "hd,fhd"
+
+[template.exports]
+init_hooks = []
+scene_nodes = [
+  { name = "MainScene", file = "components/MainScene.xml" },
+]
+
+[template.branding_defaults]
+icon = "assets/icon.png"
+primary_color = "#123456"

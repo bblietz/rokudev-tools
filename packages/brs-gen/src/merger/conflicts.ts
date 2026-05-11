@@ -24,13 +24,18 @@ export function detectConflicts(modules: ModuleToml[], templateFilePaths: string
   for (const p of templateFilePaths) owners.set(p, '<template>');
   for (const m of modules) {
     for (const p of m.module_files.add) {
-      if (p.startsWith('source/_template/')) {
+      if (p.startsWith('source/_template/') || p.startsWith('assets/')) {
         return {
           ok: false,
           failure: fail(
             'FILE_COLLISION',
-            `module ${m.module.id} cannot add path ${p}: source/_template/ is reserved for template-config files`,
-            { stage: 'conflicts', path: p, owner_a: '<template-reserved>', owner_b: m.module.id },
+            `module ${m.module.id} cannot add path ${p}: source/_template/ and assets/ are reserved for template content`,
+            {
+              stage: 'conflicts',
+              path: p,
+              owner_a: '<template-reserved>',
+              owner_b: m.module.id,
+            },
           ),
         };
       }

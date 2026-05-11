@@ -631,6 +631,60 @@ describe('generate_app tool', () => {
     });
   });
 
+  describe('generate_app — template_branding_defaults synthesis path', () => {
+    // The fixture template 'template-with-static-branding-default' declares:
+    //   template_branding_defaults.icon = 'assets/icon.png'   (336x218 real PNG)
+    //   template_branding_defaults.primary_color = '#123456'
+    // It does NOT declare a splash default. So with a spec that has no branding:
+    //   icon   -> source='template-static'  (read from templates/<id>/assets/icon.png)
+    //   splash -> source='synthesized'      (effectivePrimaryColor = '#123456')
+    // Loaded via the outer beforeAll (real catalog under PKG_ROOT/templates/).
+
+    it('uses template-static icon and synthesizes splash when spec has no branding', async () => {
+      const parent = await freshTmp('tbrand');
+      try {
+        const handler = getHandler();
+        const result = await handler({
+          spec: {
+            spec_version: 2,
+            template: 'template-with-static-branding-default',
+            modules: [],
+            app: { name: 'BrandTest', major_version: 1, minor_version: 0, build_version: 0 },
+          },
+          output_dir: join(parent, 'project'),
+        });
+        const payload = parsePayload(result);
+        expect(payload['ok']).toBe(true);
+
+        // Icon buckets: template-static path -> icon hd + fhd emitted.
+        const manifestKeys = payload['manifest_keys'] as string[];
+        expect(manifestKeys).toEqual(
+          expect.arrayContaining(['mm_icon_focus_hd', 'mm_icon_focus_fhd']),
+        );
+
+        // Splash buckets: synthesized from effectivePrimaryColor=#123456.
+        expect(manifestKeys).toEqual(
+          expect.arrayContaining(['splash_screen_hd', 'splash_screen_fhd', 'splash_screen_uhd']),
+        );
+
+        // Physical PNG files written.
+        const projectDir = join(parent, 'project');
+        for (const rel of [
+          'images/icon_hd.png',
+          'images/icon_fhd.png',
+          'images/splash_hd.png',
+          'images/splash_fhd.png',
+          'images/splash_uhd.png',
+        ]) {
+          const bytes = await readFile(join(projectDir, rel));
+          expect(bytes.byteLength, `${rel} should be non-empty`).toBeGreaterThan(0);
+        }
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe('sideload happy path (mocked portal)', () => {
     // Only this sub-block mocks @rokudev/device-client so the real fail() /
     // RegistryReader / etc. remain intact for every other test in the file.

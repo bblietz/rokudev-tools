@@ -2,8 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import semver from 'semver';
 import { fail, DevPortal } from '@rokudev/device-client';
-import { resolveAssetPath } from '../assets/resolve.js';
-import { validateAssetSource } from '../assets/validate.js';
+import { resolveAssetSource } from '../assets/resolve-with-default.js';
 import { bucketAsset, manifestEntriesForBuckets } from '../assets/pipeline.js';
 import { ICON_SOURCE_MIN, SPLASH_SOURCE_MIN } from '../assets/constants.js';
 import { emitTemplateConfigBs } from '../merger/emit-template-config.js';
@@ -283,40 +282,58 @@ registerToolsModule((tools) => {
         if (!cr.ok) throw cr.failure;
       }
 
-      // 7a-7l. NEW: asset resolution + bucketing. Only fires when branding is
-      //        present on the validated spec; stub_hello and other asset-less
-      //        templates flow through untouched.
+      // 7a-7l. Asset resolution via precedence: operator > template-static
+      //        > synthesized. Effective primary_color = spec > template >
+      //        "#000000". Synthesized PNGs are returned as in-memory Buffers
+      //        by resolveAssetSource (no scratch dir needed; spec §6.4
+      //        implicitly satisfied).
+      const templateRoot = join(pkgRoot, 'templates', tmpl.template.id);
+      const brandingSpec =
+        (appSpec as { branding?: { icon?: string; splash?: string; primary_color?: string } })
+          .branding ?? {};
+      const brandingDefaults =
+        (tmpl as { template_branding_defaults?: { icon?: string; splash?: string; primary_color?: string } })
+          .template_branding_defaults ?? {};
+      const effectivePrimaryColor =
+        brandingSpec.primary_color ?? brandingDefaults.primary_color;
+
       let assetBuckets: Map<string, Buffer> | undefined;
       let assetManifestEntries: Record<string, string> | undefined;
-      const branding = (appSpec as { branding?: { icon?: string; splash?: string } }).branding;
-      if (branding && (branding.icon || branding.splash)) {
-        const bucketsMerged = new Map<string, Buffer>();
-        const entriesMerged: Record<string, string> = {};
 
-        if (branding.icon) {
-          const iconPath = resolveAssetPath(branding.icon, specOrigin);
-          const iconSrc = await readFile(iconPath);
-          await validateAssetSource(iconSrc, ICON_SOURCE_MIN, {
-            field: 'branding.icon',
-            path: iconPath,
-          });
-          const iconBuckets = await bucketAsset(iconSrc, 'icon', 'images/icon');
-          for (const [k, v] of iconBuckets) bucketsMerged.set(k, v);
-          Object.assign(entriesMerged, manifestEntriesForBuckets('icon', 'images/icon'));
-        }
-        if (branding.splash) {
-          const splashPath = resolveAssetPath(branding.splash, specOrigin);
-          const splashSrc = await readFile(splashPath);
-          await validateAssetSource(splashSrc, SPLASH_SOURCE_MIN, {
-            field: 'branding.splash',
-            path: splashPath,
-          });
-          const splashBuckets = await bucketAsset(splashSrc, 'splash', 'images/splash');
-          for (const [k, v] of splashBuckets) bucketsMerged.set(k, v);
-          Object.assign(entriesMerged, manifestEntriesForBuckets('splash', 'images/splash'));
-        }
-        assetBuckets = bucketsMerged;
-        assetManifestEntries = entriesMerged;
+      const iconResolved = await resolveAssetSource({
+        specAssetPath: brandingSpec.icon,
+        specOrigin,
+        templateRoot,
+        templateDefaultPath: brandingDefaults.icon,
+        effectivePrimaryColor,
+        kind: 'icon',
+        sourceMin: ICON_SOURCE_MIN,
+      });
+      const splashResolved = await resolveAssetSource({
+        specAssetPath: brandingSpec.splash,
+        specOrigin,
+        templateRoot,
+        templateDefaultPath: brandingDefaults.splash,
+        effectivePrimaryColor,
+        kind: 'splash',
+        sourceMin: SPLASH_SOURCE_MIN,
+      });
+
+      const buckets = new Map<string, Buffer>();
+      const entries: Record<string, string> = {};
+      if (iconResolved.source !== 'none') {
+        const iconBuckets = await bucketAsset(iconResolved.bytes, 'icon', 'images/icon');
+        for (const [k, v] of iconBuckets) buckets.set(k, v);
+        Object.assign(entries, manifestEntriesForBuckets('icon', 'images/icon'));
+      }
+      if (splashResolved.source !== 'none') {
+        const splashBuckets = await bucketAsset(splashResolved.bytes, 'splash', 'images/splash');
+        for (const [k, v] of splashBuckets) buckets.set(k, v);
+        Object.assign(entries, manifestEntriesForBuckets('splash', 'images/splash'));
+      }
+      if (buckets.size > 0) {
+        assetBuckets = buckets;
+        assetManifestEntries = entries;
       }
 
       // 8. Load template + module file bytes from the bundled dirs.
@@ -338,15 +355,11 @@ registerToolsModule((tools) => {
       let templateConfigBrs: string | undefined;
       const content = (appSpec as { content?: { feed_url?: string; feed_format?: string } })
         .content;
-      if ((branding as { primary_color?: string } | undefined)?.primary_color || content) {
+      if (brandingSpec.primary_color || content) {
         const cfg: Record<string, string> = {
           channel_name: appSpec.app.name,
         };
-        const brandingWithColor = branding as
-          | { primary_color?: string; icon?: string; splash?: string }
-          | undefined;
-        if (brandingWithColor?.primary_color)
-          cfg['primary_color'] = brandingWithColor.primary_color;
+        if (brandingSpec.primary_color) cfg['primary_color'] = brandingSpec.primary_color;
         if (content?.feed_url) cfg['feed_url'] = content.feed_url;
         if (content?.feed_format) cfg['feed_format'] = content.feed_format;
         templateConfigBrs = emitTemplateConfigBs(cfg);

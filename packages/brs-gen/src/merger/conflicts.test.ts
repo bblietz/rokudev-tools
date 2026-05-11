@@ -41,4 +41,12 @@ describe('detectConflicts', () => {
     if (r.ok) throw new Error('narrowing');
     expect(r.failure.code).toBe('FILE_COLLISION');
   });
+
+  it('FILE_COLLISION when a module tries to add a path under assets/', () => {
+    const r = detectConflicts([mod('a', ['assets/icon.png'])], []);
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error('narrowing');
+    expect(r.failure.code).toBe('FILE_COLLISION');
+    expect(r.failure.message).toContain('assets/icon.png');
+  });
 });
