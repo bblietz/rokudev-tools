@@ -157,6 +157,51 @@ async function runPair(
   }
 }
 
+// Build and run the full merger pipeline for a single module (or zero modules)
+// against a given template. Returns { ok: true } on success or { ok: false, code }
+// on a documented failure.
+async function runEntry(
+  template: import('../src/catalog/template-toml.js').TemplateToml,
+  modules: ModuleToml[],
+): Promise<{ ok: true } | { ok: false; code: string }> {
+  const specModules = modules.map((m) => ({
+    id: m.module.id,
+    config: synthesizeExample(m.module_config_schema as Record<string, unknown>),
+  }));
+
+  const spec = {
+    spec_version: 2 as const,
+    template: template.template.id,
+    modules: specModules,
+    app: { name: 'ConflictTest', major_version: 1, minor_version: 0, build_version: 0 },
+  };
+
+  const templateFiles = await walkTemplateFiles(
+    join(PKG_ROOT, 'templates', template.template.id, 'files'),
+  );
+  const renderedTemplateFiles = await renderTemplateFiles(templateFiles, spec, {
+    brs_gen_version: BRS_GEN_VERSION,
+    template_version: template.template.version,
+  });
+  const moduleFileBytes = await loadModuleFileBytes(PKG_ROOT, modules);
+
+  try {
+    await buildEmittedProject({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      spec: spec as any,
+      template,
+      modules,
+      renderedTemplateFiles,
+      moduleFileBytes,
+      brsGenVersion: BRS_GEN_VERSION,
+    });
+    return { ok: true };
+  } catch (err) {
+    const code = (err as { code?: string }).code ?? 'UNKNOWN';
+    return { ok: false, code };
+  }
+}
+
 describe('conflict-matrix', () => {
   it('every 2-subset of modules either merges cleanly or fails with a documented code', async () => {
     const cat = await loadCatalog(PKG_ROOT);
@@ -199,4 +244,36 @@ describe('conflict-matrix', () => {
       );
     }
   });
+});
+
+// Explicit entries for blank_scenegraph. Each entry is either an ok merge or
+// a WIRING_CONTRACT_VIOLATION (stub_label requires Main.before_scene_show
+// which blank_scenegraph does not export; it only exports
+// MainScene.after_scene_show). Both outcomes are acceptable.
+describe('conflict-matrix: blank_scenegraph entries', () => {
+  const entries: Array<{ modules: string[] }> = [
+    { modules: [] },
+    { modules: ['stub_label'] },
+  ];
+
+  for (const entry of entries) {
+    it(`blank_scenegraph + [${entry.modules.join(', ')}] merges cleanly or fails with a documented code`, async () => {
+      const cat = await loadCatalog(PKG_ROOT);
+      const template = cat.templates.get('blank_scenegraph')!;
+      expect(template).toBeDefined();
+
+      const modules = entry.modules.map((id) => {
+        const m = cat.modules.get(id);
+        if (!m) throw new Error(`module '${id}' not found in catalog`);
+        return m;
+      });
+
+      const result = await runEntry(template, modules);
+      if (result.ok) {
+        // Clean merge — pass.
+        return;
+      }
+      expect(ALLOWED_FAILURE_CODES.has(result.code)).toBe(true);
+    });
+  }
 });
