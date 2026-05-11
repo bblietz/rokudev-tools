@@ -183,6 +183,10 @@ sub Main()
   screen = CreateObject("roSGScreen")
   m.port = CreateObject("roMessagePort")
   screen.setMessagePort(m.port)
+  ' CreateScene attaches the MainScene as the screen's root and returns a
+  ' handle; we don't need the handle post-attach, but creation is the side
+  ' effect that matters. The intentionally-unused `scene` binding makes the
+  ' idiom obvious to readers.
   scene = screen.CreateScene("MainScene")
   screen.show()
   while true
@@ -230,10 +234,12 @@ import sharp from 'sharp';
  * Synthesize a solid-color source PNG at the given dimensions.
  *
  * Deterministic contract:
- * - Given identical sharp major.minor version + identical {width, height, color},
- *   output bytes are byte-equal.
- * - Determinism across OS/arch is asserted by a gate test; if libvips variance
- *   ever breaks this, we switch to static PNGs per-template.
+ * - Given the exact pinned sharp version (patch-level match, see pin in
+ *   packages/brs-gen/package.json) + identical {width, height, color},
+ *   output bytes are byte-equal on the same OS/arch.
+ * - Determinism across OS/arch is NOT guaranteed; it is asserted by the §9.1
+ *   gate test which runs on the pinned dev-machine platform only. If libvips
+ *   variance ever breaks this, we switch to static PNGs per-template.
  *
  * Pinned params (DO NOT CHANGE without regenerating goldens):
  *   create: { width, height, channels: 4, background: hexToRgba(color) }
@@ -322,9 +328,9 @@ Pre-existing `ASSET_*` codes from Plan 4 (`ASSET_NOT_FOUND`, `ASSET_TOO_SMALL`, 
 
 - `src/assets/synthesize.test.ts` (new)
   - Asserts `sharp.versions.sharp === '0.34.5'` as precondition, then known color + dimensions → exact sha256 (libvips drift gate).
-  - **Scope: dev-machine platform only.** This test does not attempt cross-arch byte-equality. If a different libvips build (different OS/arch) is used, the test may fail; per §3 non-goals that's a fix-forward follow-up. CI runners and dev machines must share a platform for this test to be meaningful — if CI diverges, either switch CI to the pinned platform or mark the test skipped on the divergent runner and run locally only.
-  - Dimensions match ICON_SOURCE_MIN / SPLASH_SOURCE_MIN.
-  - Invalid color throws `ASSET_INVALID_COLOR`.
+  - **Scope pinned: dev-machine platform only, gated via an env check.** The sha256 assertion runs only when `process.arch === 'arm64' && process.platform === 'darwin'` (the current dev-machine shape). Other platforms skip just the sha256 branch with `test.skip` and a warning log; the dimensions + invalid-color subtests still run everywhere. Rationale: we don't have CI yet; when CI lands (Plan 7+) it either uses a matching macOS arm64 runner or we revisit the gate. This avoids the ambiguity of "gate test may fail on CI" — it explicitly will not run outside the pinned platform, making the test stable and the platform coupling explicit.
+  - Dimensions match ICON_SOURCE_MIN / SPLASH_SOURCE_MIN (runs on all platforms).
+  - Invalid color throws `ASSET_INVALID_COLOR` (runs on all platforms).
 - `src/assets/resolve.test.ts` (extend)
   - Precedence: operator > template static > synthesized
   - effectivePrimaryColor precedence: spec > template_default > "#000000"
@@ -396,7 +402,7 @@ Total: ~8 steps, ~20 seconds on-device. No rows, no Details, no playback.
 
 ## 13. Verification gate (must pass before ship)
 
-1. `pnpm -C packages/brs-gen test` — all green (252 + new tests).
+1. `pnpm -C packages/brs-gen test` — all green. Target count: approximately **270-280 tests** (252 baseline from v0.4.3 + ~4 synthesis tests + ~3 resolve additions + ~3 template-toml additions + ~2 generate-app additions + 3 snapshot tests + 3 e2e additions + 2 conflict-matrix entries + 1 determinism entry). Actual count finalized during plan decomposition.
 2. `TZ=UTC node scripts/regen-golden.mjs` followed by `pnpm -C packages/brs-gen test` — still green (determinism).
 3. `t27-blank.mjs` Phase A: zero-branding spec PASS on operator's Roku.
 4. `t27-blank.mjs` Phase B: module composition PASS.
