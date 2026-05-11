@@ -3,6 +3,7 @@
   <script type="text/brightscript" uri="MainScene.bs" />
   <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
   <children>
+    <!-- rootGroup: stable mount point for module-contributed children via m.top.findNode("rootGroup") -->
     <Group id="rootGroup" />
   </children>
 </component>

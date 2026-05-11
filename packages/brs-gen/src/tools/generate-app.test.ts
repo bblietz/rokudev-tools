@@ -707,42 +707,40 @@ describe('generate_app tool', () => {
     });
   });
 
-  // Helper for the blank_scenegraph integration test below.
-  async function callGenerateApp(
-    spec: Record<string, unknown>,
-    outDir: string,
-  ): Promise<Record<string, unknown>> {
-    const handler = getHandler();
-    const result = await handler({ spec, output_dir: outDir });
-    return parsePayload(result);
-  }
-
   describe('generate_app — blank_scenegraph zero-input spec', () => {
     it('generates a valid channel tree from {spec_version, template, modules:[], app:{}}', async () => {
       const tmp = await mkdtemp(join(tmpdir(), 'gen-blank-'));
       const outDir = join(tmp, 'out');
-      const spec = {
-        spec_version: 2,
-        template: 'blank_scenegraph',
-        modules: [],
-        app: { name: 'Blank Test', major_version: 0, minor_version: 0, build_version: 1 },
-      };
-
-      const res = await callGenerateApp(spec, outDir);
-      expect(res['ok']).toBe(true);
-      // Synthesized assets present.
-      expect(res['manifest_keys']).toContain('mm_icon_focus_hd');
-      expect(res['manifest_keys']).toContain('mm_icon_focus_fhd');
-      expect(res['manifest_keys']).toContain('splash_screen_hd');
-      expect(res['manifest_keys']).toContain('splash_screen_fhd');
-      expect(res['manifest_keys']).toContain('splash_screen_uhd');
-      // init_order empty (no modules).
-      expect(res['init_order']).toEqual([]);
-      // Key files exist on disk post-compile.
-      await stat(join(outDir, 'manifest'));
-      await stat(join(outDir, 'components/MainScene.xml'));
-      await stat(join(outDir, 'components/MainScene.brs'));
-      await stat(join(outDir, 'source/Main.brs'));
+      try {
+        const handler = getHandler();
+        const res = parsePayload(
+          await handler({
+            spec: {
+              spec_version: 2,
+              template: 'blank_scenegraph',
+              modules: [],
+              app: { name: 'Blank Test', major_version: 0, minor_version: 0, build_version: 1 },
+            },
+            output_dir: outDir,
+          }),
+        );
+        expect(res['ok']).toBe(true);
+        // Synthesized assets present.
+        expect(res['manifest_keys']).toContain('mm_icon_focus_hd');
+        expect(res['manifest_keys']).toContain('mm_icon_focus_fhd');
+        expect(res['manifest_keys']).toContain('splash_screen_hd');
+        expect(res['manifest_keys']).toContain('splash_screen_fhd');
+        expect(res['manifest_keys']).toContain('splash_screen_uhd');
+        // init_order empty (no modules).
+        expect(res['init_order']).toEqual([]);
+        // Key files exist on disk post-compile.
+        await stat(join(outDir, 'manifest'));
+        await stat(join(outDir, 'components/MainScene.xml'));
+        await stat(join(outDir, 'components/MainScene.brs'));
+        await stat(join(outDir, 'source/Main.brs'));
+      } finally {
+        await rm(tmp, { recursive: true, force: true });
+      }
     });
   });
 
