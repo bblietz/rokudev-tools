@@ -4,7 +4,11 @@ sub init()
   m.rotateTimer = m.top.findNode("rotateTimer")
   m.loadingLabel = m.top.findNode("loadingLabel")
   m.errorLabel = m.top.findNode("errorLabel")
+  m.heroPlayButton = m.hero.findNode("playButton")
+  m.heroPlayButton.observeField("buttonSelected", "onHeroButtonSelected")
   m.detailsRef = invalid
+  m.userHasInteracted = false
+  m.heroAutoCount = 0
 
   ' Fire module-opt hook before any content load.
   Modules_OnMainSceneBeforeContentLoad(m)
@@ -54,6 +58,7 @@ sub onFeedState()
 end sub
 
 sub onRotateTick()
+  if m.userHasInteracted then return
   root = m.rowList.content
   if root = invalid or root.getChildCount() = 0 then return
   firstRow = root.getChild(0)
@@ -61,6 +66,8 @@ sub onRotateTick()
   if n = 0 then return
   m.heroIdx = (m.heroIdx + 1) mod n
   m.hero.content = firstRow.getChild(m.heroIdx)
+  m.heroAutoCount = m.heroAutoCount + 1
+  if m.heroAutoCount >= 3 then m.rotateTimer.control = "stop"
 end sub
 
 sub onItemSelected()
@@ -87,4 +94,48 @@ sub onDetailsClose()
     m.detailsRef = invalid
   end if
   m.rowList.setFocus(true)
+end sub
+
+function onKeyEvent(key as string, press as boolean) as boolean
+  if not press then return false
+
+  ' First-input lifecycle: stop auto-rotation permanently.
+  if not m.userHasInteracted then
+    m.userHasInteracted = true
+    m.rotateTimer.control = "stop"
+  end if
+
+  ' Up from row 0 of RowList -> focus hero playButton.
+  if key = "up" and m.rowList.hasFocus() then
+    focused = m.rowList.itemFocused
+    if focused <> invalid and focused[0] = 0 then
+      m.heroPlayButton.setFocus(true)
+      return true
+    end if
+  end if
+
+  ' Down from playButton -> focus RowList (returns to row 0).
+  if key = "down" and m.heroPlayButton.hasFocus() then
+    m.rowList.setFocus(true)
+    return true
+  end if
+
+  return false
+end function
+
+sub onHeroButtonSelected()
+  root = m.rowList.content
+  if root = invalid or root.getChildCount() = 0 then return
+  firstRow = root.getChild(0)
+  if firstRow.getChildCount() = 0 then return
+  item = firstRow.getChild(m.heroIdx)
+
+  ' Mirrors onItemSelected: createChild + cache ref + observe close.
+  ' findNode is id-only (memory.md trap); always cache the createChild
+  ' return so onDetailsClose can remove the correct instance.
+  details = m.top.createChild("DetailsScene")
+  details.observeField("close", "onDetailsClose")
+  details.content = item
+  details.setFocus(true)
+  m.detailsRef = details
 end sub
