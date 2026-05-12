@@ -838,6 +838,12 @@ describe('TemplateConfig live_label threading', () => {
     setCatalogForTests(cat);
   });
 
+  afterAll(async () => {
+    // Restore the bundled catalog so downstream describe blocks are unaffected.
+    const bundledCat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(bundledCat);
+  });
+
   it('threads spec.content.live_label into emitted TemplateConfig() body', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-live-label-'));
     try {
@@ -853,7 +859,7 @@ describe('TemplateConfig live_label threading', () => {
         output_dir: join(tmpDir, 'out'),
         overwrite: true,
       });
-      const payload = result as Record<string, unknown>;
+      const payload = parsePayload(result);
       expect(payload['ok']).toBe(true);
       const configBs = await readFile(
         join(tmpDir, 'out', 'source', '_template', 'config.bs'),
@@ -880,7 +886,7 @@ describe('TemplateConfig live_label threading', () => {
         output_dir: join(tmpDir, 'out'),
         overwrite: true,
       });
-      const payload = result as Record<string, unknown>;
+      const payload = parsePayload(result);
       expect(payload['ok']).toBe(true);
       const configBs = await readFile(
         join(tmpDir, 'out', 'source', '_template', 'config.bs'),
