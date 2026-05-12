@@ -12,7 +12,9 @@
     <Label id="synopsis" translation="[40, 390]" width="1100" color="0xCCCCCCFF" wrap="true" />
     <Button
       id="playButton"
-      text="▶ Play Now"
+      text="Play Now"
+      iconUri="pkg:/images/play-icon-light.png"
+      focusedIconUri="pkg:/images/play-icon-dark.png"
       translation="[40, 388]"
       minWidth="220"
     />

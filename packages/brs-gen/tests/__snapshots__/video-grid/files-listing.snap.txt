@@ -10,6 +10,8 @@ components/PlayerScene.brs
 components/PlayerScene.xml
 images/icon_fhd.png
 images/icon_hd.png
+images/play-icon-dark.png
+images/play-icon-light.png
 images/splash_fhd.png
 images/splash_hd.png
 images/splash_uhd.png
