@@ -10,5 +10,11 @@
     <Rectangle id="scrim" translation="[0, 280]" width="1800" height="170" color="0x000000AA" />
     <Label id="title" translation="[40, 340]" width="1100" font="font:LargeBoldSystemFont" color="0xFFFFFFFF" />
     <Label id="synopsis" translation="[40, 390]" width="1100" color="0xCCCCCCFF" wrap="true" />
+    <Button
+      id="playButton"
+      text="▶ Play Now"
+      translation="[40, 388]"
+      minWidth="220"
+    />
   </children>
 </component>
