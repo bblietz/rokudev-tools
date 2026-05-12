@@ -21,6 +21,7 @@ The polish-insistence rule (MEMORY.md, locked 2026-05-11) requires this work BEF
 | D5 | Rotation logic stays in `MainScene.bs` (already there: `onRotateTick` + `m.rotateTimer`). The existing implementation is REPLACED with a capped + input-sensitive version. HeroUnit's existing `content`/`onContentChanged` field binding is preserved unchanged. |
 | D6 | No new modules, no engine changes, no manifest changes. Polish stays inside the template files. |
 | D7 | Release as v0.5.1 patch. `@rokudev/device-client` unchanged at 0.3.0. |
+| D8 | After Back from Details opened via hero button, focus returns to RowList row 0 (existing `onDetailsClose` behavior — `m.rowList.setFocus(true)`). NOT playButton. Re-routing Back to playButton is a small follow-up for a later patch; out of scope for v0.5.1. |
 
 ## 3. Non-goals
 
@@ -257,14 +258,15 @@ Extend `packages/brs-gen/scripts/t27-video-grid.mjs` with a Phase B (Phase A is 
 
 1. After Phase A boot, send `Down` once → focus moves to row 1 tile.
 2. Send `Up` once → focus returns to row 0 tile (default RowList behavior).
-3. Send `Up` again → focus moves to hero playButton.
+3. Send `Up` again → focus moves to hero playButton (NEW Up-routing).
 4. Take screenshot `b-01-hero-button-focused.png`. Assert no error overlay.
-5. Send `Select` → DetailsScene opens.
+5. Send `Select` → DetailsScene opens for the current hero item.
 6. Take screenshot `b-02-details-from-hero.png`. Assert no error overlay.
-7. Send `Back` → DetailsScene removed; focus returns to hero playButton.
-8. Take screenshot `b-03-back-to-hero.png`. Assert no error overlay.
-9. Send `Down` → focus returns to RowList row 0.
-10. Send `Home` → channel exits cleanly.
+7. Send `Back` → DetailsScene removed; focus returns to **RowList row 0** (per D8 / existing `onDetailsClose`). NOT playButton.
+8. Take screenshot `b-03-back-from-details.png`. Assert no error overlay.
+9. Send `Up` again → focus moves back to hero playButton (proves Up-routing still works after Details round-trip).
+10. Send `Down` → focus returns to RowList row 0 (proves Down-routing from playButton).
+11. Send `Home` → channel exits cleanly.
 
 Operator-run; failure on any step exits non-zero. Existing `assertStep` helper from `_t27-lib.mjs` covers the pattern.
 
