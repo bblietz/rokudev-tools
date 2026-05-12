@@ -18,7 +18,7 @@ The polish-insistence rule (MEMORY.md, locked 2026-05-11) requires this work BEF
 | D2 | Select on the hero button opens `DetailsScene` for the current hero item (pattern parity with RowList tile select). |
 | D3 | Hero rotation interval = 5 seconds. |
 | D4 | Hero rotation cap = 3 transitions (4 hero items shown over ~15 seconds), OR first user input — whichever comes first. |
-| D5 | Rotation logic moves OUT of `HeroUnit.bs` into `MainScene.bs`. HeroUnit becomes a pure renderer with a `setHeroItem(node)` ifc func. |
+| D5 | Rotation logic stays in `MainScene.bs` (already there: `onRotateTick` + `m.rotateTimer`). The existing implementation is REPLACED with a capped + input-sensitive version. HeroUnit's existing `content`/`onContentChanged` field binding is preserved unchanged. |
 | D6 | No new modules, no engine changes, no manifest changes. Polish stays inside the template files. |
 | D7 | Release as v0.5.1 patch. `@rokudev/device-client` unchanged at 0.3.0. |
 
@@ -34,10 +34,11 @@ The polish-insistence rule (MEMORY.md, locked 2026-05-11) requires this work BEF
 
 Modify three template files:
 
-- `HeroUnit.xml` — add focusable `<Button id="playButton">` child overlaid on the lower-left of the poster.
-- `HeroUnit.bs` — strip rotation logic; add `setHeroItem(node)` interface function; add `currentItem` interface field.
-- `MainScene.bs` — own rotation state; route Up/Down between RowList row-0 ↔ hero button via `onKeyEvent`; observe hero button's `buttonSelected` field to open Details.
-- `MainScene.xml` — add `<Timer id="heroTimer" duration="5" repeat="true" />` to children; declare any needed `<interface>` fields on HeroUnit.
+- `HeroUnit.xml` — add focusable `<Button id="playButton">` child overlaid on the lower-left of the poster. Keep existing `<interface><field id="content" type="node" onChange="onContentChanged" /></interface>` unchanged.
+- `MainScene.xml` — change existing `<Timer id="rotateTimer" duration="6" repeat="true" />` to `duration="5"`. No new Timer node added.
+- `MainScene.bs` — replace existing `onRotateTick` body with a capped, input-sensitive variant; add `onKeyEvent` to route Up/Down between RowList row-0 ↔ hero button; observe hero button's `buttonSelected` field to open Details.
+
+`HeroUnit.bs` is NOT modified — its existing `content`/`onContentChanged` pattern continues to work; MainScene continues to set `m.hero.content = node` to drive hero updates.
 
 No `Main.bs`, `Feed.bs`, `HttpTask.{xml,bs}`, `DetailsScene.{xml,bs}`, or `PlayerScene.{xml,bs}` changes.
 
@@ -45,112 +46,121 @@ No `Main.bs`, `Feed.bs`, `HttpTask.{xml,bs}`, `DetailsScene.{xml,bs}`, or `Playe
 
 ### 5.1 `HeroUnit.xml`
 
-Add a focusable Button child:
+Add a focusable Button child between the existing `<Label id="synopsis">` and the closing `</children>`:
 
 ```xml
 <Button
   id="playButton"
   text="▶ Play Now"
-  translation="[60, 380]"
-  minWidth="180"
+  translation="[40, 388]"
+  minWidth="220"
 />
 ```
 
-Position: lower-left of the 1800×450 hero composite, sitting on top of the existing scrim Rectangle so the focus ring is visible against any poster.
+Position: lower-left of the 1800×450 hero composite, slightly below the synopsis Label (which sits at translation `[40, 390]`) so the focus ring lifts cleanly above the scrim. Adjust translation if synopsis text overlap occurs in practice.
 
-Declare an interface field exposing the current item so MainScene can read it:
+Keep the existing `<interface><field id="content" type="node" onChange="onContentChanged" /></interface>` block UNCHANGED. No new interface fields are needed — MainScene reads hero state from its own `m.heroIdx` + `m.rowList.content`.
 
-```xml
-<interface>
-  <field id="currentItem" type="node" />
-</interface>
-```
+### 5.2 `HeroUnit.bs` — UNCHANGED
 
-(If HeroUnit's existing XML already has an `<interface>`, append the new field; do not duplicate the section.)
+`HeroUnit.bs` is NOT modified by this patch. The existing `init()` (which finds `m.poster`, `m.title`, `m.synopsis`) and `onContentChanged()` (which reads `m.top.content` and updates the three children) continue to work unchanged.
 
-### 5.2 `HeroUnit.bs`
-
-Remove:
-- Any existing rotation timer setup or observer.
-- Any code that mutates `m.titleLabel.text`, `m.descLabel.text`, `m.posterNode.uri` based on a timer-driven index.
-
-Add:
-```brightscript
-sub setHeroItem(node as object) as void
-  if node = invalid then return
-  m.top.currentItem = node
-  m.titleLabel.text = node.title
-  m.descLabel.text = node.description
-  m.posterNode.uri = node.HDPosterUrl
-end sub
-```
-
-(Field names `titleLabel`/`descLabel`/`posterNode` are placeholders — match the existing names from the v0.4.2 HeroUnit.xml.)
-
-The init() function does NOT call setHeroItem — the binding is driven by MainScene.
+The new `playButton` child is reachable from MainScene via `m.hero.findNode("playButton")`. HeroUnit.bs does not need to do anything with it — Roku Button has built-in focus handling and emits `buttonSelected` natively.
 
 ### 5.3 `MainScene.bs`
 
-New module-level state on `m`:
-- `m.heroItems` (roArray of ContentNode) — populated when feed loads.
-- `m.heroIdx` (integer, default 0) — current hero index.
-- `m.heroAutoCount` (integer, default 0) — number of timer-driven transitions so far.
-- `m.userHasInteracted` (boolean, default false).
+The existing file (per v0.4.2) already has: `init()`, `onFeedState()`, `onRotateTick()`, `onItemSelected()`, `onDetailsClose()`. New code is **additive** to `init()` and replaces the body of `onRotateTick`; new functions added at the bottom.
 
-In existing `onFeedLoaded` (or equivalent) handler:
-- Populate `m.heroItems` from feed data (slice of top-row items, length 4–6 per existing pattern).
-- Set `m.heroIdx = 0`.
-- Call `m.hero.callFunc("setHeroItem", m.heroItems[0])`.
-- If `m.heroItems.count() >= 2 and not m.userHasInteracted`: `m.heroTimer.control = "start"`.
+**State additions on `m`** (initialized in `init()`):
+- `m.userHasInteracted` (boolean, default `false`).
+- `m.heroAutoCount` (integer, default `0`) — number of timer-driven transitions so far.
+- (`m.heroIdx` already exists — initialized to 0 in `onFeedState` after feed loads.)
 
-New `onHeroTimer` (observes `m.heroTimer.fire`):
+**`init()` — append after the existing `m.detailsRef = invalid` line:**
+```brightscript
+m.userHasInteracted = false
+m.heroAutoCount = 0
 ```
-if m.userHasInteracted then return
-m.heroIdx = (m.heroIdx + 1) mod m.heroItems.count()
-m.hero.callFunc("setHeroItem", m.heroItems[m.heroIdx])
-m.heroAutoCount = m.heroAutoCount + 1
-if m.heroAutoCount >= 3 then m.heroTimer.control = "stop"
-```
+(Do NOT register the playButton observer here — `m.hero` is found but `playButton` may not be reachable until the scene tree settles. Register inside `onFeedState` after `m.hero.content` is first set, OR use `m.hero.findNode("playButton").observeField("buttonSelected", "onHeroButtonSelected")` immediately after `m.hero = m.top.findNode("hero")` since findNode walks the static XML tree at init time. The latter is simpler — register in init.)
 
-Modify or add `onKeyEvent(key as string, press as boolean) as boolean`:
-- On any keypress (`press = true`):
-  - If not `m.userHasInteracted`: set `m.userHasInteracted = true`, `m.heroTimer.control = "stop"`.
-- If `key = "up"` AND `press` AND focus is currently on RowList row 0:
-  - Call `m.hero.findNode("playButton").setFocus(true)`.
-  - Return true (consume key).
-- If `key = "down"` AND `press` AND focus is currently on hero's playButton:
-  - Call `m.rowList.setFocus(true)` (RowList re-enters at last-focused position; for a freshly-loaded scene that's row 0 col 0).
-  - Return true.
-- Default: return false (let SceneGraph handle the rest).
-
-Determining "focus on row 0 of RowList": observe `m.rowList.itemFocused` (which is a `[row, col]` vector2d on RowList) and stash `m.rowListRow` for cheap check; OR call `m.rowList.itemFocused` directly inside `onKeyEvent`. Simpler: just check `m.rowList.itemFocused[0] = 0`.
-
-Determining "focus on playButton": call `m.hero.findNode("playButton").hasFocus()`.
-
-New observer on hero button's `buttonSelected` field (registered in init() after `m.hero` is found):
-```
-m.hero.findNode("playButton").observeField("buttonSelected", "onHeroButtonSelected")
+Concretely, in `init()` after `m.hero = m.top.findNode("hero")`:
+```brightscript
+m.heroPlayButton = m.hero.findNode("playButton")
+m.heroPlayButton.observeField("buttonSelected", "onHeroButtonSelected")
 ```
 
-`onHeroButtonSelected`:
+**Replace existing `onRotateTick` body** with the capped + input-sensitive version:
+```brightscript
+sub onRotateTick()
+  if m.userHasInteracted then return
+  root = m.rowList.content
+  if root = invalid or root.getChildCount() = 0 then return
+  firstRow = root.getChild(0)
+  n = firstRow.getChildCount()
+  if n = 0 then return
+  m.heroIdx = (m.heroIdx + 1) mod n
+  m.hero.content = firstRow.getChild(m.heroIdx)
+  m.heroAutoCount = m.heroAutoCount + 1
+  if m.heroAutoCount >= 3 then m.rotateTimer.control = "stop"
+end sub
 ```
-if m.heroItems = invalid or m.heroItems.count() = 0 then return
-openDetails(m.heroItems[m.heroIdx])
+(Note: rotation continues to use `m.hero.content = firstRow.getChild(...)` — the existing pattern. No `setHeroItem` callFunc.)
+
+**Add new function `onKeyEvent`:**
+```brightscript
+function onKeyEvent(key as string, press as boolean) as boolean
+  if not press then return false
+
+  ' First-input lifecycle: stop auto-rotation permanently.
+  if not m.userHasInteracted then
+    m.userHasInteracted = true
+    m.rotateTimer.control = "stop"
+  end if
+
+  ' Up from row 0 of RowList -> focus hero playButton.
+  if key = "up" and m.rowList.hasFocus() then
+    focused = m.rowList.itemFocused
+    if focused <> invalid and focused[0] = 0 then
+      m.heroPlayButton.setFocus(true)
+      return true
+    end if
+  end if
+
+  ' Down from playButton -> focus RowList (returns to row 0).
+  if key = "down" and m.heroPlayButton.hasFocus() then
+    m.rowList.setFocus(true)
+    return true
+  end if
+
+  return false
+end function
 ```
 
-Where `openDetails(item)` is either an existing helper from v0.4.2 (preferred — DRY) or a small new helper that mirrors what `onItemSelected` does for RowList tile selection: createChild DetailsScene, cache the ref in `m.detailsRef`, observe close → remove via cached ref.
+**Add new function `onHeroButtonSelected`:**
+```brightscript
+sub onHeroButtonSelected()
+  root = m.rowList.content
+  if root = invalid or root.getChildCount() = 0 then return
+  firstRow = root.getChild(0)
+  if firstRow.getChildCount() = 0 then return
+  item = firstRow.getChild(m.heroIdx)
+
+  ' Mirrors onItemSelected: createChild + cache ref + observe close.
+  details = m.top.createChild("DetailsScene")
+  details.observeField("close", "onDetailsClose")
+  details.content = item
+  details.setFocus(true)
+  m.detailsRef = details
+end sub
+```
+
+(Existing `onDetailsClose` already does `m.rowList.setFocus(true)` after removing the Details child. From hero-button-Select → Back, this routes focus back to the RowList instead of the hero button. That matches Roku conventions for a content-browsing channel; if user wants focus to return to the hero button instead, this is a small follow-up for a later patch — out of scope for v0.5.1.)
 
 ### 5.4 `MainScene.xml`
 
-Add to children:
+ONE change: existing `<Timer id="rotateTimer" duration="6" repeat="true" />` becomes `<Timer id="rotateTimer" duration="5" repeat="true" />`. No new Timer added; no rename.
 
-```xml
-<Timer id="heroTimer" duration="5" repeat="true" />
-```
-
-The existing `<HeroUnit id="hero" />` reference is unchanged.
-
-If MainScene.xml already declares observable interface fields for things like `focusedRow`, leave them as-is; we don't need new MainScene-level interface fields.
+All other XML structure (`background`, `hero`, `rowList`, `loadingLabel`, `errorLabel`, the script tags, the Scene-extending root) remains unchanged.
 
 ## 6. Data flow
 
@@ -158,68 +168,87 @@ If MainScene.xml already declares observable interface fields for things like `f
 Boot:
   Main.bs creates Scene
   → MainScene.init() runs
-  → m.feedTask starts (existing)
-  → eventually onFeedLoaded fires
-    → populate m.heroItems
-    → setHeroItem(m.heroItems[0])
-    → if items.count() >= 2: m.heroTimer.control = "start"
+    → m.userHasInteracted = false; m.heroAutoCount = 0
+    → m.heroPlayButton observer registered
+    → Modules_OnMainSceneBeforeContentLoad(m)
+    → m.feedTask started
+
+Feed loads:
+  onFeedState (existing)
+  → m.rowList.content = parsed root
+  → Modules_OnMainSceneAfterContentLoad(m)
+  → m.hero.content = firstRow.getChild(0)   ' seeds hero
+  → Modules_OnMainSceneAfterHeroLoad(m)
+  → m.loadingLabel.visible = false
+  → m.rotateTimer.observeField("fire", "onRotateTick")
+  → m.rotateTimer.control = "start"
+  → m.heroIdx = 0
+  → m.rowList.setFocus(true)
 
 Auto-rotation (no user input yet):
-  m.heroTimer.fire (every 5s)
-  → onHeroTimer
-  → idx = (idx + 1) mod N
-  → setHeroItem(items[idx])
-  → m.heroAutoCount++; if >= 3: stop timer
+  m.rotateTimer.fire (every 5s)
+  → onRotateTick (new body)
+  → if m.userHasInteracted: return
+  → idx = (idx + 1) mod n
+  → m.hero.content = firstRow.getChild(idx)   ' triggers HeroUnit.onContentChanged
+  → m.heroAutoCount++; if >= 3: m.rotateTimer.control = "stop"
 
 User presses any key (first input):
-  onKeyEvent
-  → m.userHasInteracted = true; m.heroTimer.control = "stop"
+  onKeyEvent (any key, press=true)
+  → m.userHasInteracted = true; m.rotateTimer.control = "stop"
   → (continue routing logic for the specific key)
 
 User presses Up while on RowList row 0:
-  onKeyEvent (key="up", row=0)
-  → setFocus(playButton); return true
+  onKeyEvent (key="up", m.rowList.hasFocus(), itemFocused[0]=0)
+  → m.heroPlayButton.setFocus(true); return true
 
 User presses Down while on playButton:
-  onKeyEvent (key="down", focus=playButton)
-  → setFocus(m.rowList); return true
+  onKeyEvent (key="down", m.heroPlayButton.hasFocus())
+  → m.rowList.setFocus(true); return true
 
 User presses Select on playButton:
   Roku Button fires buttonSelected
   → onHeroButtonSelected
-  → openDetails(items[heroIdx])
-  → DetailsScene appears (existing path)
-  → user presses Back → DetailsScene removed via cached m.detailsRef
-  → focus returns to playButton (Roku default focus restoration)
+  → createChild DetailsScene; cache as m.detailsRef
+  → details.content = firstRow.getChild(m.heroIdx)
+  → details.setFocus(true)
+  → user presses Back → DetailsScene close → onDetailsClose
+  → m.top.removeChild(m.detailsRef); m.detailsRef = invalid
+  → m.rowList.setFocus(true)   ' (existing behavior; not playButton)
 ```
 
 ## 7. Error handling
 
-- `m.heroItems.count() == 0`: hide hero (`m.hero.visible = false`); skip timer start. Existing v0.4.2 hides the hero on empty feed already; preserve.
-- `m.heroItems.count() == 1`: skip timer start (rotation pointless); hero shows the single item; Up-from-row-0 still routes to playButton (single item is still selectable).
-- `m.heroItems.count() >= 2`: timer starts; auto-rotation runs ≤3 transitions or until first input.
-- Hero button selected before feed loads: `m.heroItems = invalid` → guarded with `if m.heroItems <> invalid and m.heroItems.count() > 0` in `onHeroButtonSelected`.
+- Empty feed (`m.rowList.content.getChildCount() == 0`): existing behavior — error label shows "Feed load failed" or stays in loading. Hero is never seeded; rotateTimer never starts (existing onFeedState gates this). New code is unchanged here.
+- First row empty (`firstRow.getChildCount() == 0`): existing onRotateTick guards this with early return; new body preserves the guard.
+- Hero button selected before feed loads: guarded inside `onHeroButtonSelected` via `root = invalid or root.getChildCount() = 0` early return. Up/Down routing also tolerates this — `hasFocus()` checks return false until focus is established.
+- `m.rowList.itemFocused` may be `invalid` before first row is rendered: guarded with `if focused <> invalid` inside `onKeyEvent`.
 - Roku Button has built-in focus styling; no manual focus-ring code needed.
-- `m.rowList.itemFocused` may be `invalid` before first row is rendered; guard with `if m.rowList.itemFocused <> invalid`.
+- `m.heroPlayButton` registered in init() — at init time the static XML tree is fully resolved, so `findNode("playButton")` always succeeds. No nil-check needed at registration; if it ever did fail, `observeField` would crash and the bug would be loud.
 
 ## 8. Testing
 
 ### 8.1 Snapshot tests
-Existing `tests/__snapshots__/video_grid_channel/` files will change:
-- `HeroUnit.xml.snap.txt` — adds `<Button>` and `<interface>` (if not previously declared).
-- `MainScene.xml.snap.txt` — adds `<Timer>`.
-- `MainScene.brs.snap.txt` — adds rotation/key handling logic.
+Existing snapshot files at `packages/brs-gen/tests/__snapshots__/video-grid/` (note the **hyphen** in `video-grid/`, not `video_grid_channel`) will change:
+- `HeroUnit.xml.snap.txt` — adds the new `<Button id="playButton">` child.
+- `MainScene.xml.snap.txt` — Timer duration changes from `"6"` to `"5"`.
 
-Update via vitest's snapshot update flow (`pnpm -C packages/brs-gen test -u tests/snapshots.test.ts`).
+There are NO `.brs` snapshots in the existing harness — only XML snapshots. The new `onKeyEvent` / `onHeroButtonSelected` / replaced `onRotateTick` logic in `MainScene.bs` is NOT directly snapshot-tested; coverage comes from the string-presence integration test in §8.3 + the e2e golden zip diff (which captures compiled `.brs` bytes).
+
+Update snapshots via vitest's `-u` flag: `pnpm -C packages/brs-gen test -u tests/snapshots.test.ts`.
 
 ### 8.2 Golden zip + provenance
 `tests/__golden__/video-grid.zip` + `tests/__golden__/video-grid.provenance.json` will change. Regen under TZ=UTC via `TZ=UTC node packages/brs-gen/scripts/regen-golden.mjs`.
 
 ### 8.3 Unit-style integration test
-Add one small test to `src/tools/generate-app.test.ts` (or `tests/snapshots.test.ts`) that asserts the generated `MainScene.brs` contains:
-- The substring `m.heroTimer.control` (proves timer wiring is emitted).
-- The substring `m.userHasInteracted` (proves first-input lifecycle).
-- The substring `Modules_OnMainSceneAfterSceneShow` (regression: existing init hook still emitted alongside new logic).
+Add one small test to `src/tools/generate-app.test.ts` (or `tests/snapshots.test.ts`) that asserts the generated `MainScene.brs` (post-compile) contains:
+- The substring `m.userHasInteracted` (proves first-input lifecycle is emitted).
+- The substring `m.heroAutoCount` (proves transition-cap is emitted).
+- The substring `onHeroButtonSelected` (proves new handler is emitted).
+- The substring `m.heroPlayButton.setFocus` OR `findNode("playButton")` (proves Up-routing is emitted).
+- The substring `Modules_OnMainSceneBeforeContentLoad` (regression: existing init hook still emitted alongside new logic).
+- The substring `Modules_OnMainSceneAfterContentLoad` (regression: existing post-feed hook).
+- The substring `Modules_OnMainSceneAfterHeroLoad` (regression: existing post-hero hook).
 
 This is a string-presence check, not a structural assertion. Cheap to maintain.
 
@@ -243,8 +272,8 @@ Operator-run; failure on any step exits non-zero. Existing `assertStep` helper f
 
 | Step | Action |
 |---|---|
-| R1 | Implement template-file changes (5.1–5.4). |
-| R2 | Run `pnpm -C packages/brs-gen test -u tests/snapshots.test.ts` to regenerate snapshots. |
+| R1 | Implement template-file changes (5.1, 5.3, 5.4). HeroUnit.bs is unchanged (5.2). |
+| R2 | Run `pnpm -C packages/brs-gen test -u tests/snapshots.test.ts` to update snapshots in `tests/__snapshots__/video-grid/`. |
 | R3 | Run `TZ=UTC node packages/brs-gen/scripts/regen-golden.mjs` to regenerate goldens. |
 | R4 | Add the small string-presence integration test (§8.3). |
 | R5 | Add T27 Phase B (§8.4). |
