@@ -25,12 +25,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import {
-  sideloadAndLaunch,
-  keypress,
-  screenshotNoError,
-  sleep,
-} from './_t27-lib.mjs';
+import { sideloadAndLaunch, keypress, screenshotNoError, sleep } from './_t27-lib.mjs';
 import { generateAppForRegen } from './regen-helper.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -85,9 +80,7 @@ async function runPhaseA() {
     generateAppForRegen({ outputDir, spec: specPath, outputZip }),
   );
 
-  await assertStep('A: sideload + launch', () =>
-    sideloadAndLaunch(outputZip, host, password),
-  );
+  await assertStep('A: sideload + launch', () => sideloadAndLaunch(outputZip, host, password));
 
   // Allow channel init to complete.
   await sleep(3000);

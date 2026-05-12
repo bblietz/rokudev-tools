@@ -66,11 +66,7 @@ export async function resolveAssetSource(input: ResolveInput): Promise<ResolvedA
 
   if (input.effectivePrimaryColor) {
     const dims = SYNTH_DIMENSIONS[input.kind];
-    const bytes = await synthesizeSolidPng(
-      input.effectivePrimaryColor,
-      dims.width,
-      dims.height,
-    );
+    const bytes = await synthesizeSolidPng(input.effectivePrimaryColor, dims.width, dims.height);
     return { source: 'synthesized', bytes };
   }
 

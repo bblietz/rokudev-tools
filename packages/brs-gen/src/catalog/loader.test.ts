@@ -117,10 +117,7 @@ scene_nodes = []
 });
 
 describe('template_branding_defaults existence check', () => {
-  const FIXTURE_ROOT = join(
-    dirname(fileURLToPath(import.meta.url)),
-    '../../tests/fixtures',
-  );
+  const FIXTURE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../tests/fixtures');
   let tmps: string[] = [];
   afterEach(async () => {
     for (const t of tmps) await rm(t, { recursive: true, force: true });

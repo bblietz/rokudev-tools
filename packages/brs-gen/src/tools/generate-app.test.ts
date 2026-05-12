@@ -1,5 +1,15 @@
 import { describe, it, expect, afterAll, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { access, cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  access,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';

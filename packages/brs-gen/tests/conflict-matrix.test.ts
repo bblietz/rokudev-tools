@@ -251,10 +251,7 @@ describe('conflict-matrix', () => {
 // which blank_scenegraph does not export; it only exports
 // MainScene.after_scene_show). Both outcomes are acceptable.
 describe('conflict-matrix: blank_scenegraph entries', () => {
-  const entries: Array<{ modules: string[] }> = [
-    { modules: [] },
-    { modules: ['stub_label'] },
-  ];
+  const entries: Array<{ modules: string[] }> = [{ modules: [] }, { modules: ['stub_label'] }];
 
   for (const entry of entries) {
     it(`blank_scenegraph + [${entry.modules.join(', ')}] merges cleanly or fails with a documented code`, async () => {

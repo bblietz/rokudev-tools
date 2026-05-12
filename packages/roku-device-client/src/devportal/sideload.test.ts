@@ -107,9 +107,7 @@ describe('DevPortal sideload/unload', () => {
     // Failed. #Const error ..." (real failure). The parser used to key on
     // the success marker and return ok:true. Any failure marker must win.
     mode = 'compile-failed';
-    await expect(
-      new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath),
-    ).rejects.toMatchObject({
+    await expect(new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath)).rejects.toMatchObject({
       code: 'SIDELOAD_REJECTED',
       details: { excerpt: expect.stringContaining('Install Failed') },
     });
@@ -117,9 +115,7 @@ describe('DevPortal sideload/unload', () => {
 
   it('throws SIDELOAD_REJECTED when Install Failed appears alone', async () => {
     mode = 'install-failed-alone';
-    await expect(
-      new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath),
-    ).rejects.toMatchObject({
+    await expect(new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath)).rejects.toMatchObject({
       code: 'SIDELOAD_REJECTED',
       details: { excerpt: expect.stringContaining('Install Failed') },
     });

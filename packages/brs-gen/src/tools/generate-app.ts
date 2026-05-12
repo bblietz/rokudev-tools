@@ -292,10 +292,12 @@ registerToolsModule((tools) => {
         (appSpec as { branding?: { icon?: string; splash?: string; primary_color?: string } })
           .branding ?? {};
       const brandingDefaults =
-        (tmpl as { template_branding_defaults?: { icon?: string; splash?: string; primary_color?: string } })
-          .template_branding_defaults ?? {};
-      const effectivePrimaryColor =
-        brandingSpec.primary_color ?? brandingDefaults.primary_color;
+        (
+          tmpl as {
+            template_branding_defaults?: { icon?: string; splash?: string; primary_color?: string };
+          }
+        ).template_branding_defaults ?? {};
+      const effectivePrimaryColor = brandingSpec.primary_color ?? brandingDefaults.primary_color;
 
       let assetBuckets: Map<string, Buffer> | undefined;
       let assetManifestEntries: Record<string, string> | undefined;

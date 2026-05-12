@@ -451,9 +451,7 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
       const golden = await readFile(join(GOLDEN_DIR, 'blank.zip'));
       expect(emitted.equals(golden)).toBe(true);
 
-      const emittedProv = await readFile(
-        join(blankOutputDir, '.rokudev-tools', 'provenance.json'),
-      );
+      const emittedProv = await readFile(join(blankOutputDir, '.rokudev-tools', 'provenance.json'));
       const goldenProv = await readFile(join(GOLDEN_DIR, 'blank.provenance.json'));
       expect(emittedProv.equals(goldenProv)).toBe(true);
     }, 10_000);

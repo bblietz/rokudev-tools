@@ -340,15 +340,11 @@ describe('blank_scenegraph snapshots', () => {
 
   it('MainScene.xml (post-compile, .brs refs) matches saved snapshot', async () => {
     const s = await readFile(join(projectDir, 'components/MainScene.xml'), 'utf8');
-    await expect(s).toMatchFileSnapshot(
-      '__snapshots__/blank_scenegraph/MainScene.xml.snap.txt',
-    );
+    await expect(s).toMatchFileSnapshot('__snapshots__/blank_scenegraph/MainScene.xml.snap.txt');
   });
 
   it('MainScene.brs (post-compile) matches saved snapshot', async () => {
     const s = await readFile(join(projectDir, 'components/MainScene.brs'), 'utf8');
-    await expect(s).toMatchFileSnapshot(
-      '__snapshots__/blank_scenegraph/MainScene.brs.snap.txt',
-    );
+    await expect(s).toMatchFileSnapshot('__snapshots__/blank_scenegraph/MainScene.brs.snap.txt');
   });
 });
