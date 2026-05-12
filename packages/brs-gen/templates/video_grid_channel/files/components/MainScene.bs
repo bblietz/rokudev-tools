@@ -107,7 +107,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
 
   ' Up from row 0 of RowList -> focus hero playButton.
   if key = "up" and m.rowList.hasFocus() then
-    focused = m.rowList.itemFocused
+    focused = m.rowList.rowItemFocused
     if focused <> invalid and focused[0] = 0 then
       m.heroPlayButton.setFocus(true)
       return true
