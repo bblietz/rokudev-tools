@@ -533,13 +533,35 @@ end sub
 
 ## 6. Engine changes
 
-**Effectively none.** All engine surface used by news_channel landed in Plan 4 (asset pipeline, content schema, manifest merge), Plan 4a (branding defaults), or Plan 4b (Button iconUri pattern, no engine impact). Only changes:
+**Almost none — one small additive change to `TemplateConfig()` threading.**
+
+All asset-pipeline, manifest-merge, and branding-default surface used by news_channel landed in Plan 4 / Plan 4a / Plan 4b. The single new engine change is:
+
+### 6.1 Thread `content.live_label` into emitted `TemplateConfig()`
+
+Today (`packages/brs-gen/src/tools/generate-app.ts`, around line 357), the template-config emitter threads only `channel_name`, `primary_color`, `feed_url`, `feed_format` into `TemplateConfig()`. LiveHero.bs reads `TemplateConfig().live_label` (§5.6), so the emitter must also propagate `content.live_label` when present:
+
+```ts
+// existing
+if (content?.feed_url) cfg['feed_url'] = content.feed_url;
+if (content?.feed_format) cfg['feed_format'] = content.feed_format;
+// new
+if ((content as { live_label?: string } | undefined)?.live_label) {
+  cfg['live_label'] = (content as { live_label: string }).live_label;
+}
+```
+
+This is a strict, additive change — existing templates' `TemplateConfig()` output is byte-equal pre/post (the new key only appears when `live_label` is set, which only news_channel allows in its schema). Plan 4 + Plan 4a goldens are unaffected; only news_channel goldens see the new key (and only when the example/test uses it).
+
+The cleaner long-run shape is per-template config-schema declarations (so each template explicitly lists which `spec.*` fields it wants threaded), but that refactor is out of scope for v0.5.3 — the targeted addition above is the smallest change that unblocks news_channel without rearchitecting the emitter.
+
+### 6.2 What is NOT changing
 
 - `src/spec/content.ts` is unchanged. Per-template tightening of the content schema (the `live_label` field) lives in `templates/news_channel/schema.ts`, NOT in the shared `ContentSchema`. This keeps the shared schema minimal and consistent with how `video_grid_channel` uses `feed_url` / `feed_format` without coupling them into other templates.
 - No new failure codes in `@rokudev/device-client`.
 - No changes to `src/merger/` (template-territory fences already cover `source/_template/` and `assets/`; news_channel doesn't introduce a new fenced path).
 
-Confirmed by the §13 verification gate: device-client tests stay at 296; rokudev-device tests stay at 184; brs-gen test count grows only by the news_channel-specific additions in §9.
+Confirmed by the §13 verification gate: device-client tests stay at 296; rokudev-device tests stay at 184; brs-gen test count grows by news_channel-specific additions in §9 plus a small handful for the §6.1 emitter extension (likely 2-3 tests: emit-without-live_label, emit-with-live_label, character-set validation).
 
 ## 7. Data flow — feed resolution
 
@@ -638,7 +660,7 @@ Cheap unit assertion: read the bundled `play-icon-light.png` and `play-icon-dark
 9. Press `Select` on first tile → PlayerScene push.
 10. Sleep 3s for video metadata; check `/query/media-player` reports `state = "playing"` (best-effort; AVideo demo may not buffer instantly).
 11. `screenshotNoError {assertForeground: false}` — capture player screenshot regardless of state.
-12. Press `Back` 3x → returns to MainScene with LiveHero focused.
+12. Press `Back` 2x → returns to MainScene with LiveHero focused (PlayerScene → CategoryGridScene → MainScene; 2 pushes from MainScene, so 2 Backs). Add an active-app check between Backs to fail fast if 3 would have been needed (which would mean we'd exited the channel).
 13. `screenshotNoError` — assert MainScene render restored, focus on playButton.
 
 **Phase B — live stream:**
@@ -698,6 +720,8 @@ T27 PASS evidence (Roku IP + firmware + transcript) goes in this spec's Appendix
 - **RESOLVED inline (D11):** Init-hook export surface is locked at 4 hooks; resist adding `before_content_load` / `after_content_load` until a real module needs them. Adding hooks later is non-breaking; removing them isn't.
 - **OPEN — to resolve in plan decomposition:** Do we ship 21 distinct AVideo VOD URLs, or cycle through 3-5? Plan author should pick the smallest set that exercises both happy and sad paths (e.g. one URL for happy-path play; second URL for "different metadata" testing). Default during plan: cycle through 3 URLs.
 - **OPEN — to resolve in plan decomposition:** PosterGrid `basePosterSize` is drafted as `[440, 248]` (16:9 at 440 wide, gives 3-across with 24px gaps inside 1920-240=1680 work area: `(1680 - 48) / 3 = 544`, so 440 leaves headroom for left margin). Confirm against actual Roku PosterGrid documentation during plan or adjust to fit cleanly.
+- **OPEN — to verify against Roku docs in plan decomposition:** §5.7 / §5.8 use `<field id="itemSelected" type="integer" alias="list.itemSelected" />` to forward an inner LabelList/PosterGrid field to the parent component's interface. Confirm that the `alias` attribute is supported on `<interface><field>` in current Roku firmware before authoring. Existing `video_grid_channel` uses observe-based wiring (parent reaches inside via `findNode`), not aliasing. Fallback if aliasing isn't supported: drop the alias attribute, have MainScene observe `m.categoryRail.findNode("list").itemSelected` and CategoryGridScene caller observe `gridScene.findNode("grid").itemSelected` directly. The fallback is mechanical and adds no new risk.
+- **OPEN — to verify against Roku docs in plan decomposition:** §5.4 `Feed.bs` and §5.9 PlayerScene set `c.live = isLive` on a freshly-created `ContentNode`. D9 asserts firmware 11+ supports this; cite a Roku doc URL or remove the assertion if the field name is actually different on current firmware (e.g. `liveStream`, `isLive`). If the field doesn't exist by that name, "Tried to set nonexistent field" is the on-device symptom (per the HttpTask MEMORY lesson); fail fast in T27 by grepping the 8085 log for that warning.
 - **OPEN — to resolve on-device:** Whether NASA TV HLS works through the operator's network. If it fails for any operator (corp firewall, geo-restriction), the fix-forward is to swap the bundled feed's `live.url` to a different known-good HLS endpoint. Document in the GitHub release notes if this happens during 4c verification.
 
 No blocking open questions. Plan decomposition may proceed.
