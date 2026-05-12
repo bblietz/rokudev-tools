@@ -266,6 +266,28 @@ describe('video_grid_channel snapshots', () => {
       '__snapshots__/video-grid/files-listing.snap.txt',
     );
   });
+
+  it('MainScene.brs contains Plan 4b polish behavior + preserves init hooks', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.brs'), 'utf8');
+
+    // Plan 4b additions: first-input lifecycle + transition cap.
+    expect(s).toContain('m.userHasInteracted');
+    expect(s).toContain('m.heroAutoCount');
+
+    // Plan 4b additions: hero-button Select handler + Up-routing wiring.
+    expect(s).toContain('onHeroButtonSelected');
+    expect(s).toContain('m.heroPlayButton');
+
+    // Regression: existing module-opt init-hook firings must still emit.
+    expect(s).toContain('Modules_OnMainSceneBeforeContentLoad');
+    expect(s).toContain('Modules_OnMainSceneAfterContentLoad');
+    expect(s).toContain('Modules_OnMainSceneAfterHeroLoad');
+  });
+
+  it('HeroUnit.xml contains the playButton child (Plan 4b)', async () => {
+    const s = await readFile(join(projectDir, 'components/HeroUnit.xml'), 'utf8');
+    expect(s).toContain('id="playButton"');
+  });
 });
 
 // ---------------------------------------------------------------------------
