@@ -30,7 +30,7 @@ Both ship together as `v0.5.2`. The combined patch is small enough that one rele
 | **D1** | Detection mechanism: ECP `/query/active-app == 'dev'` (always-on) + size > 15 KB (existing) | Cheapest, generic, no template changes required. Catches Roku home / Debug / wrong-app cases. Existing `EcpClient.activeApp()` already imported in `_t27-lib.mjs`. |
 | **D2** | API surface: wrap into `screenshotNoError(host, pw, outPath, opts={assertForeground: true})`, default-on with override | Hardest-to-forget. All 22 existing call sites continue to work unchanged. Override flag exists for genuine transition steps. |
 | **D3** | `assertChannelMarkerInLog` deferred (YAGNI) | Adds template-side burden (every template emits a marker). Defer until a template demonstrably needs it. |
-| **D4** | HeroUnit layout: vertical stack with gaps inside scrim band 280-450 | title Y=290, synopsis Y=345, playButton Y=395. Vertical rhythm 50/45/50, no overlaps. Closest to current layout. |
+| **D4** | HeroUnit layout: vertical stack with gaps inside scrim band 280-450 | title Y=290, synopsis Y=345, playButton Y=386. Vertical rhythm 50/41/64; button bottom (386+64=450) exactly at scrim bottom — no overshoot. Synopsis-to-button gap is tight (3px) but preserved. |
 | **D5** | Phase B preamble in `t27-video-grid.mjs`: replace `keypressRepeat('Back', 2)` with `sideloadAndLaunch(zipPath, ...)` | Deterministic reset to MainScene/RowList row 0. Eliminates the v0.5.1 false-positive root cause (Back x2 popping the channel). +5s wall clock; acceptable. |
 | **D6** | Bundle into single `v0.5.2` patch (vs split into two patches) | Both are small (~30 LOC code + 1 snapshot regen + 1 golden regen). One release cycle, one set of release notes. |
 | **D7** | No new unit tests for `_t27-lib.mjs` | It's a real-device driver helper (no Roku in CI). Coverage is via on-device runs of `t27-blank.mjs` + `t27-video-grid.mjs`. |
@@ -80,10 +80,10 @@ Three Y-coordinate edits inside the existing `<children>` block:
 ```xml
 <Label id="title"      translation="[40, 290]" .../>   <!-- was 340 -->
 <Label id="synopsis"   translation="[40, 345]" .../>   <!-- was 390 -->
-<Button id="playButton" translation="[40, 395]" .../>  <!-- was 388 -->
+<Button id="playButton" translation="[40, 386]" .../>  <!-- was 388 -->
 ```
 
-`scrim` (Y=280, height=170) is unchanged. `poster` is unchanged. All three repositioned children remain inside the scrim band 280-450. Vertical rhythm: 50px (title) → 45px (synopsis) → 50px (button). Self-check: title font is `LargeBoldSystemFont` ≈ 50px tall, so title bottom ≈ 290+50 = 340 < synopsis Y=345 (5px gap). Synopsis is single-line ≈ 38px tall (default font), bottom ≈ 345+38 = 383 < button Y=395 (12px gap). Button height ≈ 64px (Roku Button default), bottom ≈ 395+64 = 459 — note: 9px past scrim bottom Y=450, but Button has its own focus-bitmap background so it remains legible against the bottom poster edge.
+`scrim` (Y=280, height=170) is unchanged. `poster` is unchanged. All three repositioned children remain inside the scrim band 280-450. Self-check: title font is `LargeBoldSystemFont` ≈ 50px tall, so title bottom ≈ 290+50 = 340 < synopsis Y=345 (5px gap). Synopsis is single-line ≈ 38px tall (default font), bottom ≈ 345+38 = 383 < button Y=386 (3px gap — tight). Button height ≈ 64px (Roku Button default), bottom ≈ 386+64 = 450 — exactly at scrim bottom Y=450. No scrim overshoot.
 
 ### 4.3 Driver migration (`packages/brs-gen/scripts/t27-video-grid.mjs`)
 
