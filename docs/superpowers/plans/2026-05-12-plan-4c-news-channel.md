@@ -136,17 +136,31 @@ Look for tests that exercise the TemplateConfig emit path. You'll add one alongs
 
 - [ ] **Step 3: Write a failing test for `live_label` propagation**
 
-Append to `packages/brs-gen/src/tools/generate-app.test.ts`:
+The existing test file uses a local `getHandler()` helper (lines 55-60 of `generate-app.test.ts`):
+
+```ts
+function getHandler(): ToolDef['handler'] {
+  const tools = new Map<string, ToolDef>();
+  registerAllTools(tools);
+  const def = tools.get('generate_app');
+  if (!def) throw new Error('generate_app not registered');
+  return def.handler;
+}
+```
+
+Reuse this. Append to `packages/brs-gen/src/tools/generate-app.test.ts`:
 
 ```ts
 describe('TemplateConfig live_label threading', () => {
+  // Note: news_channel template is created in Task 2. Until then these tests
+  // fail with "Unknown template: news_channel". After Task 2's first commit
+  // they proceed to fail with file-not-found errors against the component
+  // XMLs (which Tasks 5-9 populate). After Task 9 both should pass.
   it('threads spec.content.live_label into emitted TemplateConfig() body', async () => {
-    // Use the news_channel template once it lands; until then this test is
-    // expected to fail with "template not found". Task 2 creates the template
-    // dir and unblocks it.
     const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-live-label-'));
     try {
-      const r = await generateAppHandler.handler({
+      const handler = getHandler();
+      const result = await handler({
         spec: {
           spec_version: 2,
           template: 'news_channel',
@@ -157,7 +171,8 @@ describe('TemplateConfig live_label threading', () => {
         output_dir: join(tmpDir, 'out'),
         overwrite: true,
       });
-      expect(r.ok).toBe(true);
+      const payload = result as Record<string, unknown>;
+      expect(payload['ok']).toBe(true);
       const configBs = await readFile(
         join(tmpDir, 'out', 'source', '_template', 'config.bs'),
         'utf8',
@@ -172,7 +187,8 @@ describe('TemplateConfig live_label threading', () => {
   it('omits live_label key when spec.content.live_label is absent', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-live-label-absent-'));
     try {
-      const r = await generateAppHandler.handler({
+      const handler = getHandler();
+      const result = await handler({
         spec: {
           spec_version: 2,
           template: 'news_channel',
@@ -182,7 +198,8 @@ describe('TemplateConfig live_label threading', () => {
         output_dir: join(tmpDir, 'out'),
         overwrite: true,
       });
-      expect(r.ok).toBe(true);
+      const payload = result as Record<string, unknown>;
+      expect(payload['ok']).toBe(true);
       const configBs = await readFile(
         join(tmpDir, 'out', 'source', '_template', 'config.bs'),
         'utf8',
@@ -195,7 +212,7 @@ describe('TemplateConfig live_label threading', () => {
 });
 ```
 
-Note: both tests instantiate `news_channel` which doesn't exist yet. They will fail with "template not found" until Task 2 lands. Run them now to confirm the failure mode is well-defined.
+If `getHandler` is not visible from the appended block (it may be inside an inner describe), hoist your describe so it's a sibling of the file-level describes that already use `getHandler()`. Confirm with `grep -n "function getHandler" packages/brs-gen/src/tools/generate-app.test.ts` before writing the new block.
 
 - [ ] **Step 4: Run the new tests and verify they fail with "template not found"**
 
@@ -1533,7 +1550,12 @@ describe('news_channel snapshots', () => {
 
   it('PlayerScene.brs propagates content.live flag', async () => {
     const s = await readFile(join(projectDir, 'components/PlayerScene.brs'), 'utf8');
-    expect(s).toContain('content.live = c.live');
+    // Use a relaxed regex (allowing any whitespace around the assignment)
+    // because the brighterscript .bs -> .brs compile step may normalize
+    // the spacing of the original `content.live = c.live` assignment.
+    // Both `content.live` (lhs) and `c.live` (rhs) must appear; the
+    // intermediate "= " is allowed to be any whitespace run.
+    expect(s).toMatch(/content\.live\s*=\s*c\.live/);
   });
 });
 ```
