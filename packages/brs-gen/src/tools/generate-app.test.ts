@@ -827,3 +827,68 @@ describe('generate_app tool', () => {
     });
   });
 });
+
+describe('TemplateConfig live_label threading', () => {
+  // Note: news_channel template is created in Task 2. Until then these tests
+  // fail with "Unknown template: news_channel". After Task 2's first commit
+  // they proceed to fail with file-not-found errors against the component
+  // XMLs (which Tasks 5-9 populate). After Task 9 both should pass.
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+  });
+
+  it('threads spec.content.live_label into emitted TemplateConfig() body', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-live-label-'));
+    try {
+      const handler = getHandler();
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'news_channel',
+          modules: [],
+          app: { name: 'NewsTest', major_version: 0, minor_version: 1, build_version: 0 },
+          content: { live_label: 'AO VIVO' },
+        },
+        output_dir: join(tmpDir, 'out'),
+        overwrite: true,
+      });
+      const payload = result as Record<string, unknown>;
+      expect(payload['ok']).toBe(true);
+      const configBs = await readFile(
+        join(tmpDir, 'out', 'source', '_template', 'config.bs'),
+        'utf8',
+      );
+      expect(configBs).toContain('"live_label"');
+      expect(configBs).toContain('"AO VIVO"');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('omits live_label key when spec.content.live_label is absent', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-live-label-absent-'));
+    try {
+      const handler = getHandler();
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'news_channel',
+          modules: [],
+          app: { name: 'NewsTest', major_version: 0, minor_version: 1, build_version: 0 },
+        },
+        output_dir: join(tmpDir, 'out'),
+        overwrite: true,
+      });
+      const payload = result as Record<string, unknown>;
+      expect(payload['ok']).toBe(true);
+      const configBs = await readFile(
+        join(tmpDir, 'out', 'source', '_template', 'config.bs'),
+        'utf8',
+      );
+      expect(configBs).not.toContain('"live_label"');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+});

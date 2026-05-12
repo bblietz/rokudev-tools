@@ -355,8 +355,9 @@ registerToolsModule((tools) => {
       //     "either branding.primary_color or content.* is present"; for v0.4 that
       //     maps 1:1 to video_grid_channel. Future templates can tighten.
       let templateConfigBrs: string | undefined;
-      const content = (appSpec as { content?: { feed_url?: string; feed_format?: string } })
-        .content;
+      const content = (
+        appSpec as { content?: { feed_url?: string; feed_format?: string; live_label?: string } }
+      ).content;
       if (brandingSpec.primary_color || content) {
         const cfg: Record<string, string> = {
           channel_name: appSpec.app.name,
@@ -364,6 +365,7 @@ registerToolsModule((tools) => {
         if (brandingSpec.primary_color) cfg['primary_color'] = brandingSpec.primary_color;
         if (content?.feed_url) cfg['feed_url'] = content.feed_url;
         if (content?.feed_format) cfg['feed_format'] = content.feed_format;
+        if (content?.live_label) cfg['live_label'] = content.live_label;
         templateConfigBrs = emitTemplateConfigBs(cfg);
       }
 
