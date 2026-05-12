@@ -98,9 +98,9 @@ export async function screenshot(host, password, outPath) {
  *      to ~8-12 KB; healthy UIs are typically 40 KB+.
  *
  * Per spec 4b.1 D2 the foreground check is the primary defense against
- * Plan 4b's false-positive class (Roku home / Debug overlay /
- * wrong-app sail through the byte-size heuristic but now fail loudly
- * on the active-app check.
+ * Plan 4b's false-positive class: Roku home, Debug overlay, or wrong
+ * app sailing through the byte-size heuristic. The active-app check
+ * fails loudly on those; the size check covers crash overlays.
  */
 export async function screenshotNoError(host, password, outPath, opts = {}) {
   const { assertForeground = true } = opts;

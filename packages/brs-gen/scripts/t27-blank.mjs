@@ -110,7 +110,12 @@ try {
   console.error('Passed steps:', summary.passed);
   console.error('Failed steps:', summary.failed);
   try {
-    await screenshotNoError(host, password, join(screensDir, 'zz-failure.png')).catch(() => {});
+    // {assertForeground: false}: at this point we know the test already
+    // failed; capture whatever the device shows even if the channel was
+    // backgrounded (e.g. by the very failure class this driver detects).
+    await screenshotNoError(host, password, join(screensDir, 'zz-failure.png'), {
+      assertForeground: false,
+    }).catch(() => {});
   } catch {}
   process.exit(1);
 }
