@@ -35,6 +35,7 @@ Both ship together as `v0.5.2`. The combined patch is small enough that one rele
 | **D6** | Bundle into single `v0.5.2` patch (vs split into two patches) | Both are small (~30 LOC code + 1 snapshot regen + 1 golden regen). One release cycle, one set of release notes. |
 | **D7** | No new unit tests for `_t27-lib.mjs` | It's a real-device driver helper (no Roku in CI). Coverage is via on-device runs of `t27-blank.mjs` + `t27-video-grid.mjs`. |
 | **D8** | No template-side changes to `blank_scenegraph` | Its T27 driver has no transition steps and active-app == 'dev' throughout. Helper upgrade benefits it for free with no driver changes. |
+| **D9** | `assertActiveAppIsOurs` retries once after 250ms before failing | ECP transient flakes are observed in the wild; cost is minimal (~250ms worst case) and prevents driver flake on otherwise-healthy runs. |
 
 ## 4. Architecture
 
@@ -82,7 +83,7 @@ Three Y-coordinate edits inside the existing `<children>` block:
 <Button id="playButton" translation="[40, 395]" .../>  <!-- was 388 -->
 ```
 
-`scrim` (Y=280, height=170) is unchanged. `poster` is unchanged. All three repositioned children remain inside the scrim band 280-450. Vertical rhythm: 50px (title) → 45px (synopsis) → 50px (button).
+`scrim` (Y=280, height=170) is unchanged. `poster` is unchanged. All three repositioned children remain inside the scrim band 280-450. Vertical rhythm: 50px (title) → 45px (synopsis) → 50px (button). Self-check: title font is `LargeBoldSystemFont` ≈ 50px tall, so title bottom ≈ 290+50 = 340 < synopsis Y=345 (5px gap). Synopsis is single-line ≈ 38px tall (default font), bottom ≈ 345+38 = 383 < button Y=395 (12px gap). Button height ≈ 64px (Roku Button default), bottom ≈ 395+64 = 459 — note: 9px past scrim bottom Y=450, but Button has its own focus-bitmap background so it remains legible against the bottom poster edge.
 
 ### 4.3 Driver migration (`packages/brs-gen/scripts/t27-video-grid.mjs`)
 
@@ -120,7 +121,7 @@ Other snapshots (`MainScene.xml.snap.txt`, `template-config.brs.snap.txt`, `mani
 4. Driver migration: edit `t27-video-grid.mjs` Phase B preamble. Commit.
 5. Bump `package.json` 0.5.1 → 0.5.2 (root + `packages/brs-gen`). Commit.
 6. Regen snapshots: `pnpm --filter brs-gen test -u`. Commit.
-7. Regen goldens: `TZ=UTC node packages/brs-gen/scripts/regen-golden.mjs`. Commit.
+7. Regen goldens: `TZ=UTC node packages/brs-gen/scripts/regen-golden.mjs`. Before committing, diff `stub.provenance.json` and `blank.provenance.json` (use `git diff --no-index` against the prior commit) to confirm the only delta in those two is `brs_gen_version` — catches accidental contamination from unrelated working-tree drift. Commit.
 8. `pnpm release-prep` must be green. Fix any drift.
 9. Tag `v0.5.2`, push, create GH release.
 10. **On-device verification:** re-run `t27-video-grid.mjs` against a Roku in dev mode + Default ECP. Both Phase A (11 steps) and Phase B (5 steps) must PASS. Capture evidence in release notes appendix.
