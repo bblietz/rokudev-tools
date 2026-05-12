@@ -132,6 +132,60 @@ try {
     screenshotNoError(host, password, join(screensDir, '04-post-play.png')),
   );
 
+  // ============================================================
+  // Phase B (Plan 4b): Up-from-row-0 + hero playButton + Back.
+  // ============================================================
+  // After Phase A's "select (play)" we're inside the PlayerScene-or-overlay.
+  // Press Back twice to unwind to MainScene with focus on RowList row 0.
+  // (PlayerScene Back -> DetailsScene; DetailsScene Back fires close ->
+  // MainScene.onDetailsClose -> m.rowList.setFocus(true).)
+  //
+  // OPERATOR NOTE: if `b-01-hero-button-focused.png` does NOT show the
+  // playButton focused, the unwind landed somewhere else (e.g. PlayerScene
+  // swallowed Back). Re-run the driver with `Home` + relaunch in place of
+  // these two Back presses, then `Up` immediately. Track this as a Phase B
+  // preamble bug separate from the Up-routing being verified.
+  await assertStep('back to row (Phase B setup)', () => keypressRepeat(host, 'Back', 2));
+  await sleep(800);
+
+  // Step B1: Up from RowList row 0 -> focuses hero playButton.
+  await assertStep('up to hero playButton', () => keypress(host, 'Up'));
+  await sleep(500);
+  await assertStep('b-01 hero button focused (no error overlay)', () =>
+    screenshotNoError(host, password, join(screensDir, 'b-01-hero-button-focused.png')),
+  );
+
+  // Step B2: Select on hero playButton -> opens DetailsScene.
+  await assertStep('select on hero playButton', () => keypress(host, 'Select'));
+  await sleep(1200);
+  await assertStep('b-02 details from hero (no error overlay)', () =>
+    screenshotNoError(host, password, join(screensDir, 'b-02-details-from-hero.png')),
+  );
+
+  // Step B3: Back -> DetailsScene removed; focus returns to RowList row 0
+  // (per spec D8 / existing onDetailsClose; NOT playButton).
+  await assertStep('back from details', () => keypress(host, 'Back'));
+  await sleep(800);
+  await assertStep('b-03 back from details (no error overlay)', () =>
+    screenshotNoError(host, password, join(screensDir, 'b-03-back-from-details.png')),
+  );
+
+  // Step B4: Up again -> focus moves back to hero playButton (proves
+  // Up-routing still works after Details round-trip).
+  await assertStep('up to hero playButton again', () => keypress(host, 'Up'));
+  await sleep(500);
+  await assertStep('b-04 hero button refocused (no error overlay)', () =>
+    screenshotNoError(host, password, join(screensDir, 'b-04-hero-button-refocused.png')),
+  );
+
+  // Step B5: Down -> focus returns to RowList row 0 (proves Down-routing
+  // from playButton).
+  await assertStep('down to row list', () => keypress(host, 'Down'));
+  await sleep(500);
+  await assertStep('b-05 back on row list (no error overlay)', () =>
+    screenshotNoError(host, password, join(screensDir, 'b-05-back-on-row-list.png')),
+  );
+
   // Step 7: Home.
   await assertStep('press Home', () => keypress(host, 'Home'));
 
