@@ -54,6 +54,30 @@ export async function keypressRepeat(host, key, times, gapMs = 300) {
 }
 
 /**
+ * Assert that the foregrounded app on the Roku is our sideloaded channel
+ * (active-app id === 'dev'). Throws otherwise. Retries once after 250ms
+ * to absorb transient ECP flakes (per spec D9).
+ *
+ * Used by screenshotNoError (default-on) so a screenshot is never accepted
+ * when our channel was popped to background (e.g. by an accidental Home,
+ * a stale Back into Roku home, or another app being launched).
+ */
+async function assertActiveAppIsOurs(host) {
+  const client = new EcpClient(host);
+  let lastSeen = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const a = await client.activeApp();
+    lastSeen = a;
+    if (a.id === 'dev') return;
+    if (attempt === 0) await sleep(250);
+  }
+  throw new Error(
+    `active-app is not 'dev' (got id='${lastSeen?.id ?? ''}', ` +
+      `name='${lastSeen?.name ?? ''}'); screenshot would not be from our channel`,
+  );
+}
+
+/**
  * Take a screenshot, write the PNG/JPEG bytes to outPath, and return
  * { bytes, mime, path }. Decodes base64 from DevPortalInspect.screenshot().
  */
@@ -66,11 +90,21 @@ export async function screenshot(host, password, outPath) {
 }
 
 /**
- * Like screenshot(), but throws if the saved file is too small to plausibly
- * be a healthy rendered frame (heuristic per spec D11). An error overlay
- * on 1280x720 serializes to ~8-12 KB; healthy UIs are typically 40 KB+.
+ * Like screenshot(), but throws if either:
+ *   1. opts.assertForeground (default true) and active-app id !== 'dev'
+ *      (caller can opt out for genuine transition steps, e.g. mid-relaunch)
+ *   2. saved file is too small to plausibly be a healthy rendered frame
+ *      (heuristic per spec D11). An error overlay on 1280x720 serializes
+ *      to ~8-12 KB; healthy UIs are typically 40 KB+.
+ *
+ * Per spec 4b.1 D2 the foreground check is the primary defense against
+ * Plan 4b's false-positive class (Roku home / Debug overlay /
+ * wrong-app sail through the byte-size heuristic but now fail loudly
+ * on the active-app check.
  */
-export async function screenshotNoError(host, password, outPath) {
+export async function screenshotNoError(host, password, outPath, opts = {}) {
+  const { assertForeground = true } = opts;
+  if (assertForeground) await assertActiveAppIsOurs(host);
   const s = await screenshot(host, password, outPath);
   if (s.bytes <= ERROR_OVERLAY_MAX_BYTES) {
     throw new Error(
