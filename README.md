@@ -51,3 +51,17 @@ Out of v0.3: real templates (Plan 4), real feature modules (Plan 5), freeform LL
 - T27 real-device verification gate established (sideload, launch, navigate, playback). PASS evidence in spec Appendix A. Plans 4a-4e reuse the shared helpers in `scripts/_t27-lib.mjs`.
 
 Out of v0.4: remaining v1 templates (`screensaver`, `news_channel`, `game_shell`, `blank_scenegraph`, `music_player`, each a follow-up plan); feature modules (Plan 5); freeform LLM path (Plan 6); LSP tools (Plan 7); `brs-docs` MCP (later plan).
+
+## What's in v0.5.2 (Plan 4b.1)
+
+Polish patch on `video_grid_channel` and the T27 real-device verification harness. Lands before scaffolding `news_channel` (Plan 4c) so the reference template's UX and test infra are honest.
+
+- **Test infra: `screenshotNoError` now asserts `/query/active-app == 'dev'`** before its existing size heuristic. Catches the v0.5.1 false-positive class where Roku home, Debug overlay, or another foregrounded app sailed through the byte-size heuristic. Default-on with a `{assertForeground: false}` opt-out for failure-capture call sites.
+- **Template: `video_grid_channel` HeroUnit Y-overlap fixed.** New layout inside the bottom scrim band (Y=280, height=170): title Y=290, synopsis Y=345, playButton Y=386. Button bottom sits exactly at scrim bottom (no overshoot).
+- **Driver: `t27-video-grid.mjs` Phase B preamble** does a deterministic `sideloadAndLaunch` reset instead of `keypressRepeat('Back', 2)` (which could pop the channel out to Roku home).
+
+Caveat: Plan 4b's reported T27 PASS for `video_grid_channel` was a false positive (Phase B preamble unwound to Roku home; system-UI screenshots passed the size heuristic). v0.5.2 corrects both the heuristic and the preamble.
+
+No API changes to `@rokudev/device-client`, `rokudev-device`, or the `brs-gen` MCP tool surface.
+
+(README has not been updated for v0.5.0 or v0.5.1; see GitHub release notes for those.)
