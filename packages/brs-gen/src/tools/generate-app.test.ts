@@ -861,12 +861,12 @@ describe('TemplateConfig live_label threading', () => {
       });
       const payload = parsePayload(result);
       expect(payload['ok']).toBe(true);
+      // bsc compile renames .bs -> .brs; read the post-compile output.
       const configBs = await readFile(
-        join(tmpDir, 'out', 'source', '_template', 'config.bs'),
+        join(tmpDir, 'out', 'source', '_template', 'config.brs'),
         'utf8',
       );
-      expect(configBs).toContain('"live_label"');
-      expect(configBs).toContain('"AO VIVO"');
+      expect(configBs).toContain('live_label: "AO VIVO"');
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -888,11 +888,11 @@ describe('TemplateConfig live_label threading', () => {
       });
       const payload = parsePayload(result);
       expect(payload['ok']).toBe(true);
-      const configBs = await readFile(
-        join(tmpDir, 'out', 'source', '_template', 'config.bs'),
-        'utf8',
-      );
-      expect(configBs).not.toContain('"live_label"');
+      // When spec has no content or branding, templateConfigBrs is not emitted
+      // so config.brs should not exist at all.
+      expect(
+        await pathExists(join(tmpDir, 'out', 'source', '_template', 'config.brs')),
+      ).toBe(false);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

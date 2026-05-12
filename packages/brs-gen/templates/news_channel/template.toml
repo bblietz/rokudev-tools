@@ -1,0 +1,32 @@
+[template]
+id = "news_channel"
+version = "0.1.0"
+spec_compat = ">=2"
+description = "Hybrid live + on-demand news template. Live HLS hero (left), vertical category rail (right), 3-column PosterGrid sub-screen per category. Bundled synthetic feed; operator can override via spec.content.feed_url."
+
+[template.manifest_defaults]
+title           = "<%= spec.app.name %>"
+major_version   = "<%= spec.app.major_version %>"
+minor_version   = "<%= spec.app.minor_version %>"
+build_version   = "<%= spec.app.build_version %>"
+splash_color    = "<%= (spec.branding && spec.branding.primary_color) ? spec.branding.primary_color : '#0c1320' %>"
+ui_resolutions  = "fhd,hd"
+bs_const        = "DEBUG=false"
+
+[template.exports]
+init_hooks = [
+  { scope = "Main",              phase = "before_scene_show",  file = "source/Main.bs",                  signature = "(args as dynamic) as void" },
+  { scope = "MainScene",         phase = "after_scene_show",   file = "components/MainScene.bs",         signature = "(m as object) as void" },
+  { scope = "CategoryGridScene", phase = "after_scene_show",   file = "components/CategoryGridScene.bs", signature = "(m as object) as void" },
+  { scope = "PlayerScene",       phase = "before_play",        file = "components/PlayerScene.bs",       signature = "(m as object) as void" },
+]
+scene_nodes = [
+  { name = "MainScene",         file = "components/MainScene.xml" },
+  { name = "LiveHero",          file = "components/LiveHero.xml" },
+  { name = "CategoryRail",      file = "components/CategoryRail.xml" },
+  { name = "CategoryGridScene", file = "components/CategoryGridScene.xml" },
+  { name = "PlayerScene",       file = "components/PlayerScene.xml" },
+]
+
+[template.branding_defaults]
+primary_color = "#0c1320"

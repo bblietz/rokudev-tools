@@ -26,6 +26,8 @@ export type ModuleReference = z.infer<typeof ModuleReference>;
 // through (via .passthrough()) so template-strict schemas get to see them.
 // branding / content are optional at the wrapper level; templates make
 // them required in their own strict schema (see templates/<id>/schema.ts).
+// content uses partial().passthrough() so template-specific extensions
+// (e.g. news_channel's live_label) survive the wrapper without rejection.
 export const AppSpecV2Wrapper = z
   .object({
     spec_version: z.literal(2),
@@ -33,7 +35,7 @@ export const AppSpecV2Wrapper = z
     modules: z.array(ModuleReference),
     app: AppMeta,
     branding: BrandingSchema.optional(),
-    content: ContentSchema.optional(),
+    content: ContentSchema.partial().passthrough().optional(),
   })
   .passthrough();
 
