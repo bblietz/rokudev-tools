@@ -522,14 +522,14 @@ Expected diff: `brs_gen_version` field changes 0.5.1 → 0.5.2, AND the file-has
 ```bash
 mkdir -p /tmp/4b1-zip-check && cd /tmp/4b1-zip-check
 unzip -o "$OLDPWD/packages/brs-gen/tests/__golden__/video-grid.zip" -d new >/dev/null
-git -C "$OLDPWD" show HEAD~6:packages/brs-gen/tests/__golden__/video-grid.zip > old.zip
+git -C "$OLDPWD" show v0.5.1:packages/brs-gen/tests/__golden__/video-grid.zip > old.zip
 unzip -o old.zip -d old >/dev/null
 diff -r old new
 cd "$OLDPWD"
 rm -rf /tmp/4b1-zip-check
 ```
 
-(Adjust `HEAD~6` to whatever points to the v0.5.1 video-grid.zip — typically the bump commit's parent. Use `git log --oneline -- packages/brs-gen/tests/__golden__/video-grid.zip | head -2` to find the prior version commit.)
+(`v0.5.1` is a stable git tag — robust against intermediate commits like `chore(format)` housekeeping that would shift any numeric `HEAD~N` offset.)
 
 Expected diff output: exactly two files differ:
 - `components/HeroUnit.xml` (the 3 Y values)
@@ -764,7 +764,7 @@ Expected: prints the first 200 chars of the device-info XML. If non-2xx or `403`
 ROKUDEV_HOST=<ip> ROKUDEV_DEV_PASSWORD=1234 node packages/brs-gen/scripts/t27-video-grid.mjs
 ```
 
-Expected: terminates with `T27 PASS. Screenshots: <path>`, exit code 0. All 16 steps (Phase A 11 + Phase B 5) pass. Phase B preamble takes ~5-10s longer than v0.5.1 (re-sideload).
+Expected: terminates with `T27 PASS. Screenshots: <path>`, exit code 0. All 22 `assertStep` calls pass (10 Phase A functional + 1 Phase A finalizer Home + 11 Phase B). Phase B preamble takes ~5-10s longer than v0.5.1 (re-sideload).
 
 If FAIL on any step: capture the error message and `passed`/`failed` arrays printed on stderr. The most informative failure mode is `active-app is not 'dev' (got id='...')` — that proves the new check is doing its job and isolates which step lost focus on our channel.
 
