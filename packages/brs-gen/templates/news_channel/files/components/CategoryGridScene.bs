@@ -1,0 +1,39 @@
+' news_channel CategoryGridScene.bs
+'
+' Full-screen overlay. PosterGrid 3 columns x N rows. Back closes the
+' overlay (parent observes the close field). Fires
+' CategoryGridScene/after_scene_show hook for module composition.
+
+sub init()
+  m.grid           = m.top.findNode("grid")
+  m.categoryHeader = m.top.findNode("categoryHeader")
+  m.countLabel     = m.top.findNode("countLabel")
+
+  Modules_OnCategoryGridSceneAfterSceneShow(m)
+end sub
+
+sub onNameChange()
+  m.categoryHeader.text = m.top.categoryName
+end sub
+
+sub onItemsChange()
+  items = m.top.categoryItems
+  if items = invalid then return
+
+  root = createObject("roSGNode", "ContentNode")
+  for each item in items
+    root.appendChild(item)
+  end for
+  m.grid.content = root
+  m.countLabel.text = items.Count().ToStr() + " clips"
+  m.grid.setFocus(true)
+end sub
+
+function onKeyEvent(key as string, press as boolean) as boolean
+  if not press then return false
+  if key = "back"
+    m.top.close = true
+    return true
+  end if
+  return false
+end function

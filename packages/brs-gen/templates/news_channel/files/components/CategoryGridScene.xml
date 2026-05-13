@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="CategoryGridScene" extends="Group">
+  <script type="text/brightscript" uri="CategoryGridScene.bs" />
+  <script type="text/brightscript" uri="pkg:/source/Feed.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+  <interface>
+    <field id="categoryName"  type="string"    onChange="onNameChange" />
+    <field id="categoryItems" type="nodeArray" onChange="onItemsChange" />
+    <field id="itemSelected"  type="integer"   alias="grid.itemSelected" />
+    <field id="close"         type="boolean" />
+  </interface>
+  <children>
+    <Rectangle id="bg"             width="1920" height="1080" color="0x0c1320FF" />
+    <Label     id="categoryHeader" translation="[120, 60]"  text="" color="0xFFFFFFFF" font="font:LargeBoldSystemFont" />
+    <Label     id="countLabel"     translation="[120, 105]" text="" color="0x888888FF" font="font:SmallSystemFont" />
+    <PosterGrid id="grid"
+                translation="[120, 160]"
+                basePosterSize="[440, 248]"
+                numColumns="3"
+                numRows="3"
+                itemSpacing="[24, 32]"
+                drawFocusFeedback="true" />
+  </children>
+</component>
