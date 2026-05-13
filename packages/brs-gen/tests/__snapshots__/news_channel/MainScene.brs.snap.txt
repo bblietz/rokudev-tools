@@ -77,6 +77,37 @@ sub BindFeed(feed as dynamic)
     m.heroPlayButton.setFocus(true)
 end sub
 
+' Cross-component focus routing. Roku's nextFocus* fields don't always
+' route reliably across component boundaries when the target is inside a
+' composite Group; mirror the video_grid_channel pattern of catching
+' directional keys at MainScene and re-targeting setFocus by hand.
+'
+' Calling setFocus on the categoryRail Group does NOT propagate to the
+' inner LabelList reliably (the Group itself becomes the focused leaf,
+' and Up/Down then have no handler). We must focus the inner LabelList
+' directly. findNode crosses into the composite's child tree.
+function onKeyEvent(key as string, press as boolean) as boolean
+    if not press then
+        return false
+    end if
+    ' Right from LiveHero's playButton -> CategoryRail's inner LabelList.
+    if key = "right" and m.heroPlayButton.hasFocus() then
+        innerList = m.categoryRail.findNode("list")
+        if innerList <> invalid
+            innerList.setFocus(true)
+        else
+            m.categoryRail.setFocus(true)
+        end if
+        return true
+    end if
+    ' Left from CategoryRail's inner list -> LiveHero's playButton.
+    if key = "left" and m.categoryRail.isInFocusChain() then
+        m.heroPlayButton.setFocus(true)
+        return true
+    end if
+    return false
+end function
+
 sub onLiveSelected()
     if m.feed = invalid or m.feed.live = invalid then
         return
