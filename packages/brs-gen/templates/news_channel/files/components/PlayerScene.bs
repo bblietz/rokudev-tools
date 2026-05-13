@@ -1,0 +1,57 @@
+' news_channel PlayerScene.bs
+'
+' Roku Video node bootstrap. Mirrors video_grid_channel's pattern; rebuilds
+' a fresh inner ContentNode and adds .live flag propagation so Roku default
+' chrome shows LIVE on live streams.
+
+sub init()
+  m.video = m.top.findNode("video")
+  m.error = m.top.findNode("errorOverlay")
+  m.video.observeField("state", "onVideoState")
+end sub
+
+sub onContentSet()
+  startPlayback()
+end sub
+
+function onKeyEvent(key as string, press as boolean) as boolean
+  if press and key = "back"
+    m.video.control = "stop"
+    m.top.close = true
+    return true
+  end if
+  return false
+end function
+
+sub startPlayback()
+  c = m.top.content
+  if c = invalid or c.url = invalid or c.url = ""
+    m.error.text = "No stream URL for this content."
+    m.error.visible = true
+    return
+  end if
+
+  Modules_OnPlayerSceneBeforePlay(m)
+
+  content = createObject("roSGNode", "ContentNode")
+  content.title = c.title
+  content.url = c.url
+  if c.streamFormat <> invalid then content.streamFormat = c.streamFormat
+  if c.live <> invalid then content.live = c.live
+
+  m.video.content = content
+  m.video.control = "play"
+end sub
+
+sub onVideoState()
+  s = m.video.state
+  if s = "error"
+    m.error.text = "Playback error: " + m.video.errorCode.ToStr() + " " + m.video.errorMsg
+    m.error.visible = true
+    m.top.state = "error"
+  else if s = "finished"
+    m.top.state = "done"
+  else
+    m.top.state = s
+  end if
+end sub

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="PlayerScene" extends="Group">
+  <script type="text/brightscript" uri="PlayerScene.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+  <interface>
+    <field id="content" type="node"    onChange="onContentSet" />
+    <field id="state"   type="string"  value="idle" />
+    <field id="close"   type="boolean" />
+  </interface>
+  <children>
+    <Rectangle id="bg"           width="1920" height="1080" color="0x000000FF" />
+    <Video     id="video"        width="1920" height="1080" />
+    <Label     id="errorOverlay" translation="[60, 1000]" width="1800" text="" color="0xFF6666FF" font="font:MediumSystemFont" visible="false" />
+  </children>
+</component>
