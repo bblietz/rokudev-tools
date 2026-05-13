@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MainScene" extends="Scene">
+  <script type="text/brightscript" uri="MainScene.bs" />
+  <script type="text/brightscript" uri="pkg:/source/Feed.bs" />
+  <script type="text/brightscript" uri="pkg:/source/HttpTask.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+  <children>
+    <Rectangle id="bgFill" width="1920" height="1080" color="0x0c1320FF" />
+    <LiveHero       id="liveHero"     translation="[0, 0]"     width="1152" height="1080" />
+    <CategoryRail   id="categoryRail" translation="[1152, 0]"  width="768"  height="1080" />
+    <Label          id="loadingLabel" translation="[940, 530]" text="Loading..." color="0xFFFFFFFF" font="font:LargeBoldSystemFont" horizAlign="center" />
+    <Label          id="errorLabel"   translation="[60, 1020]" width="1800" text="" color="0xFF6666FF" font="font:SmallSystemFont" visible="false" />
+  </children>
+</component>
