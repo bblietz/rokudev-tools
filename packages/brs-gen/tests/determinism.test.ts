@@ -257,6 +257,29 @@ describe('determinism', () => {
       await rm(dirB, { recursive: true, force: true });
     }
   });
+
+  it('news_channel full-pipeline byte equality across two in-process runs', async () => {
+    process.env.TZ = 'UTC';
+    const dirA = tmp('nc-det-a');
+    const dirB = tmp('nc-det-b');
+    await mkdir(dirA, { recursive: true });
+    await mkdir(dirB, { recursive: true });
+    try {
+      const resultA = await generateNewsChannel(dirA);
+      const resultB = await generateNewsChannel(dirB);
+
+      expect(resultA.ok).toBe(true);
+      expect(resultB.ok).toBe(true);
+
+      // Compare final zip bytes
+      const zipA = await readFile(join(dirA, 'project.zip'));
+      const zipB = await readFile(join(dirB, 'project.zip'));
+      expect(zipA.equals(zipB)).toBe(true);
+    } finally {
+      await rm(dirA, { recursive: true, force: true });
+      await rm(dirB, { recursive: true, force: true });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -315,6 +338,26 @@ async function generateVideoGrid(workDir: string): Promise<{ ok: boolean }> {
         feed_url: 'https://demo.avideo.com/roku.json',
         feed_format: 'roku_direct_publisher_json',
       },
+    },
+    output_dir: join(workDir, 'project'),
+    zip: { output_zip: join(workDir, 'project.zip') },
+  });
+
+  return result as { ok: boolean };
+}
+
+async function generateNewsChannel(workDir: string): Promise<{ ok: boolean }> {
+  const cat = await loadCatalog(PKG_ROOT);
+  setCatalogForTests(cat);
+
+  const handler = getGenerateAppHandler();
+
+  const result = await handler({
+    spec: {
+      spec_version: 2,
+      template: 'news_channel',
+      modules: [],
+      app: { name: 'News Determinism', major_version: 0, minor_version: 1, build_version: 0 },
     },
     output_dir: join(workDir, 'project'),
     zip: { output_zip: join(workDir, 'project.zip') },

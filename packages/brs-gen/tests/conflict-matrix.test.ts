@@ -274,3 +274,60 @@ describe('conflict-matrix: blank_scenegraph entries', () => {
     });
   }
 });
+
+describe('conflict-matrix: news_channel entries', () => {
+  it('news_channel + no modules: merges cleanly', async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    const template = cat.templates.get('news_channel')!;
+    expect(template).toBeDefined();
+
+    const result = await runEntry(template, []);
+    expect(result.ok).toBe(true);
+  });
+
+  it('news_channel + stub_label: merges cleanly and dispatcher contains Modules_OnMainBeforeSceneShow + StubLabel_init', async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    const template = cat.templates.get('news_channel')!;
+    expect(template).toBeDefined();
+
+    const stubLabel = cat.modules.get('stub_label');
+    if (!stubLabel) throw new Error("module 'stub_label' not found in catalog");
+    const modules = [stubLabel];
+
+    const specModules = [{ id: 'stub_label', config: { text: 'matrix-news' } }];
+    const spec = {
+      spec_version: 2 as const,
+      template: 'news_channel',
+      modules: specModules,
+      app: { name: 'News Matrix Stub', major_version: 0, minor_version: 1, build_version: 0 },
+    };
+
+    const templateFiles = await walkTemplateFiles(
+      join(PKG_ROOT, 'templates', 'news_channel', 'files'),
+    );
+    const renderedTemplateFiles = await renderTemplateFiles(templateFiles, spec, {
+      brs_gen_version: BRS_GEN_VERSION,
+      template_version: template.template.version,
+    });
+    const moduleFileBytes = await loadModuleFileBytes(PKG_ROOT, modules);
+
+    const emitted = await buildEmittedProject({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      spec: spec as any,
+      template,
+      modules,
+      renderedTemplateFiles,
+      moduleFileBytes,
+      brsGenVersion: BRS_GEN_VERSION,
+    });
+
+    // Confirm dispatcher fires the stub_label hook.
+    const hooksEntry = emitted.files.find(
+      (f) => f.path === 'source/_modules/__init_hooks.bs',
+    );
+    expect(hooksEntry).toBeDefined();
+    const dispatcher = hooksEntry!.content.toString();
+    expect(dispatcher).toContain('Modules_OnMainBeforeSceneShow');
+    expect(dispatcher).toContain('StubLabel_init');
+  });
+});
