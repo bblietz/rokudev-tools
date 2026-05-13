@@ -1,0 +1,26 @@
+' news_channel LiveHero.bs
+'
+' Composite Group, NOT focusable (focus belongs on inner playButton).
+' Updates poster + title + summary when content is bound. Reads
+' TemplateConfig().live_label to override badge text.
+
+sub init()
+  m.poster      = m.top.findNode("livePoster")
+  m.title       = m.top.findNode("title")
+  m.summary     = m.top.findNode("summary")
+  m.badgeText   = m.top.findNode("badgeText")
+  m.playButton  = m.top.findNode("playButton")
+
+  config = TemplateConfig()
+  if config.live_label <> invalid and Len(config.live_label) > 0
+    m.badgeText.text = config.live_label
+  end if
+end sub
+
+sub onContentChange()
+  c = m.top.content
+  if c = invalid then return
+  if c.title <> invalid then m.title.text = c.title
+  if c.shortDescriptionLine1 <> invalid then m.summary.text = c.shortDescriptionLine1
+  if c.HDPosterUrl <> invalid then m.poster.uri = c.HDPosterUrl
+end sub
