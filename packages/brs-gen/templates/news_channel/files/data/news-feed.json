@@ -1,0 +1,43 @@
+{
+  "live": {
+    "title": "NASA TV Live",
+    "summary": "Continuous coverage from Kennedy Space Center, mission control, and crewed spaceflight operations.",
+    "url": "https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8",
+    "stream_format": "hls",
+    "thumbnail_url": "pkg:/images/live-thumb-placeholder.png"
+  },
+  "categories": [
+    { "id": "politics", "name": "Politics",   "item_ids": ["clip-pol-1", "clip-pol-2", "clip-pol-3", "clip-pol-4", "clip-pol-5"] },
+    { "id": "tech",     "name": "Technology", "item_ids": ["clip-tec-1", "clip-tec-2", "clip-tec-3", "clip-tec-4"] },
+    { "id": "business", "name": "Business",   "item_ids": ["clip-bus-1", "clip-bus-2", "clip-bus-3"] },
+    { "id": "world",    "name": "World",      "item_ids": ["clip-wor-1", "clip-wor-2", "clip-wor-3", "clip-wor-4"] },
+    { "id": "sports",   "name": "Sports",     "item_ids": ["clip-spo-1", "clip-spo-2", "clip-spo-3", "clip-spo-4", "clip-spo-5"] }
+  ],
+  "items": [
+    { "id": "clip-pol-1", "title": "Election update Q4 polling cycle",     "summary": "Latest data from key swing states ahead of the next primary.", "url": "https://demo.avideo.com/videos/sample-1.mp4", "stream_format": "mp4", "duration_s": 154, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-pol-2", "title": "Senate hearing on infrastructure",      "summary": "Committee testimony on the proposed bridge program.",         "url": "https://demo.avideo.com/videos/sample-2.mp4", "stream_format": "mp4", "duration_s": 312, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-pol-3", "title": "State of the union address",            "summary": "Full address and post-speech analysis.",                       "url": "https://demo.avideo.com/videos/sample-3.mp4", "stream_format": "mp4", "duration_s": 2538,"thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-pol-4", "title": "Climate accord signing ceremony",       "summary": "Heads of state convene for treaty signing.",                   "url": "https://demo.avideo.com/videos/sample-1.mp4", "stream_format": "mp4", "duration_s": 525, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-pol-5", "title": "Foreign policy briefing",                "summary": "Press secretary on overnight diplomatic developments.",       "url": "https://demo.avideo.com/videos/sample-2.mp4", "stream_format": "mp4", "duration_s": 408, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+
+    { "id": "clip-tec-1", "title": "AI regulation summit recap",             "summary": "Highlights from the cross-jurisdictional working group.",     "url": "https://demo.avideo.com/videos/sample-1.mp4", "stream_format": "mp4", "duration_s": 233, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-tec-2", "title": "Quantum chip demo on stage",              "summary": "Vendor demos error-corrected operations live.",                "url": "https://demo.avideo.com/videos/sample-2.mp4", "stream_format": "mp4", "duration_s": 187, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-tec-3", "title": "Open-source kernel release",              "summary": "Maintainers walk through the new memory subsystem.",            "url": "https://demo.avideo.com/videos/sample-3.mp4", "stream_format": "mp4", "duration_s": 612, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-tec-4", "title": "Datacenter cooling breakthrough",         "summary": "Lab announces immersion cooling field test results.",          "url": "https://demo.avideo.com/videos/sample-1.mp4", "stream_format": "mp4", "duration_s": 295, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+
+    { "id": "clip-bus-1", "title": "Markets close: tech leads gainers",       "summary": "Closing bell wrap and after-hours futures.",                   "url": "https://demo.avideo.com/videos/sample-2.mp4", "stream_format": "mp4", "duration_s": 178, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-bus-2", "title": "Major merger announcement",                "summary": "Two industry leaders announce all-stock combination.",         "url": "https://demo.avideo.com/videos/sample-3.mp4", "stream_format": "mp4", "duration_s": 244, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-bus-3", "title": "Quarterly earnings briefing",              "summary": "CEO and CFO walk through quarterly results.",                  "url": "https://demo.avideo.com/videos/sample-1.mp4", "stream_format": "mp4", "duration_s": 503, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+
+    { "id": "clip-wor-1", "title": "International summit opens",               "summary": "Day-one keynote and observer briefing.",                       "url": "https://demo.avideo.com/videos/sample-2.mp4", "stream_format": "mp4", "duration_s": 421, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-wor-2", "title": "Refugee aid corridor expanded",            "summary": "Aid agencies coordinate cross-border supply lines.",            "url": "https://demo.avideo.com/videos/sample-3.mp4", "stream_format": "mp4", "duration_s": 265, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-wor-3", "title": "Election results from abroad",             "summary": "Live returns and analysis from the regional vote.",            "url": "https://demo.avideo.com/videos/sample-1.mp4", "stream_format": "mp4", "duration_s": 358, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-wor-4", "title": "Cross-border treaty ratification",         "summary": "Ratification vote and joint press conference.",                "url": "https://demo.avideo.com/videos/sample-2.mp4", "stream_format": "mp4", "duration_s": 481, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+
+    { "id": "clip-spo-1", "title": "Championship final recap",                 "summary": "Game-winning play, post-game interviews, and analysis.",       "url": "https://demo.avideo.com/videos/sample-3.mp4", "stream_format": "mp4", "duration_s": 376, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-spo-2", "title": "Trade deadline winners and losers",        "summary": "Beat-writer roundtable on day-of moves.",                      "url": "https://demo.avideo.com/videos/sample-1.mp4", "stream_format": "mp4", "duration_s": 218, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-spo-3", "title": "Olympic qualifier highlights",              "summary": "Top-10 plays from regional qualifiers.",                       "url": "https://demo.avideo.com/videos/sample-2.mp4", "stream_format": "mp4", "duration_s": 196, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-spo-4", "title": "Coaches show post-game",                    "summary": "Press conference and player adjustments.",                     "url": "https://demo.avideo.com/videos/sample-3.mp4", "stream_format": "mp4", "duration_s": 301, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" },
+    { "id": "clip-spo-5", "title": "Off-season acquisition tracker",            "summary": "Cap implications and roster fits.",                            "url": "https://demo.avideo.com/videos/sample-1.mp4", "stream_format": "mp4", "duration_s": 252, "thumbnail_url": "pkg:/images/live-thumb-placeholder.png" }
+  ]
+}
