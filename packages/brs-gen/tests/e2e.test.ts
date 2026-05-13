@@ -481,4 +481,92 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
       ).toEqual([]);
     }, 45_000);
   });
+
+  // ---------------------------------------------------------------------------
+  // news_channel tests (Plan 4c T13)
+  //
+  // Option B: beforeAll generates the project once; all 3 tests share it.
+  // ---------------------------------------------------------------------------
+  describe('news_channel', () => {
+    const CANONICAL_NEWS_SPEC = {
+      spec_version: 2,
+      template: 'news_channel',
+      modules: [],
+      app: { name: 'News E2E', major_version: 0, minor_version: 1, build_version: 0 },
+    };
+
+    let newsWorkDir: string;
+    let newsOutputDir: string;
+    let newsZipPath: string;
+    let newsClient: McpChild;
+
+    beforeAll(async () => {
+      newsWorkDir = await mkdtemp(join(tmpdir(), 'brs-gen-e2e-news-'));
+      newsOutputDir = join(newsWorkDir, 'project');
+      newsZipPath = join(newsWorkDir, 'project.zip');
+
+      newsClient = new McpChild();
+      const initResp = await newsClient.request('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'brs-gen-e2e-news', version: '1' },
+      });
+      if (initResp.error) {
+        throw new Error(`news_channel initialize failed: ${JSON.stringify(initResp.error)}`);
+      }
+
+      const gen = await newsClient.request('tools/call', {
+        name: 'generate_app',
+        arguments: {
+          spec: CANONICAL_NEWS_SPEC,
+          output_dir: newsOutputDir,
+          zip: { output_zip: newsZipPath },
+        },
+      });
+      if (gen.error) {
+        throw new Error(`news_channel generate_app failed: ${JSON.stringify(gen.error)}`);
+      }
+      parseToolPayload(gen.result); // throws on isError
+    }, 60_000);
+
+    afterAll(async () => {
+      newsClient.kill();
+      await rm(newsWorkDir, { recursive: true, force: true });
+    });
+
+    it('generate_app on news_channel produces byte-equal golden zip + provenance', async () => {
+      const emitted = await readFile(newsZipPath);
+      const golden = await readFile(join(GOLDEN_DIR, 'news.zip'));
+      expect(emitted.equals(golden)).toBe(true);
+
+      const emittedProv = await readFile(join(newsOutputDir, '.rokudev-tools', 'provenance.json'));
+      const goldenProv = await readFile(join(GOLDEN_DIR, 'news.provenance.json'));
+      expect(emittedProv.equals(goldenProv)).toBe(true);
+    }, 10_000);
+
+    it('validate_manifest returns ok:true on the news_channel project', async () => {
+      const vm = await newsClient.request('tools/call', {
+        name: 'validate_manifest',
+        arguments: { project_dir: newsOutputDir },
+      });
+      expect(vm.error).toBeUndefined();
+      const payload = parseToolPayload(vm.result);
+      expect(payload['ok']).toBe(true);
+    }, 15_000);
+
+    it('lint reports no errors on the news_channel project', async () => {
+      const lintResp = await newsClient.request('tools/call', {
+        name: 'lint',
+        arguments: { project_dir: newsOutputDir },
+      });
+      expect(lintResp.error).toBeUndefined();
+      const payload = parseToolPayload(lintResp.result);
+      expect(payload['ok']).toBe(true);
+      expect(
+        (payload['diagnostics'] as Array<{ severity: string }>).filter(
+          (d) => d.severity === 'error',
+        ),
+      ).toEqual([]);
+    }, 45_000);
+  });
 });

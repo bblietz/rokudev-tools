@@ -80,6 +80,9 @@ async function main() {
   // Regen blank goldens.
   await regenBlank();
 
+  // Regen news goldens.
+  await regenNews();
+
   process.stdout.write(
     '\n========================================================================\n' +
       'Golden files regenerated:\n' +
@@ -89,8 +92,10 @@ async function main() {
       `  ${join(GOLDEN_DIR, 'video-grid.provenance.json')}\n` +
       `  ${join(GOLDEN_DIR, 'blank.zip')}\n` +
       `  ${join(GOLDEN_DIR, 'blank.provenance.json')}\n` +
-      'Please commit all six files with a clear cause in the commit message\n' +
-      '(e.g. "regen goldens: add blank_scenegraph goldens").\n' +
+      `  ${join(GOLDEN_DIR, 'news.zip')}\n` +
+      `  ${join(GOLDEN_DIR, 'news.provenance.json')}\n` +
+      'Please commit all eight files with a clear cause in the commit message\n' +
+      '(e.g. "regen goldens: add news_channel goldens").\n' +
       '========================================================================\n',
   );
 }
@@ -165,6 +170,33 @@ async function regenBlank() {
     await copyFile(zip_path, join(GOLDEN_DIR, 'blank.zip'));
     const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
     await writeFile(join(GOLDEN_DIR, 'blank.provenance.json'), provenance);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+async function regenNews() {
+  const CANONICAL_NEWS_SPEC = {
+    spec_version: 2,
+    template: 'news_channel',
+    modules: [],
+    app: { name: 'News E2E', major_version: 0, minor_version: 1, build_version: 0 },
+  };
+
+  const work = join(tmpdir(), `brs-gen-regen-news-${randomUUID()}`);
+  const outputDir = join(work, 'project');
+  const outputZip = join(work, 'project.zip');
+  await mkdir(work, { recursive: true });
+
+  try {
+    const { zip_path, output_dir } = await generateAppForRegen({
+      outputDir,
+      spec: CANONICAL_NEWS_SPEC,
+      outputZip,
+    });
+    await copyFile(zip_path, join(GOLDEN_DIR, 'news.zip'));
+    const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
+    await writeFile(join(GOLDEN_DIR, 'news.provenance.json'), provenance);
   } finally {
     await rm(work, { recursive: true, force: true });
   }
