@@ -888,11 +888,18 @@ describe('TemplateConfig live_label threading', () => {
       });
       const payload = parsePayload(result);
       expect(payload['ok']).toBe(true);
-      // When spec has no content or branding, templateConfigBrs is not emitted
-      // so config.brs should not exist at all.
+      // news_channel declares template_branding_defaults.primary_color="#0c1320",
+      // so effectivePrimaryColor is non-null and templateConfigBrs IS emitted
+      // even without operator branding or content. Assert it exists and that
+      // the live_label key is absent (was not requested).
       expect(
         await pathExists(join(tmpDir, 'out', 'source', '_template', 'config.brs')),
-      ).toBe(false);
+      ).toBe(true);
+      const configBrs = await readFile(
+        join(tmpDir, 'out', 'source', '_template', 'config.brs'),
+        'utf8',
+      );
+      expect(configBrs).not.toContain('live_label:');
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

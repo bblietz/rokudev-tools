@@ -358,7 +358,7 @@ registerToolsModule((tools) => {
       const content = (
         appSpec as { content?: { feed_url?: string; feed_format?: string; live_label?: string } }
       ).content;
-      if (brandingSpec.primary_color || content) {
+      if (brandingSpec.primary_color || content || effectivePrimaryColor) {
         const cfg: Record<string, string> = {
           channel_name: appSpec.app.name,
         };

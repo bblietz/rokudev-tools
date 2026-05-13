@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="LiveHero" extends="Group">
+  <script type="text/brightscript" uri="LiveHero.brs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.brs" />
+  <interface>
+    <field id="content" type="node" onChange="onContentChange" />
+  </interface>
+  <children>
+    <Rectangle id="bgGrad"     width="1152" height="1080" color="0x1d2a4aFF" />
+    <Poster    id="livePoster" translation="[100, 100]" width="952" height="535" loadDisplayMode="scaleToFill" />
+    <Rectangle id="scrim"      translation="[100, 605]" width="952" height="375" color="0x000000AA" />
+    <Rectangle id="badgeBg"    translation="[100, 625]" width="80"  height="32"  color="0xe50914FF" />
+    <Label     id="badgeText"  translation="[110, 629]" text="LIVE" color="0xFFFFFFFF" font="font:MediumBoldSystemFont" />
+    <Label     id="title"      translation="[100, 670]" width="952" text="" color="0xFFFFFFFF" font="font:LargeBoldSystemFont" />
+    <Label     id="summary"    translation="[100, 750]" width="952" wrap="true" maxLines="3" text="" color="0xCCCCCCFF" font="font:MediumSystemFont" />
+    <Button    id="playButton" translation="[100, 880]" minWidth="220" text="Watch Live" iconUri="pkg:/images/play-icon-light.png" focusedIconUri="pkg:/images/play-icon-dark.png" />
+  </children>
+</component>

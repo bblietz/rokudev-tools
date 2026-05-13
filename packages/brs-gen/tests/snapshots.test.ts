@@ -348,3 +348,123 @@ describe('blank_scenegraph snapshots', () => {
     await expect(s).toMatchFileSnapshot('__snapshots__/blank_scenegraph/MainScene.brs.snap.txt');
   });
 });
+
+// ---------------------------------------------------------------------------
+// news_channel snapshots (Plan 4c)
+// ---------------------------------------------------------------------------
+describe('news_channel snapshots', () => {
+  let parentDir: string;
+  let projectDir: string;
+
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+
+    parentDir = await mkdtemp(join(tmpdir(), 'brs-gen-news-'));
+    projectDir = join(parentDir, 'project');
+
+    const handler = getGenerateAppHandler();
+    const result = await handler({
+      spec: {
+        spec_version: 2,
+        template: 'news_channel',
+        modules: [],
+        app: { name: 'News Demo', major_version: 0, minor_version: 1, build_version: 0 },
+      },
+      output_dir: projectDir,
+    });
+    const payload = result as Record<string, unknown>;
+    if (!payload['ok']) {
+      throw new Error(`generate_app failed in beforeAll: ${JSON.stringify(payload)}`);
+    }
+  });
+
+  afterAll(async () => {
+    if (parentDir) await rm(parentDir, { recursive: true, force: true });
+  });
+
+  it('manifest matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'manifest'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/news_channel/manifest.snap.txt');
+  });
+
+  it('MainScene.xml (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/news_channel/MainScene.xml.snap.txt');
+  });
+
+  it('MainScene.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/news_channel/MainScene.brs.snap.txt');
+  });
+
+  it('LiveHero.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/LiveHero.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/news_channel/LiveHero.xml.snap.txt');
+  });
+
+  it('CategoryRail.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/CategoryRail.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/news_channel/CategoryRail.xml.snap.txt');
+  });
+
+  it('CategoryGridScene.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/CategoryGridScene.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot(
+      '__snapshots__/news_channel/CategoryGridScene.xml.snap.txt',
+    );
+  });
+
+  it('CategoryGridScene.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/CategoryGridScene.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot(
+      '__snapshots__/news_channel/CategoryGridScene.brs.snap.txt',
+    );
+  });
+
+  it('PlayerScene.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/PlayerScene.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/news_channel/PlayerScene.xml.snap.txt');
+  });
+
+  it('PlayerScene.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/PlayerScene.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/news_channel/PlayerScene.brs.snap.txt');
+  });
+
+  it('news-feed.json matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'data/news-feed.json'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/news_channel/news-feed.json.snap.txt');
+  });
+
+  it('files listing (sorted) matches saved snapshot', async () => {
+    const paths = await sortedRelPaths(projectDir);
+    await expect(paths.join('\n') + '\n').toMatchFileSnapshot(
+      '__snapshots__/news_channel/files-listing.snap.txt',
+    );
+  });
+
+  // Regression markers (cheap to maintain; catch deletions of new behavior or
+  // existing module-opt extension points).
+  it('MainScene.brs contains Plan 4c overlay refs + init hook', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.brs'), 'utf8');
+    expect(s).toContain('m.gridSceneRef');
+    expect(s).toContain('m.playerSceneRef');
+    expect(s).toContain('Modules_OnMainSceneAfterSceneShow');
+  });
+
+  it('CategoryGridScene.brs contains the new init-hook firing site', async () => {
+    const s = await readFile(join(projectDir, 'components/CategoryGridScene.brs'), 'utf8');
+    expect(s).toContain('Modules_OnCategoryGridSceneAfterSceneShow');
+  });
+
+  it('PlayerScene.brs propagates content.live flag', async () => {
+    const s = await readFile(join(projectDir, 'components/PlayerScene.brs'), 'utf8');
+    // Use a relaxed regex (allowing any whitespace around the assignment)
+    // because the brighterscript .bs -> .brs compile step may normalize
+    // the spacing of the original `content.live = c.live` assignment.
+    // Both `content.live` (lhs) and `c.live` (rhs) must appear; the
+    // intermediate "= " is allowed to be any whitespace run.
+    expect(s).toMatch(/content\.live\s*=\s*c\.live/);
+  });
+});

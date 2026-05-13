@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <component name="MainScene" extends="Scene">
-  <script type="text/brightscript" uri="MainScene.bs" />
-  <script type="text/brightscript" uri="pkg:/source/Feed.bs" />
-  <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
-  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+  <script type="text/brightscript" uri="MainScene.brs" />
+  <script type="text/brightscript" uri="pkg:/source/Feed.brs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.brs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.brs" />
   <children>
     <Rectangle id="bgFill" width="1920" height="1080" color="0x0c1320FF" />
     <LiveHero       id="liveHero"     translation="[0, 0]"     width="1152" height="1080" />

@@ -1,0 +1,158 @@
+' news_channel MainScene.bs
+'
+' Owns layout (LiveHero + CategoryRail + loading/error labels), feed
+' loading (bundled or HTTP), focus routing between hero and rail, and
+' overlay create/remove for CategoryGridScene + PlayerScene.
+'
+' Cached overlay refs: m.gridSceneRef, m.playerSceneRef. Per the engine
+' MEMORY rule, never use findNode for removal; always go through the ref.
+sub init()
+    m.liveHero = m.top.findNode("liveHero")
+    m.categoryRail = m.top.findNode("categoryRail")
+    m.loadingLabel = m.top.findNode("loadingLabel")
+    m.errorLabel = m.top.findNode("errorLabel")
+    m.heroPlayButton = m.liveHero.findNode("playButton")
+    m.gridSceneRef = invalid
+    m.playerSceneRef = invalid
+    m.lastPlayerOriginatedFromLive = false
+    m.heroPlayButton.observeField("buttonSelected", "onLiveSelected")
+    m.categoryRail.observeField("itemSelected", "onCategorySelected")
+    LoadFeed()
+    Modules_OnMainSceneAfterSceneShow(m)
+end sub
+
+sub LoadFeed()
+    config = TemplateConfig()
+    feedUrl = config.feed_url
+    if feedUrl = invalid or feedUrl = "" then
+        feedUrl = "pkg:/data/news-feed.json"
+    end if
+    if Left(feedUrl, 7) = "http://" or Left(feedUrl, 8) = "https://"
+        m.feedTask = createObject("roSGNode", "HttpTask")
+        m.feedTask.observeField("state", "onFeedFetchState")
+        m.feedTask.url = feedUrl
+        m.feedTask.control = "run"
+    else
+        feed = NewsFeed_LoadBundled(feedUrl)
+        BindFeed(feed)
+    end if
+end sub
+
+sub onFeedFetchState()
+    if m.feedTask.state <> "stop" then
+        return
+    end if
+    if m.feedTask.error <> invalid and m.feedTask.error <> ""
+        m.loadingLabel.visible = false
+        m.errorLabel.text = "Feed load failed: " + m.feedTask.error
+        m.errorLabel.visible = true
+        return
+    end if
+    feed = ParseJson(m.feedTask.result)
+    BindFeed(feed)
+end sub
+
+sub BindFeed(feed as dynamic)
+    if feed = invalid
+        m.errorLabel.text = "Feed parse failed."
+        m.errorLabel.visible = true
+        return
+    end if
+    if feed.live <> invalid
+        liveNode = NewsFeed_BuildContentNode(feed.live, true)
+        if liveNode <> invalid then
+            m.liveHero.content = liveNode
+        end if
+    end if
+    if feed.categories <> invalid
+        railContent = createObject("roSGNode", "ContentNode")
+        for each cat in feed.categories
+            child = railContent.createChild("ContentNode")
+            child.title = cat.name
+        end for
+        m.categoryRail.content = railContent
+    end if
+    m.feed = feed
+    m.loadingLabel.visible = false
+    m.heroPlayButton.setFocus(true)
+end sub
+
+sub onLiveSelected()
+    if m.feed = invalid or m.feed.live = invalid then
+        return
+    end if
+    liveNode = NewsFeed_BuildContentNode(m.feed.live, true)
+    if liveNode = invalid then
+        return
+    end if
+    m.lastPlayerOriginatedFromLive = true
+    OpenPlayerScene(liveNode)
+end sub
+
+sub onCategorySelected()
+    idx = m.categoryRail.itemSelected
+    if idx = invalid then
+        return
+    end if
+    if m.feed = invalid or m.feed.categories = invalid then
+        return
+    end if
+    if idx < 0 or idx >= m.feed.categories.Count() then
+        return
+    end if
+    cat = m.feed.categories[idx]
+    items = NewsFeed_ItemsForCategory(m.feed, cat.id)
+    grid = m.top.createChild("CategoryGridScene")
+    grid.categoryName = cat.name
+    grid.categoryItems = items
+    grid.observeField("itemSelected", "onGridItemSelected")
+    grid.observeField("close", "onGridClose")
+    m.gridSceneRef = grid
+    grid.setFocus(true)
+end sub
+
+sub onGridItemSelected()
+    if m.gridSceneRef = invalid then
+        return
+    end if
+    idx = m.gridSceneRef.itemSelected
+    items = m.gridSceneRef.categoryItems
+    if idx = invalid or items = invalid or idx < 0 or idx >= items.Count() then
+        return
+    end if
+    m.lastPlayerOriginatedFromLive = false
+    OpenPlayerScene(items[idx])
+end sub
+
+sub onGridClose()
+    if m.gridSceneRef = invalid then
+        return
+    end if
+    m.top.removeChild(m.gridSceneRef)
+    m.gridSceneRef = invalid
+    m.categoryRail.setFocus(true)
+end sub
+
+sub OpenPlayerScene(content as object)
+    player = m.top.createChild("PlayerScene")
+    player.observeField("close", "onPlayerClose")
+    player.content = content
+    m.playerSceneRef = player
+    player.setFocus(true)
+end sub
+
+sub onPlayerClose()
+    if m.playerSceneRef = invalid then
+        return
+    end if
+    m.top.removeChild(m.playerSceneRef)
+    m.playerSceneRef = invalid
+    if m.lastPlayerOriginatedFromLive
+        m.heroPlayButton.setFocus(true)
+    else if m.gridSceneRef <> invalid
+        m.gridSceneRef.setFocus(true)
+    else
+        m.heroPlayButton.setFocus(true)
+    end if
+end sub
+'//# sourceMappingURL=./MainScene.brs.map
