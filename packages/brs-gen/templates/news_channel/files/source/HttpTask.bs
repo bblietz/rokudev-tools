@@ -1,0 +1,55 @@
+' Task subclass for fetching a URL without blocking the render thread.
+' Public fields:
+'   url       in   string
+'   result    out  string (response body) or invalid on failure
+'   error     out  string (empty on success)
+sub init()
+  m.top.functionName = "HttpTask_Run"
+end sub
+
+sub HttpTask_Run()
+  url = m.top.url
+  if url = invalid or url = "" then
+    m.top.error = "HttpTask: missing url"
+    m.top.result = invalid
+    return
+  end if
+
+  attempts = 0
+  while attempts < 2
+    attempts = attempts + 1
+    xfer = CreateObject("roUrlTransfer")
+    port = CreateObject("roMessagePort")
+    xfer.SetMessagePort(port)
+    xfer.SetUrl(url)
+    xfer.SetCertificatesFile("common:/certs/ca-bundle.crt")
+    xfer.InitClientCertificates()
+    xfer.EnableEncodings(true)
+    xfer.RetainBodyOnError(true)
+    xfer.AsyncGetToString()
+
+    ev = Wait(15000, port)
+    if ev = invalid then
+      xfer.AsyncCancel()
+      m.top.error = "HttpTask: timeout after 15s on attempt " + attempts.ToStr()
+      m.top.result = invalid
+      if attempts < 2 then Goto retry
+    else
+      code = ev.GetResponseCode()
+      if code >= 200 and code < 300 then
+        m.top.error = ""
+        m.top.result = ev.GetString()
+        return
+      else if code >= 500 and code < 600 then
+        m.top.error = "HttpTask: 5xx response " + code.ToStr()
+        m.top.result = invalid
+        if attempts < 2 then Goto retry
+      else
+        m.top.error = "HttpTask: non-2xx response " + code.ToStr()
+        m.top.result = invalid
+        return
+      end if
+    end if
+    retry:
+  end while
+end sub

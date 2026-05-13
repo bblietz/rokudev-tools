@@ -1,0 +1,19 @@
+' Entry point for the news_channel template.
+sub Main(args as dynamic) as void
+  ' Merger-emitted init dispatch: fires "Main/before_scene_show" hooks.
+  Modules_OnMainBeforeSceneShow(args)
+
+  screen = CreateObject("roSGScreen")
+  m.port = CreateObject("roMessagePort")
+  screen.SetMessagePort(m.port)
+  scene = screen.CreateScene("MainScene")
+  screen.Show()
+
+  while true
+    msg = Wait(0, m.port)
+    msgType = Type(msg)
+    if msgType = "roSGScreenEvent"
+      if msg.isScreenClosed() then return
+    end if
+  end while
+end sub
