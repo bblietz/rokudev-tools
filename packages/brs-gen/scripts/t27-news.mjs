@@ -18,7 +18,7 @@
 //   13. screenshotNoError (final clean state, focus on hero playButton)
 //
 // Phase B: live stream.
-//   14. re-sideload + launch (deterministic preamble per Plan 4b.1 lesson)
+//   14. Home + relaunch (Plan 4c: re-sideload doesn't reset m globals on some firmwares)
 //   15. Select on LiveHero playButton (focus default)
 //   16. sleep 5s for HLS handshake
 //   17. /query/media-player ~= playing (best-effort; NASA TV usually OK)
@@ -49,7 +49,7 @@ import {
   sleep,
 } from './_t27-lib.mjs';
 import { generateAppForRegen } from './regen-helper.mjs';
-import { EcpClient } from '@rokudev/device-client';
+import { EcpClient, EcpControl } from '@rokudev/device-client';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = dirname(HERE);
@@ -185,13 +185,23 @@ try {
   );
 
   // ============================================================
-  // Phase B: live stream. Deterministic re-sideload preamble.
-  // Per Plan 4b.1 lesson: re-sideload + launch rather than Back-spam,
-  // so we land in a known-good state regardless of where Phase A left off.
+  // Phase B: live stream.
+  //
+  // Plan 4c lesson: on Roku TV Native Build 2910X firmware 15.2.4, the
+  // re-sideload preamble from Plan 4b.1 does NOT fully reset channel state
+  // (BrightScript m globals + ContentNode caches persist across the
+  // /plugin_install reinstall), so Phase B can land mid-stream and the
+  // final foreground-active-app check trips on stale state. Use an
+  // explicit Home keypress + relaunch instead — that exits the channel
+  // (firing channel-stop), the relaunch starts a fresh BrightScript
+  // process, and Phase B begins from a deterministic known state.
   // ============================================================
-  await assertStep('re-sideload + launch (Phase B setup)', () =>
-    sideloadAndLaunch(outputZip, host, password),
-  );
+  await assertStep('Home + relaunch (Phase B setup)', async () => {
+    await keypress(host, 'Home');
+    await sleep(1500);
+    const ecp = new EcpControl(host);
+    await ecp.launch('dev');
+  });
   await sleep(3000);
 
   // Step 15: Select on LiveHero playButton (focus default after launch).

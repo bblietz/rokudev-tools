@@ -65,3 +65,17 @@ Caveat: Plan 4b's reported T27 PASS for `video_grid_channel` was a false positiv
 No API changes to `@rokudev/device-client`, `rokudev-device`, or the `brs-gen` MCP tool surface.
 
 (README has not been updated for v0.5.0 or v0.5.1; see GitHub release notes for those.)
+
+## What's in v0.5.3 (Plan 4c)
+
+Third v1 catalog template: `news_channel`. Hybrid live + on-demand news experience. Live HLS hero on the left, vertical category rail on the right, 3-column PosterGrid sub-screen per category.
+
+- **Template: `news_channel`** with five SceneGraph components (MainScene, LiveHero, CategoryRail, CategoryGridScene, PlayerScene). No DetailsScene; Select on a clip plays it directly.
+- **Bundled feed** at `pkg:/data/news-feed.json`: 5 categories x 21 demo clips cycling 3 AVideo demo URLs, plus a NASA TV public HLS endpoint for the live tile. Operator can override via `spec.content.feed_url`.
+- **`AppSpec` content extension**: `content.live_label` (optional 1-12 char string; default "LIVE") for the LIVE-badge text. Threaded into runtime via `TemplateConfig().live_label`.
+- **New init-hook export**: `CategoryGridScene/after_scene_show`. Modules can decorate the category grid header, inject overlays, etc.
+- **Engine change**: one additive line in `generate-app.ts` propagates `content.live_label` into the emitted `TemplateConfig()`. No behavior change for existing templates.
+- **Cross-component focus routing pattern** documented in `MainScene.bs`: directional keys at the Scene level + `findNode("list")` to focus the CategoryRail's inner `LabelList` (Group `setFocus` does not propagate to focusable descendants reliably). Mirrors the established `video_grid_channel` pattern.
+- **T27 driver `t27-news.mjs`** with Phase A (bundled feed) and Phase B (live stream). Phase A PASS on Roku TV Native Build 2910X firmware 15.2.4. Phase B is environmentally constrained (NASA TV HLS handshake + state reset behavior on this firmware) and is documented as deferred per spec section 14.
+
+Out of v0.5.3: shared component extraction across templates (Plan 5+); EPG/schedule overlays; multi-source live; per-category branding; real per-item thumbnail bundling.
