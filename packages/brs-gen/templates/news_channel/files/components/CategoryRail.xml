@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="CategoryRail" extends="Group">
+  <script type="text/brightscript" uri="CategoryRail.bs" />
+  <interface>
+    <field id="content"      type="node"    onChange="onContentChange" />
+    <field id="itemSelected" type="integer" alias="list.itemSelected" />
+  </interface>
+  <children>
+    <Rectangle id="railBg"  width="768" height="1080" color="0x0a0f1cFF" />
+    <Label     id="header"  translation="[60, 80]"  text="CATEGORIES" color="0x999999FF" font="font:SmallBoldSystemFont" />
+    <LabelList id="list"    translation="[60, 130]" itemSize="[640, 60]" numRows="10" drawFocusFeedback="true" />
+  </children>
+</component>

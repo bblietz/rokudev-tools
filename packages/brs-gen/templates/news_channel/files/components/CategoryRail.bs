@@ -1,0 +1,9 @@
+sub init()
+  m.list = m.top.findNode("list")
+end sub
+
+sub onContentChange()
+  c = m.top.content
+  if c = invalid then return
+  m.list.content = c
+end sub
