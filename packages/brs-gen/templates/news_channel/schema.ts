@@ -46,4 +46,5 @@ export const Example = {
   template: 'news_channel' as const,
   modules: [],
   app: { name: 'News Channel Demo', major_version: 0, minor_version: 1, build_version: 0 },
+  content: { live_label: 'LIVE' },
 };

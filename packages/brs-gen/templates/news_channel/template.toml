@@ -9,6 +9,10 @@ title           = "<%= spec.app.name %>"
 major_version   = "<%= spec.app.major_version %>"
 minor_version   = "<%= spec.app.minor_version %>"
 build_version   = "<%= spec.app.build_version %>"
+# splash_color guard is load-bearing: spec.branding is optional for this
+# template, and the EJS render context exposes only `spec`, not the resolved
+# effectivePrimaryColor. The fallback must match [template.branding_defaults]
+# below; if you change one, change both.
 splash_color    = "<%= (spec.branding && spec.branding.primary_color) ? spec.branding.primary_color : '#0c1320' %>"
 ui_resolutions  = "fhd,hd"
 bs_const        = "DEBUG=false"
