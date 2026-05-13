@@ -1,0 +1,68 @@
+' news_channel Feed.bs
+'
+' Loads + parses the bundled JSON feed at pkg:/data/news-feed.json (or an
+' operator-overridden URL when spec.content.feed_url is set). Returns
+' BrightScript associative arrays / arrays directly; ContentNode construction
+' happens in NewsFeed_BuildContentNode for callers that need them.
+'
+' The bundled JSON shape is documented in docs/superpowers/specs/2026-05-12-plan-4c-news-channel-design.md
+' under §5.3 (custom-named fields: live, categories, items).
+
+' Reads the bundled feed file synchronously. Returns invalid on any failure;
+' caller should treat that as "no feed" and surface a loading or error state.
+function NewsFeed_LoadBundled(path as dynamic) as object
+  if path = invalid or Type(path) <> "roString" and Type(path) <> "String" then
+    path = "pkg:/data/news-feed.json"
+  end if
+  txt = ReadAsciiFile(path)
+  if txt = invalid or Len(txt) = 0 then
+    print "[news] feed file not found or empty: " ; path
+    return invalid
+  end if
+  parsed = ParseJson(txt)
+  if parsed = invalid then
+    print "[news] feed parse failed: " ; path
+    return invalid
+  end if
+  return parsed
+end function
+
+' Builds a Roku ContentNode for a single feed item. isLive controls the
+' Live boolean field (default false). Returns invalid only on a missing item.
+function NewsFeed_BuildContentNode(item as dynamic, isLive as boolean) as object
+  if item = invalid then return invalid
+  c = createObject("roSGNode", "ContentNode")
+  if item.title <> invalid then c.title = item.title
+  if item.summary <> invalid then c.shortDescriptionLine1 = item.summary
+  if item.thumbnail_url <> invalid then c.HDPosterUrl = item.thumbnail_url
+  if item.url <> invalid then c.url = item.url
+  if item.stream_format <> invalid then c.streamFormat = item.stream_format
+  ' Roku ContentNode supports the Live boolean (case-insensitive); we use
+  ' lowercase for consistency.
+  c.live = isLive
+  return c
+end function
+
+' Looks up the items for one category id, returns a BrightScript array of
+' ContentNodes (one per item). Empty array if the category has no items
+' or doesn't exist.
+function NewsFeed_ItemsForCategory(feed as dynamic, categoryId as dynamic) as object
+  out = []
+  if feed = invalid or feed.categories = invalid or feed.items = invalid then return out
+  if categoryId = invalid then return out
+  for each cat in feed.categories
+    if cat.id = categoryId
+      for each itemId in cat.item_ids
+        for each item in feed.items
+          if item.id = itemId
+            node = NewsFeed_BuildContentNode(item, false)
+            if node <> invalid then out.Push(node)
+            exit for
+          end if
+        end for
+      end for
+      exit for
+    end if
+  end for
+  return out
+end function
