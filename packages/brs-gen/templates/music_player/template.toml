@@ -1,0 +1,34 @@
+[template]
+id = "music_player"
+version = "0.1.0"
+spec_compat = ">=2"
+description = "Browse + Now Playing audio template. 3-column PosterGrid of playlists, full transport on NowPlayingScene, persistent MiniBar so Back from Now Playing keeps playback alive."
+
+[template.manifest_defaults]
+title           = "<%= spec.app.name %>"
+major_version   = "<%= spec.app.major_version %>"
+minor_version   = "<%= spec.app.minor_version %>"
+build_version   = "<%= spec.app.build_version %>"
+# splash_color guard mirrors news_channel: spec.branding is optional for this
+# template, and the EJS render context exposes only `spec`, not the resolved
+# effectivePrimaryColor. The fallback must match [template.branding_defaults]
+# below; if you change one, change both.
+splash_color    = "<%= (spec.branding && spec.branding.primary_color) ? spec.branding.primary_color : '#181028' %>"
+ui_resolutions  = "fhd,hd"
+bs_const        = "DEBUG=false"
+
+[template.exports]
+init_hooks = [
+  { scope = "Main",            phase = "before_scene_show", file = "source/Main.bs",               signature = "(args as dynamic) as void" },
+  { scope = "MainScene",       phase = "after_scene_show",  file = "components/MainScene.bs",       signature = "(m as object) as void" },
+  { scope = "NowPlayingScene", phase = "after_scene_show",  file = "components/NowPlayingScene.bs", signature = "(m as object) as void" },
+]
+scene_nodes = [
+  { name = "MainScene",        file = "components/MainScene.xml" },
+  { name = "NowPlayingScene",  file = "components/NowPlayingScene.xml" },
+  { name = "MiniBar",          file = "components/MiniBar.xml" },
+  { name = "HttpTask",         file = "components/HttpTask.xml" },
+]
+
+[template.branding_defaults]
+primary_color = "#181028"
