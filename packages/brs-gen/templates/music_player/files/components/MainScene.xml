@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MainScene" extends="Scene">
+  <script type="text/brightscript" uri="MainScene.bs" />
+  <script type="text/brightscript" uri="pkg:/source/Feed.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+  <children>
+    <Rectangle id="bg" width="1920" height="1080" color="0x0c0820FF" />
+    <Label id="header" translation="[100, 60]" width="1720" height="60" text="" color="0xFFFFFFFF" font="font:LargeBoldSystemFont" />
+    <Label id="loadingLabel" translation="[100, 500]" width="1720" height="60" text="Loading..." color="0xCCCCCCFF" font="font:MediumSystemFont" horizAlign="center" />
+    <Label id="errorLabel" translation="[100, 500]" width="1720" height="60" text="" color="0xFF6666FF" visible="false" font="font:MediumSystemFont" horizAlign="center" />
+    <PosterGrid id="grid" translation="[100, 200]" numColumns="3" basePosterSize="[560, 560]" itemSize="[560, 660]" itemSpacing="[20, 30]" caption1NumLines="1" captionPosterGap="20" />
+    <MiniBar id="miniBar" translation="[0, 1000]" visible="false" />
+    <Audio id="audio" />
+  </children>
+</component>
