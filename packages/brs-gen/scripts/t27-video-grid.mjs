@@ -30,6 +30,7 @@ import {
   sleep,
 } from './_t27-lib.mjs';
 import { generateAppForRegen } from './regen-helper.mjs';
+import { EcpControl } from '@rokudev/device-client';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = dirname(HERE);
@@ -135,17 +136,26 @@ try {
   // ============================================================
   // Phase B (Plan 4b): Up-from-row-0 + hero playButton + Back.
   // ============================================================
-  // Per spec 4b.1 D5: re-sideload + launch to deterministically reset
-  // to MainScene with focus on RowList row 0. Replaces the v0.5.1
-  // `keypressRepeat('Back', 2)` preamble, which could pop the channel
-  // out to Roku home if PlayerScene swallowed Back (caused the v0.5.1
-  // T27 false-positive: every subsequent screenshot was Roku home,
-  // not our channel). screenshotNoError's new active-app check would
-  // catch this now anyway, but a deterministic reset is the proper
-  // fix.
-  await assertStep('reset to MainScene (Phase B setup)', () =>
-    sideloadAndLaunch(outputZip, host, password),
-  );
+  // Lineage:
+  //   v0.5.1: keypressRepeat('Back', 2) preamble. Could pop the
+  //     channel out to Roku home if PlayerScene swallowed Back
+  //     (caused v0.5.1 T27 false-positive).
+  //   v0.5.2 (Plan 4b.1): sideloadAndLaunch preamble. Deterministic
+  //     reset; worked on Roku Ultra firmware 15.2.4 build 3452.
+  //   v0.5.4+ (Plan 4d discovery): on Roku Native 2910X firmware,
+  //     re-sideload via /plugin_install hits ECONNRESET, AND even
+  //     when it succeeds the BrightScript m globals + ContentNode
+  //     caches persist across the reinstall (same Plan 4c lesson
+  //     from t27-news.mjs). Use Home keypress + ECP launch instead:
+  //     Home cleanly exits the channel (firing channel-stop), and
+  //     the relaunch starts a fresh BrightScript process.
+  // ============================================================
+  await assertStep('Home + relaunch (Phase B setup)', async () => {
+    await keypress(host, 'Home');
+    await sleep(1500);
+    const ecp = new EcpControl(host);
+    await ecp.launch('dev');
+  });
   await sleep(5000); // match Phase A's post-launch hydration window
 
   // Step B1: Up from RowList row 0 -> focuses hero playButton.
