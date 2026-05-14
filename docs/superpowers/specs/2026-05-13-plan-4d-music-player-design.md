@@ -193,6 +193,8 @@ Parallel to Plan 4c's `live_label` thread. No behavior change for templates that
 
 3 playlists × 6 tracks each = 18 tracks. Each playlist's track list cycles a different sub-set of SoundHelix-Song-1 through SoundHelix-Song-9 so collectively all 9 URLs are exercised at least once across playlists. Within a single playlist, no track URL repeats. `duration` values are approximate (taken from SoundHelix metadata) and used by NowPlayingScene's scrubber to compute progress when `m.audio.duration` is not yet populated by the buffer.
 
+Ellipses in the snippet above (`...6 tracks total cycling...` and `[...]` for playlists 2 and 3) are illustrative shorthand. The implementation plan materializes the full 18-row table deterministically from the constraints stated in this section; no field is left for the implementer to invent.
+
 ## 8. Focus routing + nav stack
 
 **MainScene focus tree** (no NowPlaying open):
@@ -211,6 +213,8 @@ Parallel to Plan 4c's `live_label` thread. No behavior change for templates that
 | MiniBar focused | `Right` | Open NowPlayingScene WITHOUT changing the queue (resume current) |
 | MiniBar focused | `Back` | Return focus to PosterGrid (don't exit) |
 | PosterGrid focused | `Back` | Return false (let Roku exit channel) |
+
+MiniBar is unfocusable until first play (D10's visibility policy); the "MiniBar focused" rows above are unreachable until `m.miniBarVisibleSticky` flips to `true`. Pre-first-play, Down from PosterGrid bottom row is a no-op (returns false from `onKeyEvent`, default Roku no-target behavior).
 
 **NowPlayingScene focus tree:**
 
@@ -291,6 +295,8 @@ The operator-feed-override codepath (HTTP fetch instead of `ReadAsciiFile`) is e
   - `templates/music_player/files/images/playlist-2.png` (600x600, solid color #2a8a3a, glyph "2")
   - `templates/music_player/files/images/playlist-3.png` (600x600, solid color #8a3a2a, glyph "3")
   - 12 transport icon PNGs at 48x48 (icon-prev-light, icon-prev-dark, icon-next-light, icon-next-dark, icon-rew15-light, icon-rew15-dark, icon-fwd15-light, icon-fwd15-dark, icon-play-light, icon-play-dark, icon-pause-light, icon-pause-dark). Light = unfocused (light-on-dark), dark = focused (dark-on-light, against Roku's default focus bitmap).
+
+Note: §4's transport row enumerates 5 Buttons (`prev`, `rew15`, `playPause`, `fwd15`, `next`), not 6. The 12 icon PNGs cover 6 logical actions because the single `playPause` Button swaps its `iconUri` / `focusedIconUri` between the play and pause glyph pair based on `m.audio.state` (the play/pause icon swap is wired in MainScene's `onAudioStateChange` and NowPlayingScene's same observer; the swap is for both MiniBar and NowPlaying transport).
 - Deterministic via `sharp` inline SVG with pinned `compressionLevel: 9`, `palette: false`, `kernel: 'lanczos3'`. Same author-tool pattern as Plan 4 + Plan 4c.
 
 **Branding fixtures** for unit + T27 tests live under `packages/brs-gen/tests/fixtures/music_player/`:
