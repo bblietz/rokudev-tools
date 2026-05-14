@@ -280,6 +280,28 @@ describe('determinism', () => {
       await rm(dirB, { recursive: true, force: true });
     }
   });
+
+  it('music_player full-pipeline byte equality across two in-process runs', async () => {
+    process.env.TZ = 'UTC';
+    const dirA = tmp('mp-det-a');
+    const dirB = tmp('mp-det-b');
+    await mkdir(dirA, { recursive: true });
+    await mkdir(dirB, { recursive: true });
+    try {
+      const resultA = await generateMusicPlayer(dirA);
+      const resultB = await generateMusicPlayer(dirB);
+
+      expect(resultA.ok).toBe(true);
+      expect(resultB.ok).toBe(true);
+
+      const zipA = await readFile(join(dirA, 'project.zip'));
+      const zipB = await readFile(join(dirB, 'project.zip'));
+      expect(zipA.equals(zipB)).toBe(true);
+    } finally {
+      await rm(dirA, { recursive: true, force: true });
+      await rm(dirB, { recursive: true, force: true });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -358,6 +380,26 @@ async function generateNewsChannel(workDir: string): Promise<{ ok: boolean }> {
       template: 'news_channel',
       modules: [],
       app: { name: 'News Determinism', major_version: 0, minor_version: 1, build_version: 0 },
+    },
+    output_dir: join(workDir, 'project'),
+    zip: { output_zip: join(workDir, 'project.zip') },
+  });
+
+  return result as { ok: boolean };
+}
+
+async function generateMusicPlayer(workDir: string): Promise<{ ok: boolean }> {
+  const cat = await loadCatalog(PKG_ROOT);
+  setCatalogForTests(cat);
+
+  const handler = getGenerateAppHandler();
+
+  const result = await handler({
+    spec: {
+      spec_version: 2,
+      template: 'music_player',
+      modules: [],
+      app: { name: 'Music Determinism', major_version: 0, minor_version: 1, build_version: 0 },
     },
     output_dir: join(workDir, 'project'),
     zip: { output_zip: join(workDir, 'project.zip') },

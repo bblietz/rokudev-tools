@@ -331,3 +331,14 @@ describe('conflict-matrix: news_channel entries', () => {
     expect(dispatcher).toContain('StubLabel_init');
   });
 });
+
+describe('conflict-matrix: music_player entries', () => {
+  it('music_player + no modules: merges cleanly', async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    const template = cat.templates.get('music_player')!;
+    expect(template).toBeDefined();
+
+    const result = await runEntry(template, []);
+    expect(result.ok).toBe(true);
+  });
+});
