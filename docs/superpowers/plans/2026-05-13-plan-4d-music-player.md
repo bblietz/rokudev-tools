@@ -267,7 +267,7 @@ if (brandingSpec.primary_color || content || effectivePrimaryColor) {
 
 Run: `pnpm -C packages/brs-gen test 2>&1 | tail -10`
 
-Expected: 305 still PASS (the new 2 service_name tests still FAIL because music_player template doesn't exist yet; that's expected). All 4 existing template golden tests still PASS (the engine change is additive, no key-absent template gets a new key).
+Expected: 305 existing tests still PASS; 2 new `service_name` tests FAIL with `Unknown template: music_player` (expected pre-Task 2). All 4 existing template golden tests still PASS (the engine change is additive, no key-absent template gets a new key).
 
 - [ ] **Step 7: Confirm typecheck + build are clean**
 
@@ -958,6 +958,8 @@ EOF
 </component>
 ```
 
+(The Audio node is declared in XML rather than created at runtime via `m.top.createChild("Audio")`. Spec section 4 prose mentions the runtime approach; both are valid SceneGraph patterns. The XML declaration is preferred here because it makes the node tree visible from one file and `findNode("audio")` is unambiguous.)
+
 - [ ] **Step 2: Write MainScene.bs**
 
 ```brs
@@ -1041,6 +1043,10 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
   if not press then return false
 
+  ' Down -> MiniBar from anywhere on the PosterGrid. With 3 playlists in
+  ' a single row this is OK; if a future expansion adds rows beyond the
+  ' first, restrict this to the bottom row by inspecting m.grid.itemFocused
+  ' against (totalItems - numColumns).
   if key = "down" and m.grid.hasFocus() and m.miniBar.visible then
     inner = m.miniBar.findNode("playPause")
     if inner <> invalid then inner.setFocus(true) else m.miniBar.setFocus(true)
@@ -1690,6 +1696,11 @@ describe('music_player snapshots', () => {
     // call sites + key state-var names so they don't get accidentally
     // deleted in a future template edit.
     expect(got).toContain('Modules_OnMainSceneAfterSceneShow');
+    // The next three assertions are sensitive to bsc transpile reformatting
+    // (whitespace, quote style). If they FAIL on first regen even though the
+    // source is correct, loosen to a regex such as
+    //   /m\.audio\s*=\s*m\.top\.findNode\(['"]audio['"]\)/
+    // before assuming the source is wrong.
     expect(got).toContain('m.audio = m.top.findNode("audio")');
     expect(got).toContain('m.miniBarVisibleSticky');
     expect(got).toContain('m.nowPlayingRef');
@@ -2198,7 +2209,7 @@ ROKUDEV_HOST=10.128.160.241 ROKUDEV_DEV_PASSWORD=1234 \
   pnpm -C packages/brs-gen exec node scripts/t27-music.mjs
 ```
 
-Expected: `T27 MUSIC PASS (Phase A only, Phase B deferred).` with 14/14 steps.
+Expected: `T27 MUSIC PASS (Phase A only, Phase B deferred).` with 15 PASS / 0 FAIL (the driver above implements 15 assertSteps: generate_app + sideload + 5 screenshots + 4 keypresses + 2 media-player queries + 2 select-toggles + final).
 
 If the SoundHelix audio_url cold-start buffer takes longer than 3s, expect `media-player query: state in [playing, buffering]` to PASS on `buffering`. The next steps (toggle pause, then play) drive the audio out of buffering.
 
