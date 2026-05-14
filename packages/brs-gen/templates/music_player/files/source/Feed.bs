@@ -1,0 +1,44 @@
+' music_player Feed.bs
+'
+' Pure data-shaping helpers for the music_player feed.
+'
+' MusicFeed_LoadBundled: reads pkg:/data/music-feed.json (or the operator's
+' override path) and returns the parsed associative array, or invalid on
+' parse error.
+'
+' MusicFeed_BuildContentNode: turns one feed track into a ContentNode with
+' the fields the SceneGraph Audio node expects (url + streamFormat) plus
+' display fields (title, artist, art).
+'
+' MusicFeed_TracksForPlaylist: returns the array of track objects for a
+' given playlist id, or [] if the id is not found.
+
+function MusicFeed_LoadBundled(path as string) as dynamic
+  raw = ReadAsciiFile(path)
+  if raw = invalid or raw = "" then return invalid
+  feed = ParseJson(raw)
+  if feed = invalid then return invalid
+  return feed
+end function
+
+function MusicFeed_BuildContentNode(track as object) as object
+  if track = invalid then return invalid
+  node = createObject("roSGNode", "ContentNode")
+  if track.title <> invalid then node.title = track.title
+  if track.artist <> invalid then node.SecondaryTitle = track.artist
+  if track.art <> invalid then node.HDPosterUrl = track.art
+  if track.audio_url <> invalid then node.url = track.audio_url
+  if track.stream_format <> invalid then node.streamFormat = track.stream_format
+  return node
+end function
+
+function MusicFeed_TracksForPlaylist(feed as dynamic, playlistId as string) as object
+  if feed = invalid or feed.playlists = invalid then return []
+  for each pl in feed.playlists
+    if pl.id = playlistId then
+      if pl.tracks = invalid then return []
+      return pl.tracks
+    end if
+  end for
+  return []
+end function
