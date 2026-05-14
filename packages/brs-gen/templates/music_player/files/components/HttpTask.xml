@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="HttpTask" extends="Task">
+  <script type="text/brightscript" uri="pkg:/source/HttpTask.bs" />
+  <interface>
+    <field id="url"    type="string"                   />
+    <field id="result" type="string" alwaysNotify="true" />
+    <field id="error"  type="string" alwaysNotify="true" />
+  </interface>
+</component>
