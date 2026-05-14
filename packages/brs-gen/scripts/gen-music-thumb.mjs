@@ -20,7 +20,8 @@
 //   the current sharp 0.34.5 SVG rasterizer produces for the same path.
 //   (The existing files have pHYs 2835 ppm and 372 non-transparent pixels
 //   at row 24; the current pipeline produces 488 at the same row with the
-//   identical SVG.) Therefore this script uses option (b): it reads the
+//   identical SVG.) Therefore this script uses option (a) per Task 3 Step 6:
+//   it reads the
 //   existing play-icon PNGs from news_channel and writes them verbatim,
 //   guaranteeing byte-equality. The other 10 transport icons are generated
 //   fresh by this script using the same sharp params. The asset-reuse test
