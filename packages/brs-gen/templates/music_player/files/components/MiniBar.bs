@@ -1,0 +1,30 @@
+sub init()
+  m.artNode    = m.top.findNode("art")
+  m.titleLbl   = m.top.findNode("title")
+  m.artistLbl  = m.top.findNode("artist")
+  m.playBtn    = m.top.findNode("playPause")
+end sub
+
+sub onArtChange()
+  m.artNode.uri = m.top.art
+end sub
+
+sub onTitleChange()
+  m.titleLbl.text = m.top.title
+end sub
+
+sub onArtistChange()
+  m.artistLbl.text = m.top.artist
+end sub
+
+sub onAudioStateChange()
+  if m.top.audioState = "playing"
+    m.playBtn.text           = "Pause"
+    m.playBtn.iconUri        = "pkg:/images/pause-icon-light.png"
+    m.playBtn.focusedIconUri = "pkg:/images/pause-icon-dark.png"
+  else
+    m.playBtn.text           = "Play"
+    m.playBtn.iconUri        = "pkg:/images/play-icon-light.png"
+    m.playBtn.focusedIconUri = "pkg:/images/play-icon-dark.png"
+  end if
+end sub
