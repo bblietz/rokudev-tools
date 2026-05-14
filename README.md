@@ -79,3 +79,18 @@ Third v1 catalog template: `news_channel`. Hybrid live + on-demand news experien
 - **T27 driver `t27-news.mjs`** with Phase A (bundled feed) and Phase B (live stream). Phase A PASS on Roku TV Native Build 2910X firmware 15.2.4. Phase B is environmentally constrained (NASA TV HLS handshake + state reset behavior on this firmware) and is documented as deferred per spec section 14.
 
 Out of v0.5.3: shared component extraction across templates (Plan 5+); EPG/schedule overlays; multi-source live; per-category branding; real per-item thumbnail bundling.
+
+## What's in v0.5.4 (Plan 4d)
+
+Fourth v1 catalog template: `music_player`. A production-shaped audio channel with persistent playback across nav. Browse screen presents a 3-column PosterGrid of playlists; selecting a playlist opens a NowPlayingScene with album art, scrubber, and a 5-button transport row, starts playback at queue index 0, and queues the rest of the playlist's tracks. A persistent MiniBar on MainScene shows the current track + a play/pause toggle; backing out of NowPlaying does NOT stop playback.
+
+- **Template: `music_player`** with four SceneGraph components (MainScene, NowPlayingScene, MiniBar, HttpTask).
+- **Bundled feed** at `pkg:/data/music-feed.json`: 3 playlists x 6 tracks = 18 entries cycling 9 SoundHelix public-domain MP3s. Operator can override via `spec.content.feed_url`.
+- **`AppSpec` content extension**: `content.service_name` (optional 1-20 char string; default = `spec.app.name`) for the "FROM <name>" header line on NowPlayingScene. Threaded into runtime via `TemplateConfig().service_name`.
+- **New init-hook export**: `NowPlayingScene/after_scene_show`. Modules can hook here for track-played analytics events in Plan 5+.
+- **Engine change**: one additive line in `generate-app.ts` propagates `content.service_name` into the emitted `TemplateConfig()`. No behavior change for existing templates.
+- **Audio architecture**: MainScene owns the SceneGraph `Audio` node. NowPlayingScene receives the audioRef via a `node`-typed interface field at create time; observes state and position; writes control. Back from NowPlaying preserves playback (sticky MiniBar reads MainScene's state).
+- **15 new PNG assets** generated deterministically via `gen-music-thumb.mjs` (3 playlist art + 12 transport bitmap icons). play-icon-{light,dark}.png are sha256-equal across all three image-using templates.
+- **T27 driver `t27-music.mjs`** (Phase A: bundled feed). Phase B (operator feed-URL override) is deferred per spec section 9.
+
+Out of v0.5.4: HLS audio / live radio; search; categories above playlists; shuffle/repeat; lyrics/equalizer; per-track art; library/favorites; sleep timer; multi-room cast; component sharing across templates (Plan 5+ concern).
