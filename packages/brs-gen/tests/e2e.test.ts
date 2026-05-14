@@ -569,4 +569,91 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
       ).toEqual([]);
     }, 45_000);
   });
+
+  // music_player tests (Plan 4d T12)
+  //
+  // Option B: beforeAll generates the project once; all 3 tests share it.
+  // ---------------------------------------------------------------------------
+  describe('music_player', () => {
+    const CANONICAL_MUSIC_SPEC = {
+      spec_version: 2,
+      template: 'music_player',
+      modules: [],
+      app: { name: 'Music E2E', major_version: 0, minor_version: 1, build_version: 0 },
+    };
+
+    let musicWorkDir: string;
+    let musicOutputDir: string;
+    let musicZipPath: string;
+    let musicClient: McpChild;
+
+    beforeAll(async () => {
+      musicWorkDir = await mkdtemp(join(tmpdir(), 'brs-gen-e2e-music-'));
+      musicOutputDir = join(musicWorkDir, 'project');
+      musicZipPath = join(musicWorkDir, 'project.zip');
+
+      musicClient = new McpChild();
+      const initResp = await musicClient.request('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'brs-gen-e2e-music', version: '1' },
+      });
+      if (initResp.error) {
+        throw new Error(`music_player initialize failed: ${JSON.stringify(initResp.error)}`);
+      }
+
+      const gen = await musicClient.request('tools/call', {
+        name: 'generate_app',
+        arguments: {
+          spec: CANONICAL_MUSIC_SPEC,
+          output_dir: musicOutputDir,
+          zip: { output_zip: musicZipPath },
+        },
+      });
+      if (gen.error) {
+        throw new Error(`music_player generate_app failed: ${JSON.stringify(gen.error)}`);
+      }
+      parseToolPayload(gen.result); // throws on isError
+    }, 60_000);
+
+    afterAll(async () => {
+      musicClient.kill();
+      await rm(musicWorkDir, { recursive: true, force: true });
+    });
+
+    it('generate_app on music_player produces byte-equal golden zip + provenance', async () => {
+      const emitted = await readFile(musicZipPath);
+      const golden = await readFile(join(GOLDEN_DIR, 'music.zip'));
+      expect(emitted.equals(golden)).toBe(true);
+
+      const emittedProv = await readFile(join(musicOutputDir, '.rokudev-tools', 'provenance.json'));
+      const goldenProv = await readFile(join(GOLDEN_DIR, 'music.provenance.json'));
+      expect(emittedProv.equals(goldenProv)).toBe(true);
+    }, 10_000);
+
+    it('validate_manifest returns ok:true on the music_player project', async () => {
+      const vm = await musicClient.request('tools/call', {
+        name: 'validate_manifest',
+        arguments: { project_dir: musicOutputDir },
+      });
+      expect(vm.error).toBeUndefined();
+      const payload = parseToolPayload(vm.result);
+      expect(payload['ok']).toBe(true);
+    }, 15_000);
+
+    it('lint reports no errors on the music_player project', async () => {
+      const lintResp = await musicClient.request('tools/call', {
+        name: 'lint',
+        arguments: { project_dir: musicOutputDir },
+      });
+      expect(lintResp.error).toBeUndefined();
+      const payload = parseToolPayload(lintResp.result);
+      expect(payload['ok']).toBe(true);
+      expect(
+        (payload['diagnostics'] as Array<{ severity: string }>).filter(
+          (d) => d.severity === 'error',
+        ),
+      ).toEqual([]);
+    }, 45_000);
+  });
 });
