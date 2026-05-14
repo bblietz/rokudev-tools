@@ -11,13 +11,19 @@ async function sha256OfFile(absPath: string): Promise<string> {
   return createHash('sha256').update(buf).digest('hex');
 }
 
-describe('asset reuse: video_grid_channel <-> news_channel', () => {
+describe('asset reuse: video_grid_channel <-> news_channel <-> music_player', () => {
   for (const filename of ['play-icon-light.png', 'play-icon-dark.png']) {
-    it(`${filename} is byte-equal across both templates`, async () => {
+    it(`${filename} is byte-equal across all three templates`, async () => {
       const vg = join(PKG_ROOT, 'templates/video_grid_channel/files/images', filename);
       const nc = join(PKG_ROOT, 'templates/news_channel/files/images', filename);
-      const [a, b] = await Promise.all([sha256OfFile(vg), sha256OfFile(nc)]);
-      expect(a).toEqual(b);
+      const mp = join(PKG_ROOT, 'templates/music_player/files/images', filename);
+      const [a, b, c] = await Promise.all([
+        sha256OfFile(vg),
+        sha256OfFile(nc),
+        sha256OfFile(mp),
+      ]);
+      expect(b).toEqual(a);
+      expect(c).toEqual(a);
     });
   }
 });
