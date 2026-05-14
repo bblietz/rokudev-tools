@@ -1,0 +1,43 @@
+{
+  "playlists": [
+    {
+      "id": "p1",
+      "title": "Workout Mix",
+      "art": "pkg:/images/playlist-1.png",
+      "tracks": [
+        { "id": "p1t1", "title": "Energy 1",     "artist": "SoundHelix", "art": "pkg:/images/playlist-1.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "stream_format": "mp3", "duration": 372 },
+        { "id": "p1t2", "title": "Energy 2",     "artist": "SoundHelix", "art": "pkg:/images/playlist-1.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", "stream_format": "mp3", "duration": 425 },
+        { "id": "p1t3", "title": "Energy 3",     "artist": "SoundHelix", "art": "pkg:/images/playlist-1.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", "stream_format": "mp3", "duration": 397 },
+        { "id": "p1t4", "title": "Power Up",     "artist": "SoundHelix", "art": "pkg:/images/playlist-1.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", "stream_format": "mp3", "duration": 365 },
+        { "id": "p1t5", "title": "Cardio Blast", "artist": "SoundHelix", "art": "pkg:/images/playlist-1.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3", "stream_format": "mp3", "duration": 410 },
+        { "id": "p1t6", "title": "Sprint",       "artist": "SoundHelix", "art": "pkg:/images/playlist-1.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3", "stream_format": "mp3", "duration": 388 }
+      ]
+    },
+    {
+      "id": "p2",
+      "title": "Chill",
+      "art": "pkg:/images/playlist-2.png",
+      "tracks": [
+        { "id": "p2t1", "title": "Calm 1",     "artist": "SoundHelix", "art": "pkg:/images/playlist-2.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", "stream_format": "mp3", "duration": 354 },
+        { "id": "p2t2", "title": "Calm 2",     "artist": "SoundHelix", "art": "pkg:/images/playlist-2.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", "stream_format": "mp3", "duration": 402 },
+        { "id": "p2t3", "title": "Calm 3",     "artist": "SoundHelix", "art": "pkg:/images/playlist-2.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3", "stream_format": "mp3", "duration": 391 },
+        { "id": "p2t4", "title": "Drift",      "artist": "SoundHelix", "art": "pkg:/images/playlist-2.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "stream_format": "mp3", "duration": 372 },
+        { "id": "p2t5", "title": "Reflect",    "artist": "SoundHelix", "art": "pkg:/images/playlist-2.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", "stream_format": "mp3", "duration": 425 },
+        { "id": "p2t6", "title": "Wind Down",  "artist": "SoundHelix", "art": "pkg:/images/playlist-2.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", "stream_format": "mp3", "duration": 397 }
+      ]
+    },
+    {
+      "id": "p3",
+      "title": "Latest",
+      "art": "pkg:/images/playlist-3.png",
+      "tracks": [
+        { "id": "p3t1", "title": "New Track 1", "artist": "SoundHelix", "art": "pkg:/images/playlist-3.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3", "stream_format": "mp3", "duration": 388 },
+        { "id": "p3t2", "title": "New Track 2", "artist": "SoundHelix", "art": "pkg:/images/playlist-3.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3", "stream_format": "mp3", "duration": 410 },
+        { "id": "p3t3", "title": "New Track 3", "artist": "SoundHelix", "art": "pkg:/images/playlist-3.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", "stream_format": "mp3", "duration": 365 },
+        { "id": "p3t4", "title": "Fresh Cut",   "artist": "SoundHelix", "art": "pkg:/images/playlist-3.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3", "stream_format": "mp3", "duration": 391 },
+        { "id": "p3t5", "title": "Hot Off",     "artist": "SoundHelix", "art": "pkg:/images/playlist-3.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", "stream_format": "mp3", "duration": 402 },
+        { "id": "p3t6", "title": "Brand New",   "artist": "SoundHelix", "art": "pkg:/images/playlist-3.png", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", "stream_format": "mp3", "duration": 354 }
+      ]
+    }
+  ]
+}
