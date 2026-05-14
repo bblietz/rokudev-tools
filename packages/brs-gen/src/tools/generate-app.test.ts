@@ -905,3 +905,81 @@ describe('TemplateConfig live_label threading', () => {
     }
   });
 });
+
+describe('TemplateConfig service_name threading', () => {
+  // Note: music_player template is created in Task 2. Until then these tests
+  // fail with "Unknown template: music_player". After Task 2's first commit
+  // they proceed to fail with file-not-found errors against the component
+  // XMLs (which Tasks 5-9 populate). After Task 9 both should pass.
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+  });
+
+  afterAll(async () => {
+    // Restore the bundled catalog so downstream describe blocks are unaffected.
+    const bundledCat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(bundledCat);
+  });
+
+  it('threads spec.content.service_name into emitted TemplateConfig() body', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-service-name-'));
+    try {
+      const handler = getHandler();
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'music_player',
+          modules: [],
+          app: { name: 'MusicTest', major_version: 0, minor_version: 1, build_version: 0 },
+          content: { service_name: 'My Radio' },
+        },
+        output_dir: join(tmpDir, 'out'),
+        overwrite: true,
+      });
+      const payload = parsePayload(result);
+      expect(payload['ok']).toBe(true);
+      // bsc compile renames .bs -> .brs; read the post-compile output.
+      const configBrs = await readFile(
+        join(tmpDir, 'out', 'source', '_template', 'config.brs'),
+        'utf8',
+      );
+      expect(configBrs).toContain('service_name: "My Radio"');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('omits service_name key when spec.content.service_name is absent', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-service-name-absent-'));
+    try {
+      const handler = getHandler();
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'music_player',
+          modules: [],
+          app: { name: 'MusicTest', major_version: 0, minor_version: 1, build_version: 0 },
+        },
+        output_dir: join(tmpDir, 'out'),
+        overwrite: true,
+      });
+      const payload = parsePayload(result);
+      expect(payload['ok']).toBe(true);
+      // music_player declares template_branding_defaults.primary_color, so
+      // effectivePrimaryColor is non-null and templateConfigBrs IS emitted
+      // even without operator branding or content. Assert it exists and that
+      // the service_name key is absent (was not requested).
+      expect(
+        await pathExists(join(tmpDir, 'out', 'source', '_template', 'config.brs')),
+      ).toBe(true);
+      const configBrs = await readFile(
+        join(tmpDir, 'out', 'source', '_template', 'config.brs'),
+        'utf8',
+      );
+      expect(configBrs).not.toContain('service_name:');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+});

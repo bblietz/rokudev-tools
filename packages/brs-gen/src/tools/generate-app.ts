@@ -356,7 +356,14 @@ registerToolsModule((tools) => {
       //     maps 1:1 to video_grid_channel. Future templates can tighten.
       let templateConfigBrs: string | undefined;
       const content = (
-        appSpec as { content?: { feed_url?: string; feed_format?: string; live_label?: string } }
+        appSpec as {
+          content?: {
+            feed_url?: string;
+            feed_format?: string;
+            live_label?: string;
+            service_name?: string;
+          };
+        }
       ).content;
       if (brandingSpec.primary_color || content || effectivePrimaryColor) {
         const cfg: Record<string, string> = {
@@ -366,6 +373,7 @@ registerToolsModule((tools) => {
         if (content?.feed_url) cfg['feed_url'] = content.feed_url;
         if (content?.feed_format) cfg['feed_format'] = content.feed_format;
         if (content?.live_label) cfg['live_label'] = content.live_label;
+        if (content?.service_name) cfg['service_name'] = content.service_name;
         templateConfigBrs = emitTemplateConfigBs(cfg);
       }
 
