@@ -25,7 +25,12 @@ function MusicFeed_BuildContentNode(track as object) as object
   if track = invalid then return invalid
   node = createObject("roSGNode", "ContentNode")
   if track.title <> invalid then node.title = track.title
-  if track.artist <> invalid then node.SecondaryTitle = track.artist
+  ' ShortDescriptionLine2 is the Roku-documented descriptive text field on
+  ' ContentNode. MiniBar + NowPlayingScene read the artist from the track
+  ' object (JSON) directly, not from the ContentNode, so this write is for
+  ' future consumers (CardView, system NowPlaying surface) that may bind
+  ' to the Audio.content node.
+  if track.artist <> invalid then node.ShortDescriptionLine2 = track.artist
   if track.art <> invalid then node.HDPosterUrl = track.art
   if track.audio_url <> invalid then node.url = track.audio_url
   if track.stream_format <> invalid then node.streamFormat = track.stream_format
