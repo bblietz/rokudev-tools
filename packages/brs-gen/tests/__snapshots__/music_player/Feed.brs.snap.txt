@@ -1,0 +1,69 @@
+' music_player Feed.bs
+'
+' Pure data-shaping helpers for the music_player feed.
+'
+' MusicFeed_LoadBundled: reads pkg:/data/music-feed.json (or the operator's
+' override path) and returns the parsed associative array, or invalid on
+' parse error.
+'
+' MusicFeed_BuildContentNode: turns one feed track into a ContentNode with
+' the fields the SceneGraph Audio node expects (url + streamFormat) plus
+' display fields (title, artist, art).
+'
+' MusicFeed_TracksForPlaylist: returns the array of track objects for a
+' given playlist id, or [] if the id is not found.
+function MusicFeed_LoadBundled(path as string) as dynamic
+    raw = ReadAsciiFile(path)
+    if raw = invalid or raw = "" then
+        return invalid
+    end if
+    feed = ParseJson(raw)
+    if feed = invalid then
+        return invalid
+    end if
+    return feed
+end function
+
+function MusicFeed_BuildContentNode(track as object) as object
+    if track = invalid then
+        return invalid
+    end if
+    node = createObject("roSGNode", "ContentNode")
+    if track.title <> invalid then
+        node.title = track.title
+    end if
+    ' ShortDescriptionLine2 is the Roku-documented descriptive text field on
+    ' ContentNode. MiniBar + NowPlayingScene read the artist from the track
+    ' object (JSON) directly, not from the ContentNode, so this write is for
+    ' future consumers (CardView, system NowPlaying surface) that may bind
+    ' to the Audio.content node.
+    if track.artist <> invalid then
+        node.ShortDescriptionLine2 = track.artist
+    end if
+    if track.art <> invalid then
+        node.HDPosterUrl = track.art
+    end if
+    if track.audio_url <> invalid then
+        node.url = track.audio_url
+    end if
+    if track.stream_format <> invalid then
+        node.streamFormat = track.stream_format
+    end if
+    return node
+end function
+
+function MusicFeed_TracksForPlaylist(feed as dynamic, playlistId as string) as object
+    if feed = invalid or feed.playlists = invalid then
+        return []
+    end if
+    for each pl in feed.playlists
+        if pl.id = playlistId then
+            if pl.tracks = invalid then
+                return []
+            end if
+            return pl.tracks
+        end if
+    end for
+    return []
+end function
+'//# sourceMappingURL=./Feed.brs.map

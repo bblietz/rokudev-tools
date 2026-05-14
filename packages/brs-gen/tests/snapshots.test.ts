@@ -468,3 +468,106 @@ describe('news_channel snapshots', () => {
     expect(s).toMatch(/content\.live\s*=\s*c\.live/);
   });
 });
+
+// music_player snapshots (Plan 4d)
+// ---------------------------------------------------------------------------
+describe('music_player snapshots', () => {
+  let parentDir: string;
+  let projectDir: string;
+
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+
+    parentDir = await mkdtemp(join(tmpdir(), 'brs-gen-music-'));
+    projectDir = join(parentDir, 'project');
+
+    const handler = getGenerateAppHandler();
+    const result = await handler({
+      spec: {
+        spec_version: 2,
+        template: 'music_player',
+        modules: [],
+        app: { name: 'Music Demo', major_version: 0, minor_version: 1, build_version: 0 },
+      },
+      output_dir: projectDir,
+    });
+    const payload = result as Record<string, unknown>;
+    if (!payload['ok']) {
+      throw new Error(`generate_app failed in beforeAll: ${JSON.stringify(payload)}`);
+    }
+  });
+
+  afterAll(async () => {
+    if (parentDir) await rm(parentDir, { recursive: true, force: true });
+  });
+
+  it('manifest matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'manifest'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/music_player/manifest.snap.txt');
+  });
+
+  it('MainScene.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/music_player/MainScene.xml.snap.txt');
+  });
+
+  it('MainScene.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/music_player/MainScene.brs.snap.txt');
+  });
+
+  it('NowPlayingScene.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/NowPlayingScene.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot(
+      '__snapshots__/music_player/NowPlayingScene.xml.snap.txt',
+    );
+  });
+
+  it('NowPlayingScene.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/NowPlayingScene.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot(
+      '__snapshots__/music_player/NowPlayingScene.brs.snap.txt',
+    );
+  });
+
+  it('MiniBar.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components/MiniBar.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/music_player/MiniBar.xml.snap.txt');
+  });
+
+  it('Feed.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'source/Feed.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/music_player/Feed.brs.snap.txt');
+  });
+
+  it('music-feed.json matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'data/music-feed.json'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/music_player/music-feed.json.snap.txt');
+  });
+
+  it('files listing (sorted) matches saved snapshot', async () => {
+    const paths = await sortedRelPaths(projectDir);
+    await expect(paths.join('\n') + '\n').toMatchFileSnapshot(
+      '__snapshots__/music_player/files-listing.snap.txt',
+    );
+  });
+
+  // Regression markers: confirm key vars, init-hook firings, and handler
+  // presence survive bsc compile + post-compile sweep.
+  it('MainScene.brs contains audio node ref + miniBar state + nowPlayingRef + init hook', async () => {
+    const s = await readFile(join(projectDir, 'components/MainScene.brs'), 'utf8');
+    // Use relaxed regex to tolerate bsc whitespace normalization around assignments.
+    expect(s).toMatch(/m\.audio\s*=\s*m\.top\.findNode\(["']audio["']\)/);
+    expect(s).toContain('m.miniBarVisibleSticky');
+    expect(s).toContain('m.nowPlayingRef');
+    expect(s).toContain('Modules_OnMainSceneAfterSceneShow');
+  });
+
+  it('NowPlayingScene.brs contains init hook + posTimer handler + playPause handler', async () => {
+    const s = await readFile(join(projectDir, 'components/NowPlayingScene.brs'), 'utf8');
+    expect(s).toContain('Modules_OnNowPlayingSceneAfterSceneShow');
+    expect(s).toContain('onPosTimerTick');
+    expect(s).toContain('onPlayPauseSelected');
+  });
+});

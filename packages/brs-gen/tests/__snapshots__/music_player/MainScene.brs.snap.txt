@@ -1,0 +1,239 @@
+sub init()
+    m.bg = m.top.findNode("bg")
+    m.header = m.top.findNode("header")
+    m.loadingLabel = m.top.findNode("loadingLabel")
+    m.errorLabel = m.top.findNode("errorLabel")
+    m.grid = m.top.findNode("grid")
+    m.miniBar = m.top.findNode("miniBar")
+    m.audio = m.top.findNode("audio")
+    m.nowPlayingRef = invalid
+    m.miniBarVisibleSticky = false
+    m.lastFocusedGridIndex = 0
+    cfg = TemplateConfig()
+    serviceName = cfg.service_name
+    if serviceName = invalid or serviceName = "" then
+        serviceName = cfg.channel_name
+    end if
+    m.header.text = serviceName
+    m.grid.observeField("itemSelected", "onPosterSelected")
+    m.grid.observeField("itemFocused", "onPosterFocused")
+    m.audio.observeField("state", "onAudioStateChange")
+    LoadFeed()
+    Modules_OnMainSceneAfterSceneShow(m)
+end sub
+
+sub LoadFeed()
+    cfg = TemplateConfig()
+    feedUrl = cfg.feed_url
+    if feedUrl = invalid or feedUrl = "" then
+        feedUrl = "pkg:/data/music-feed.json"
+    end if
+    if Left(feedUrl, 7) = "http://" or Left(feedUrl, 8) = "https://"
+        m.feedTask = createObject("roSGNode", "HttpTask")
+        m.feedTask.observeField("state", "onFeedFetchState")
+        m.feedTask.url = feedUrl
+        m.feedTask.control = "run"
+    else
+        feed = MusicFeed_LoadBundled(feedUrl)
+        BindFeed(feed)
+    end if
+end sub
+
+sub onFeedFetchState()
+    if m.feedTask.state <> "stop" then
+        return
+    end if
+    if m.feedTask.error <> invalid and m.feedTask.error <> ""
+        m.loadingLabel.visible = false
+        m.errorLabel.text = "Feed load failed: " + m.feedTask.error
+        m.errorLabel.visible = true
+        return
+    end if
+    feed = ParseJson(m.feedTask.result)
+    BindFeed(feed)
+end sub
+
+sub BindFeed(feed as dynamic)
+    if feed = invalid or feed.playlists = invalid
+        m.loadingLabel.visible = false
+        m.errorLabel.text = "Feed parse failed."
+        m.errorLabel.visible = true
+        return
+    end if
+    root = createObject("roSGNode", "ContentNode")
+    for each pl in feed.playlists
+        item = root.createChild("ContentNode")
+        item.title = pl.title
+        if pl.art <> invalid then
+            item.HDPosterUrl = pl.art
+        end if
+    end for
+    m.grid.content = root
+    m.feed = feed
+    m.loadingLabel.visible = false
+    m.grid.setFocus(true)
+end sub
+
+' Cross-component focus routing per news_channel pattern.
+function onKeyEvent(key as string, press as boolean) as boolean
+    if not press then
+        return false
+    end if
+    ' Down -> MiniBar from anywhere on the PosterGrid. With 3 playlists in
+    ' a single row this is OK; if a future expansion adds rows beyond the
+    ' first, restrict this to the bottom row by inspecting m.grid.itemFocused
+    ' against (totalItems - numColumns).
+    if key = "down" and m.grid.hasFocus() and m.miniBar.visible then
+        inner = m.miniBar.findNode("playPause")
+        if inner <> invalid then
+            inner.setFocus(true)
+        else
+            m.miniBar.setFocus(true)
+        end if
+        return true
+    end if
+    if key = "up" and m.miniBar.isInFocusChain() then
+        m.grid.setFocus(true)
+        if m.lastFocusedGridIndex <> invalid then
+            m.grid.jumpToItem = m.lastFocusedGridIndex
+        end if
+        return true
+    end if
+    if key = "select" and m.miniBar.isInFocusChain() then
+        if m.audio.state = "playing"
+            m.audio.control = "pause"
+        else
+            m.audio.control = "play"
+        end if
+        return true
+    end if
+    if key = "right" and m.miniBar.isInFocusChain() then
+        if m.queue <> invalid and m.queueIndex <> invalid then
+            OpenNowPlaying(m.queue, m.queueIndex, false)
+        end if
+        return true
+    end if
+    if key = "back" and m.miniBar.isInFocusChain() then
+        m.grid.setFocus(true)
+        return true
+    end if
+    return false
+end function
+
+sub onPosterFocused()
+    if m.grid.itemFocused <> invalid then
+        m.lastFocusedGridIndex = m.grid.itemFocused
+    end if
+end sub
+
+sub onPosterSelected()
+    idx = m.grid.itemSelected
+    if idx = invalid then
+        return
+    end if
+    if m.feed = invalid or m.feed.playlists = invalid then
+        return
+    end if
+    if idx < 0 or idx >= m.feed.playlists.Count() then
+        return
+    end if
+    pl = m.feed.playlists[idx]
+    tracks = MusicFeed_TracksForPlaylist(m.feed, pl.id)
+    if tracks.Count() = 0 then
+        return
+    end if
+    OpenNowPlaying(tracks, 0, true)
+end sub
+
+sub OpenNowPlaying(queue as object, queueIndex as integer, startPlayback as boolean)
+    m.queue = queue
+    m.queueIndex = queueIndex
+    track = queue[queueIndex]
+    if startPlayback or m.audio.content = invalid
+        m.audio.content = MusicFeed_BuildContentNode(track)
+        m.audio.control = "play"
+    end if
+    np = m.top.createChild("NowPlayingScene")
+    np.audioRef = m.audio
+    np.queue = queue
+    np.queueIndex = queueIndex
+    np.observeField("close", "onNowPlayingClose")
+    np.observeField("queueIndexOut", "onNowPlayingQueueIndexChange")
+    m.nowPlayingRef = np
+    np.setFocus(true)
+    UpdateMiniBarFromTrack(track)
+end sub
+
+sub onNowPlayingClose()
+    if m.nowPlayingRef = invalid then
+        return
+    end if
+    m.top.removeChild(m.nowPlayingRef)
+    m.nowPlayingRef = invalid
+    if m.miniBarVisibleSticky and m.miniBar.visible
+        inner = m.miniBar.findNode("playPause")
+        if inner <> invalid then
+            inner.setFocus(true)
+        else
+            m.miniBar.setFocus(true)
+        end if
+    else
+        m.grid.setFocus(true)
+    end if
+end sub
+
+sub onNowPlayingQueueIndexChange()
+    if m.nowPlayingRef = invalid then
+        return
+    end if
+    newIdx = m.nowPlayingRef.queueIndexOut
+    if newIdx = invalid then
+        return
+    end if
+    if m.queue = invalid then
+        return
+    end if
+    if newIdx < 0 or newIdx >= m.queue.Count() then
+        return
+    end if
+    m.queueIndex = newIdx
+    track = m.queue[newIdx]
+    m.audio.content = MusicFeed_BuildContentNode(track)
+    m.audio.control = "play"
+    UpdateMiniBarFromTrack(track)
+end sub
+
+sub onAudioStateChange()
+    s = m.audio.state
+    if (s = "playing" or s = "buffering") and not m.miniBarVisibleSticky
+        m.miniBarVisibleSticky = true
+        m.miniBar.visible = true
+    end if
+    if m.miniBar.visible then
+        m.miniBar.audioState = s
+    end if
+    if s = "finished" and m.queue <> invalid and m.queueIndex <> invalid
+        if m.queueIndex < m.queue.Count() - 1
+            m.queueIndex = m.queueIndex + 1
+            track = m.queue[m.queueIndex]
+            m.audio.content = MusicFeed_BuildContentNode(track)
+            m.audio.control = "play"
+            UpdateMiniBarFromTrack(track)
+            if m.nowPlayingRef <> invalid then
+                m.nowPlayingRef.queueIndex = m.queueIndex
+            end if
+        end if
+    end if
+end sub
+
+sub UpdateMiniBarFromTrack(track as object)
+    if track = invalid then
+        return
+    end if
+    m.miniBar.title = track.title
+    m.miniBar.artist = track.artist
+    if track.art <> invalid then
+        m.miniBar.art = track.art
+    end if
+end sub
+'//# sourceMappingURL=./MainScene.brs.map

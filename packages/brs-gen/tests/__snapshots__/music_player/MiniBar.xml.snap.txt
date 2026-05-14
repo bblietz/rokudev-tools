@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MiniBar" extends="Group">
+  <script type="text/brightscript" uri="MiniBar.brs" />
+  <interface>
+    <field id="art"        type="string" onChange="onArtChange" />
+    <field id="title"      type="string" onChange="onTitleChange" />
+    <field id="artist"     type="string" onChange="onArtistChange" />
+    <field id="audioState" type="string" onChange="onAudioStateChange" />
+  </interface>
+  <children>
+    <Rectangle id="bg"        width="1920" height="80" color="0x000000DD" />
+    <Poster    id="art"       translation="[20, 20]" width="40" height="40" loadDisplayMode="scaleToFill" />
+    <Label     id="title"     translation="[80, 18]" width="900" height="22" text="" color="0xFFFFFFFF" font="font:MediumBoldSystemFont" />
+    <Label     id="artist"    translation="[80, 44]" width="900" height="20" text="" color="0xCCCCCCFF" font="font:SmallSystemFont" />
+    <Button    id="playPause" translation="[1700, 16]" minWidth="200" text="Play"
+               iconUri="pkg:/images/play-icon-light.png"
+               focusedIconUri="pkg:/images/play-icon-dark.png" />
+  </children>
+</component>
