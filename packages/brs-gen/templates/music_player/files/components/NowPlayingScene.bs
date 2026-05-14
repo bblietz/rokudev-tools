@@ -1,0 +1,163 @@
+sub init()
+  m.albumArt    = m.top.findNode("albumArt")
+  m.serviceLine = m.top.findNode("serviceLine")
+  m.trackTitle  = m.top.findNode("trackTitle")
+  m.trackArtist = m.top.findNode("trackArtist")
+  m.scrubber    = m.top.findNode("scrubber")
+  m.posLabel    = m.top.findNode("positionLabel")
+  m.durLabel    = m.top.findNode("durationLabel")
+  m.prevBtn     = m.top.findNode("prev")
+  m.rew15Btn    = m.top.findNode("rew15")
+  m.playBtn     = m.top.findNode("playPause")
+  m.fwd15Btn    = m.top.findNode("fwd15")
+  m.nextBtn     = m.top.findNode("next")
+  m.posTimer    = m.top.findNode("posTimer")
+
+  cfg = TemplateConfig()
+  serviceName = cfg.service_name
+  if serviceName = invalid or serviceName = "" then serviceName = cfg.channel_name
+  m.serviceLine.text = "FROM " + UCase(serviceName)
+
+  m.prevBtn.observeField("buttonSelected",  "onPrevSelected")
+  m.rew15Btn.observeField("buttonSelected", "onRew15Selected")
+  m.playBtn.observeField("buttonSelected",  "onPlayPauseSelected")
+  m.fwd15Btn.observeField("buttonSelected", "onFwd15Selected")
+  m.nextBtn.observeField("buttonSelected",  "onNextSelected")
+  m.posTimer.observeField("fire",           "onPosTimerTick")
+
+  Modules_OnNowPlayingSceneAfterSceneShow(m)
+end sub
+
+sub onAudioRefChange()
+  if m.top.audioRef = invalid then return
+  m.top.audioRef.observeField("state", "onAudioStateChange")
+  BindCurrentTrack()
+  m.posTimer.control = "start"
+  m.playBtn.setFocus(true)
+end sub
+
+sub onQueueIndexInChange()
+  BindCurrentTrack()
+end sub
+
+sub BindCurrentTrack()
+  if m.top.queue = invalid or m.top.queueIndex = invalid then return
+  if m.top.queueIndex < 0 or m.top.queueIndex >= m.top.queue.Count() then return
+  t = m.top.queue[m.top.queueIndex]
+  m.trackTitle.text  = t.title
+  m.trackArtist.text = t.artist
+  if t.art <> invalid then m.albumArt.uri = t.art
+  if t.duration <> invalid
+    m.scrubber.maxValue = t.duration
+    m.durLabel.text = FormatTime(t.duration)
+  end if
+  RefreshPlayPauseIcon()
+end sub
+
+sub onAudioStateChange()
+  RefreshPlayPauseIcon()
+end sub
+
+sub RefreshPlayPauseIcon()
+  if m.top.audioRef = invalid then return
+  if m.top.audioRef.state = "playing"
+    m.playBtn.text           = "Pause"
+    m.playBtn.iconUri        = "pkg:/images/pause-icon-light.png"
+    m.playBtn.focusedIconUri = "pkg:/images/pause-icon-dark.png"
+  else
+    m.playBtn.text           = "Play"
+    m.playBtn.iconUri        = "pkg:/images/play-icon-light.png"
+    m.playBtn.focusedIconUri = "pkg:/images/play-icon-dark.png"
+  end if
+end sub
+
+sub onPosTimerTick()
+  if m.top.audioRef = invalid then return
+  curPos = m.top.audioRef.position
+  curDur = m.top.audioRef.duration
+  if curPos = invalid then curPos = 0
+  if curDur = invalid or curDur = 0
+    if m.top.queue <> invalid and m.top.queueIndex <> invalid and m.top.queueIndex >= 0 and m.top.queueIndex < m.top.queue.Count()
+      d = m.top.queue[m.top.queueIndex].duration
+      if d <> invalid then curDur = d
+    end if
+  end if
+  if curDur > 0
+    m.scrubber.maxValue = curDur
+    m.scrubber.value    = curPos
+    m.posLabel.text     = FormatTime(curPos)
+    m.durLabel.text     = FormatTime(curDur)
+  end if
+end sub
+
+function FormatTime(secs as integer) as string
+  if secs < 0 then secs = 0
+  m_min = secs \ 60
+  s_sec = secs - (m_min * 60)
+  s_str = s_sec.toStr()
+  if Len(s_str) = 1 then s_str = "0" + s_str
+  return m_min.toStr() + ":" + s_str
+end function
+
+sub onPrevSelected()
+  if m.top.queueIndex <= 0 then return
+  m.top.queueIndexOut = m.top.queueIndex - 1
+end sub
+
+sub onNextSelected()
+  if m.top.queue = invalid then return
+  if m.top.queueIndex >= m.top.queue.Count() - 1 then return
+  m.top.queueIndexOut = m.top.queueIndex + 1
+end sub
+
+sub onPlayPauseSelected()
+  if m.top.audioRef = invalid then return
+  if m.top.audioRef.state = "playing"
+    m.top.audioRef.control = "pause"
+  else
+    m.top.audioRef.control = "play"
+  end if
+end sub
+
+sub onRew15Selected()
+  if m.top.audioRef = invalid then return
+  if m.top.audioRef.state = "buffering" then return
+  newPos = m.top.audioRef.position - 15
+  if newPos < 0 then newPos = 0
+  m.top.audioRef.seek = newPos
+end sub
+
+sub onFwd15Selected()
+  if m.top.audioRef = invalid then return
+  if m.top.audioRef.state = "buffering" then return
+  newPos = m.top.audioRef.position + 15
+  dur = m.top.audioRef.duration
+  if dur <> invalid and dur > 0 and newPos > dur - 1 then newPos = dur - 1
+  m.top.audioRef.seek = newPos
+end sub
+
+function onKeyEvent(key as string, press as boolean) as boolean
+  if not press then return false
+  if key = "back"
+    m.posTimer.control = "stop"
+    m.top.close = true
+    return true
+  end if
+  if key = "play"
+    onPlayPauseSelected()
+    return true
+  end if
+  if key = "rev"
+    onPrevSelected()
+    return true
+  end if
+  if key = "fwd"
+    onNextSelected()
+    return true
+  end if
+  if key = "instantreplay"
+    onRew15Selected()
+    return true
+  end if
+  return false
+end function

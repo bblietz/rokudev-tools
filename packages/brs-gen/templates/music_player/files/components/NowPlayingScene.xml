@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="NowPlayingScene" extends="Group">
+  <script type="text/brightscript" uri="NowPlayingScene.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+  <interface>
+    <field id="audioRef"      type="node"    onChange="onAudioRefChange" />
+    <field id="queue"         type="array" />
+    <field id="queueIndex"    type="integer" onChange="onQueueIndexInChange" />
+    <field id="queueIndexOut" type="integer" alwaysNotify="true" />
+    <field id="close"         type="boolean" alwaysNotify="true" />
+  </interface>
+  <children>
+    <Rectangle id="overlayBg" width="1920" height="1080" color="0x080418F0" />
+    <Poster id="albumArt" translation="[120, 140]" width="640" height="640" loadDisplayMode="scaleToFill" />
+    <Label id="serviceLine" translation="[820, 200]" width="980" height="32" text="" color="0xCCCCCCFF" font="font:SmallSystemFont" />
+    <Label id="trackTitle" translation="[820, 240]" width="980" height="60" text="" color="0xFFFFFFFF" font="font:LargeBoldSystemFont" />
+    <Label id="trackArtist" translation="[820, 310]" width="980" height="36" text="" color="0xCCCCCCFF" font="font:MediumSystemFont" />
+    <ProgressBar id="scrubber" translation="[820, 600]" width="980" height="20" minValue="0" maxValue="100" value="0" />
+    <Label id="positionLabel" translation="[820, 630]" width="490" height="28" text="0:00" color="0xCCCCCCFF" font="font:SmallSystemFont" />
+    <Label id="durationLabel" translation="[820, 630]" width="980" height="28" text="0:00" color="0xCCCCCCFF" font="font:SmallSystemFont" horizAlign="right" />
+    <Button id="prev"      translation="[820, 720]"  minWidth="160" text="Prev" iconUri="pkg:/images/prev-icon-light.png"  focusedIconUri="pkg:/images/prev-icon-dark.png" />
+    <Button id="rew15"     translation="[990, 720]"  minWidth="160" text="-15s" iconUri="pkg:/images/rew15-icon-light.png" focusedIconUri="pkg:/images/rew15-icon-dark.png" />
+    <Button id="playPause" translation="[1160, 720]" minWidth="160" text="Play" iconUri="pkg:/images/play-icon-light.png"  focusedIconUri="pkg:/images/play-icon-dark.png" />
+    <Button id="fwd15"     translation="[1330, 720]" minWidth="160" text="+15s" iconUri="pkg:/images/fwd15-icon-light.png" focusedIconUri="pkg:/images/fwd15-icon-dark.png" />
+    <Button id="next"      translation="[1500, 720]" minWidth="160" text="Next" iconUri="pkg:/images/next-icon-light.png"  focusedIconUri="pkg:/images/next-icon-dark.png" />
+    <Timer id="posTimer" duration="1.0" repeat="true" />
+  </children>
+</component>
