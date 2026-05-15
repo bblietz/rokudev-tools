@@ -1,0 +1,32 @@
+sub RunScreenSaver()
+    screen = CreateObject("roSGScreen")
+    port = CreateObject("roMessagePort")
+    screen.SetMessagePort(port)
+
+    ' Memory monitoring (cert requirement effective 2026-10-01).
+    memMonitor = CreateObject("roAppMemoryMonitor")
+    if memMonitor <> invalid then
+        memMonitor.SetMessagePort(port)
+        memMonitor.EnableMemoryWarningEvent(true)
+    end if
+    di = CreateObject("roDeviceInfo")
+    di.SetMessagePort(port)
+    di.EnableLowGeneralMemoryEvent(true)
+
+    screen.CreateScene("Screensaver")
+    screen.Show()
+
+    while true
+        msg = wait(0, port)
+        if msg <> invalid
+            msgType = type(msg)
+            if msgType = "roSGScreenEvent"
+                if msg.IsScreenClosed() then return
+            else if msgType = "roAppMemoryNotificationEvent"
+                print "[main] memory warning"
+            else if msgType = "roDeviceInfoEvent"
+                ' v1.x will free texture caches here when generalMemoryLevel reports low
+            end if
+        end if
+    end while
+end sub

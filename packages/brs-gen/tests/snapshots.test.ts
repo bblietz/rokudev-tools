@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -599,6 +599,11 @@ describe('screensaver snapshots', () => {
       spec: { app: { name: 'Demo Photos', major_version: 0, minor_version: 1, build_version: 0 } },
     });
     await writeFile(join(projectDir, 'manifest'), rendered, 'utf8');
+    await mkdir(join(projectDir, 'source'), { recursive: true });
+    await copyFile(
+      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'source', 'main.brs'),
+      join(projectDir, 'source', 'main.brs'),
+    );
   });
 
   afterAll(async () => {
@@ -630,5 +635,20 @@ describe('screensaver snapshots', () => {
     const extras = [...keys].filter((k) => !allowed.has(k));
     const missing = [...allowed].filter((k) => !keys.has(k));
     expect({ extras, missing }).toEqual({ extras: [], missing: [] });
+  });
+
+  it('source/main.brs matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'source', 'main.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/main.brs.snap.txt');
+  });
+
+  it('source/main.brs uses RunScreenSaver entry point and includes memory monitoring', async () => {
+    const s = await readFile(join(projectDir, 'source', 'main.brs'), 'utf8');
+    expect(s).toMatch(/^sub\s+RunScreenSaver\s*\(\s*\)/m);
+    expect(s).not.toMatch(/^sub\s+Main\s*\(/m);
+    expect(s).not.toMatch(/^function\s+Main\s*\(/m);
+    expect(s).toContain('roAppMemoryMonitor');
+    expect(s).toContain('EnableLowGeneralMemoryEvent');
+    expect(s).toContain('roSGScreenEvent');
   });
 });
