@@ -1,0 +1,7 @@
+title=Demo Photos
+major_version=0
+minor_version=1
+build_version=0
+rsg_version=1.3
+ui_resolutions=hd,fhd
+screensaver_title=Demo Photos

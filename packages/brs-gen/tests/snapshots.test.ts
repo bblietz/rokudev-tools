@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
+import ejs from 'ejs';
 import { loadCatalog } from '../src/catalog/loader.js';
 import { buildEmittedProject } from '../src/merger/build.js';
 import { renderTemplateFiles } from '../src/render/ejs.js';
@@ -569,5 +570,56 @@ describe('music_player snapshots', () => {
     expect(s).toContain('Modules_OnNowPlayingSceneAfterSceneShow');
     expect(s).toContain('onPosTimerTick');
     expect(s).toContain('onPlayPauseSelected');
+  });
+});
+
+describe('screensaver snapshots', () => {
+  let parentDir: string;
+  let projectDir: string;
+
+  beforeAll(async () => {
+    parentDir = await mkdtemp(join(tmpdir(), 'brs-gen-ssvr-'));
+    projectDir = join(parentDir, 'project');
+    await mkdir(projectDir, { recursive: true });
+    // Render manifest.ejs in isolation (full pipeline requires Tasks 5-11 source
+    // files that don't exist yet). This is the recommended fallback from the task
+    // spec: render the EJS directly so the snapshot and allowlist tests pass now.
+    const ejsPath = join(PKG_ROOT, 'templates', 'screensaver', 'files', 'manifest.ejs');
+    const ejsTemplate = await readFile(ejsPath, 'utf8');
+    const rendered = ejs.render(ejsTemplate, {
+      spec: { app: { name: 'Demo Photos', major_version: 0, minor_version: 1, build_version: 0 } },
+    });
+    await writeFile(join(projectDir, 'manifest'), rendered, 'utf8');
+  });
+
+  afterAll(async () => {
+    if (parentDir) await rm(parentDir, { recursive: true, force: true });
+  });
+
+  it('manifest matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'manifest'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/manifest.snap.txt');
+  });
+
+  it('manifest key set is EXACTLY the cert-allowed allowlist (defense-in-depth)', async () => {
+    const s = await readFile(join(projectDir, 'manifest'), 'utf8');
+    const keys = new Set(
+      s
+        .split(/\r?\n/)
+        .filter((l) => l.trim() && !l.trim().startsWith('#'))
+        .map((l) => l.split('=')[0]!.trim()),
+    );
+    const allowed = new Set([
+      'title',
+      'major_version',
+      'minor_version',
+      'build_version',
+      'rsg_version',
+      'ui_resolutions',
+      'screensaver_title',
+    ]);
+    const extras = [...keys].filter((k) => !allowed.has(k));
+    const missing = [...allowed].filter((k) => !keys.has(k));
+    expect({ extras, missing }).toEqual({ extras: [], missing: [] });
   });
 });
