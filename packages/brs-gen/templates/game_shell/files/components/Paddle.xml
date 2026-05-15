@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
+<!-- STUB: Plan 4f Task 2 placeholder; Task 9 overwrites this file with the full Paddle component per spec §5.3. -->
 <component name="Paddle" extends="Group">
   <children>
     <Rectangle id="rect" color="#FFFFFF" width="12" height="80" />

@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
+<!-- STUB: Plan 4f Task 2 placeholder; Task 10 overwrites this file with the full state-machine scene per spec §5.2. -->
 <component name="GameScene" extends="Scene">
   <script type="text/brightscript" uri="GameScene.bs" />
   <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
   <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
-  <children>
-    <Group id="rootGroup" />
-  </children>
+  <children/>
 </component>

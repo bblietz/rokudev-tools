@@ -1,3 +1,4 @@
+' STUB: Plan 4f Task 2 placeholder; Task 10 overwrites this file with the state machine + Timer + key handler per spec §5.2.
 sub init()
   Modules_OnGameSceneAfterSceneShow(m)
 end sub

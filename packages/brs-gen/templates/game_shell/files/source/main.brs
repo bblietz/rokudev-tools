@@ -1,3 +1,4 @@
+' STUB: Plan 4f Task 2 placeholder; Task 4 overwrites this file with the canonical message-pump per spec §5.2.
 sub Main()
   screen = CreateObject("roSGScreen")
   m.port = CreateObject("roMessagePort")
