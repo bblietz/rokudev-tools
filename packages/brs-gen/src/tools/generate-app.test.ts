@@ -1036,7 +1036,13 @@ describe('TemplateConfig transition_seconds + motion threading', () => {
     }
   });
 
-  it('omits transition_seconds and motion keys when absent from spec.content', async () => {
+  it('omits transition_seconds and motion keys from cfg when content provides only feed_url', async () => {
+    // The TemplateConfig emission gate (generate-app.ts) fires when ANY of
+    // brandingSpec.primary_color, content, or effectivePrimaryColor is truthy.
+    // The screensaver template has no branding_defaults and no static branding,
+    // so the gate requires `content` to be present. We therefore pass a content
+    // object containing ONLY feed_url and assert that transition_seconds/motion
+    // do NOT appear in the emitted config.brs.
     const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-ss-cfg-absent-'));
     try {
       const handler = getHandler();
@@ -1046,15 +1052,13 @@ describe('TemplateConfig transition_seconds + motion threading', () => {
           template: 'screensaver',
           modules: [],
           app: { name: 'SSTest', major_version: 0, minor_version: 1, build_version: 0 },
+          content: { feed_url: 'https://example.com/feed.json' },
         },
         output_dir: join(tmpDir, 'out'),
         overwrite: true,
       });
       const payload = parsePayload(result);
       expect(payload['ok']).toBe(true);
-      // screensaver declares template_branding_defaults.primary_color so
-      // effectivePrimaryColor is non-null and templateConfigBrs IS emitted even
-      // without content. Assert the file exists and lacks both new keys.
       expect(
         await pathExists(join(tmpDir, 'out', 'source', '_template', 'config.brs')),
       ).toBe(true);
@@ -1062,6 +1066,8 @@ describe('TemplateConfig transition_seconds + motion threading', () => {
         join(tmpDir, 'out', 'source', '_template', 'config.brs'),
         'utf8',
       );
+      // feed_url SHOULD be present; the new threading keys SHOULD NOT.
+      expect(configBrs).toContain('feed_url:');
       expect(configBrs).not.toContain('transition_seconds:');
       expect(configBrs).not.toContain('motion:');
     } finally {
