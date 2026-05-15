@@ -54,26 +54,37 @@ export async function keypressRepeat(host, key, times, gapMs = 300) {
 }
 
 /**
- * Assert that the foregrounded app on the Roku is our sideloaded channel
- * (active-app id === 'dev'). Throws otherwise. Retries once after 250ms
- * to absorb transient ECP flakes (per spec D9).
+ * Assert that the foregrounded app on the Roku is our sideloaded channel.
+ * Throws otherwise. Retries once after 250ms to absorb transient ECP flakes
+ * (per spec D9).
+ *
+ * opts.screensaverMode (default false): accept EITHER id === 'dev' OR
+ *   type === 'ssvr'. Sideloaded screensavers may be reported as type='ssvr'
+ *   rather than a standard foreground app by some Roku firmwares.
  *
  * Used by screenshotNoError (default-on) so a screenshot is never accepted
  * when our channel was popped to background (e.g. by an accidental Home,
  * a stale Back into Roku home, or another app being launched).
  */
-async function assertActiveAppIsOurs(host) {
+async function assertActiveAppIsOurs(host, opts = {}) {
+  const { screensaverMode = false } = opts;
   const client = new EcpClient(host);
   let lastSeen = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const a = await client.activeApp();
     lastSeen = a;
-    if (a.id === 'dev') return;
+    if (screensaverMode) {
+      // Sideloaded screensaver: accept either id='dev' OR type='ssvr'.
+      if (a.id === 'dev' || a.type === 'ssvr') return;
+    } else {
+      if (a.id === 'dev') return;
+    }
     if (attempt === 0) await sleep(250);
   }
+  const expected = screensaverMode ? `id='dev' OR type='ssvr'` : `id='dev'`;
   throw new Error(
-    `active-app is not 'dev' (got id='${lastSeen?.id ?? ''}', ` +
-      `name='${lastSeen?.name ?? ''}'); screenshot would not be from our channel`,
+    `active-app check failed (expected ${expected}; got id='${lastSeen?.id ?? ''}', ` +
+      `type='${lastSeen?.type ?? ''}', name='${lastSeen?.name ?? ''}')`,
   );
 }
 
@@ -104,7 +115,7 @@ export async function screenshot(host, password, outPath) {
  */
 export async function screenshotNoError(host, password, outPath, opts = {}) {
   const { assertForeground = true } = opts;
-  if (assertForeground) await assertActiveAppIsOurs(host);
+  if (assertForeground) await assertActiveAppIsOurs(host, opts);
   const s = await screenshot(host, password, outPath);
   if (s.bytes <= ERROR_OVERLAY_MAX_BYTES) {
     throw new Error(
