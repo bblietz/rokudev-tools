@@ -863,4 +863,21 @@ describe('game_shell snapshots', () => {
     const s = await readFile(join(projectDir, 'components', 'Paddle.brs'), 'utf8');
     await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/Paddle.brs.snap.txt');
   });
+
+  it('GameScene.xml', async () => {
+    const s = await readFile(join(projectDir, 'components', 'GameScene.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/GameScene.xml.snap.txt');
+  });
+
+  it('GameScene.brs', async () => {
+    const s = await readFile(join(projectDir, 'components', 'GameScene.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/GameScene.brs.snap.txt');
+  });
+
+  it('full files listing matches saved snapshot', async () => {
+    const paths = await sortedRelPaths(projectDir);
+    await expect(paths.join('\n') + '\n').toMatchFileSnapshot(
+      '__snapshots__/game_shell/files-listing.snap.txt',
+    );
+  });
 });

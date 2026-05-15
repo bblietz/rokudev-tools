@@ -5,10 +5,10 @@
         <field id="scoreToWin" type="integer" />
         <field id="highScorePersistence" type="boolean" />
     </interface>
-    <script type="text/brightscript" uri="GameScene.bs" />
-    <script type="text/brightscript" uri="pkg:/source/lib/pong.bs" />
-    <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
-    <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+    <script type="text/brightscript" uri="GameScene.brs" />
+    <script type="text/brightscript" uri="pkg:/source/lib/pong.brs" />
+    <script type="text/brightscript" uri="pkg:/source/_template/config.brs" />
+    <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.brs" />
     <children>
         <Rectangle id="bg" width="1920" height="1080" color="0x000000FF" />
 

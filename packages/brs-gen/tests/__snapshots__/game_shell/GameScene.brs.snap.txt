@@ -4,7 +4,6 @@ sub init()
     m.top.cpuDifficulty = cfg.cpu_difficulty
     m.top.scoreToWin = cfg.score_to_win.toInt()
     m.top.highScorePersistence = (cfg.high_score_persistence = "true")
-
     ' Cache child node refs.
     m.playerPaddle = m.top.findNode("playerPaddle")
     m.cpuPaddle = m.top.findNode("cpuPaddle")
@@ -15,7 +14,6 @@ sub init()
     m.titleHigh = m.top.findNode("titleHigh")
     m.gameOverGroup = m.top.findNode("gameOverGroup")
     m.tick = m.top.findNode("tick")
-
     ' Internal state.
     m.state = "title"
     m.playerScore = 0
@@ -24,20 +22,18 @@ sub init()
     m.downHeld = false
     m.servesPlayed = 0
     m.cpuLagPx = Pong_DifficultyToLagPx(m.top.cpuDifficulty)
-
     ' High score: read from registry if persistence enabled.
     m.highScore = 0
     if m.top.highScorePersistence then
         reg = CreateObject("roRegistrySection", "GameShell")
-        if reg.exists("highScore") then m.highScore = val(reg.read("highScore"), 10)
+        if reg.exists("highScore") then
+            m.highScore = val(reg.read("highScore"), 10)
+        end if
     end if
-
     ' Wire timer + key handler.
     m.tick.observeField("fire", "onTick")
-
     ' Enter title (idempotent).
     enterTitle()
-
     ' Fire after_scene_show ONCE on boot, AFTER first enterTitle. Matches
     ' Plan 4d's NowPlayingScene/after_scene_show-from-init pattern.
     Modules_OnGameSceneAfterSceneShow(m)
@@ -68,11 +64,11 @@ sub enterPlaying()
     m.ball.ballX = 948
     m.ball.ballY = 528
     if (m.servesPlayed mod 2) = 0 then
-        m.ball.vx = -PONG_BALL_VX_INITIAL!  ' toward player (left)
+        m.ball.vx = -9.0 ' toward player (left)
     else
-        m.ball.vx = PONG_BALL_VX_INITIAL!   ' toward CPU (right)
+        m.ball.vx = 9.0 ' toward CPU (right)
     end if
-    m.ball.vy = PONG_BALL_VY_INITIAL!
+    m.ball.vy = 4.5
     m.servesPlayed = m.servesPlayed + 1
     m.tick.control = "start"
     m.state = "playing"
@@ -99,7 +95,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
             enterPlaying()
             return true
         end if
-        return false  ' Back falls through to Roku channel-exit
+        return false ' Back falls through to Roku channel-exit
     end if
     if m.state = "playing" then
         if key = "up" then
@@ -127,27 +123,32 @@ function onKeyEvent(key as string, press as boolean) as boolean
 end function
 
 sub onTick()
-    if m.state <> "playing" then return  ' state-guard against late Timer events
-
+    if m.state <> "playing" then
+        return
+    end if ' state-guard against late Timer events
     ' Player paddle.
-    if m.upHeld then m.playerPaddle.paddleY = m.playerPaddle.paddleY - PONG_PADDLE_SPEED_PX%
-    if m.downHeld then m.playerPaddle.paddleY = m.playerPaddle.paddleY + PONG_PADDLE_SPEED_PX%
-    if m.playerPaddle.paddleY < 0 then m.playerPaddle.paddleY = 0
-    maxPaddleY = PONG_SCREEN_H% - PONG_PADDLE_H%
-    if m.playerPaddle.paddleY > maxPaddleY then m.playerPaddle.paddleY = maxPaddleY
-
+    if m.upHeld then
+        m.playerPaddle.paddleY = m.playerPaddle.paddleY - 12
+    end if
+    if m.downHeld then
+        m.playerPaddle.paddleY = m.playerPaddle.paddleY + 12
+    end if
+    if m.playerPaddle.paddleY < 0 then
+        m.playerPaddle.paddleY = 0
+    end if
+    maxPaddleY = 1080 - 140
+    if m.playerPaddle.paddleY > maxPaddleY then
+        m.playerPaddle.paddleY = maxPaddleY
+    end if
     ' CPU paddle.
     m.cpuPaddle.paddleY = Pong_StepCpu(m.cpuPaddle.paddleY, m.ball.ballY, m.cpuLagPx)
-
     ' Ball step + score detection. NB: `step` is a BrightScript reserved word
     ' (per project MEMORY); use `b` for the returned associative array.
     b = Pong_StepBall(m.ball.ballX, m.ball.ballY, m.ball.vx, m.ball.vy)
     m.ball.ballX = b.ballX
     m.ball.ballY = b.ballY
-
     ' Wall collision.
-    m.ball.vy = Pong_CollideWall(m.ball.ballY, m.ball.vy, PONG_SCREEN_H%)
-
+    m.ball.vy = Pong_CollideWall(m.ball.ballY, m.ball.vy, 1080)
     ' Paddle collisions (player on left, CPU on right).
     cp = Pong_CollidePaddle(m.ball.ballX, m.ball.ballY, m.ball.vx, m.ball.vy, 40, m.playerPaddle.paddleY)
     m.ball.vx = cp.vx
@@ -155,7 +156,6 @@ sub onTick()
     cc = Pong_CollidePaddle(m.ball.ballX, m.ball.ballY, m.ball.vx, m.ball.vy, 1860, m.cpuPaddle.paddleY)
     m.ball.vx = cc.vx
     m.ball.vy = cc.vy
-
     ' Score handling.
     if b.scored = "cpu" then
         m.playerScore = m.playerScore + 1
@@ -166,8 +166,8 @@ sub onTick()
             ' Re-serve.
             m.ball.ballX = 948
             m.ball.ballY = 528
-            m.ball.vx = PONG_BALL_VX_INITIAL!  ' serve toward CPU again
-            m.ball.vy = PONG_BALL_VY_INITIAL!
+            m.ball.vx = 9.0 ' serve toward CPU again
+            m.ball.vy = 4.5
         end if
     end if
     if b.scored = "player" then
@@ -178,8 +178,9 @@ sub onTick()
         else
             m.ball.ballX = 948
             m.ball.ballY = 528
-            m.ball.vx = -PONG_BALL_VX_INITIAL!  ' serve toward player
-            m.ball.vy = PONG_BALL_VY_INITIAL!
+            m.ball.vx = -9.0 ' serve toward player
+            m.ball.vy = 4.5
         end if
     end if
 end sub
+'//# sourceMappingURL=./GameScene.brs.map
