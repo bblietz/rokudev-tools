@@ -111,8 +111,8 @@ templates/game_shell/
 - Children: 1 `Rectangle` (background, full-screen, fill `#000000`); 10 `Rectangle`s (dashed center line, 4x18 each, vertically distributed); 1 `Paddle` (player, side="left", id `playerPaddle`); 1 `Paddle` (CPU, side="right", id `cpuPaddle`); 1 `Ball` (id `ball`); 2 `Label`s (player score, CPU score; mono-spaced; top quarter); 1 `Group` for the title-screen overlay (1 Label "PONG", 1 Label "Press OK to start", 1 Label "High score: <N>", visible iff `m.state = "title"`); 1 `Group` for game-over overlay (1 Label "GAME OVER", 1 Label "Press OK for new game", visible iff `m.state = "gameover"`); 1 `Timer` (id `tick`, repeat=true, duration=1.0/60.0, control="stop" until game starts).
 - Public interface fields (read-only from outside): `cpuDifficulty as string` (mirrors AppSpec `content.cpu_difficulty`), `scoreToWin as integer` (mirrors `content.score_to_win`), `highScorePersistence as boolean` (mirrors `content.high_score_persistence`).
 - Internal state on `m`: `m.state as string` in `{"title", "playing", "gameover"}`; `m.playerScore as integer`; `m.cpuScore as integer`; `m.highScore as integer`; `m.upHeld as boolean`; `m.downHeld as boolean`; `m.cpuLagPx as integer` (derived from `cpuDifficulty`).
-- `init()` reads `TemplateConfig()` to populate the public iface fields; reads high score from registry if `highScorePersistence`; calls `enterTitle()`.
-- `enterTitle()`: idempotent. Stops `m.tick`. Resets scores. Centers ball + paddles. Shows title overlay; hides game-over overlay. Sets `m.state = "title"`. Calls `Modules_OnGameSceneAfterSceneShow(m)` IF this is the first call (boot path) -- otherwise treated as Back-from-game and hook does NOT re-fire (see §5.6).
+- `init()` reads `TemplateConfig()` to populate the public iface fields; reads high score from registry if `highScorePersistence`; calls `enterTitle()`; THEN calls `Modules_OnGameSceneAfterSceneShow(m)` (the hook fires from `init()`, NOT from `enterTitle()` -- this matches Plan 4d's `NowPlayingScene/after_scene_show` pattern of "hook fires once on scene init, not on every state transition into title").
+- `enterTitle()`: idempotent. Stops `m.tick`. Resets scores. Centers ball + paddles. Shows title overlay; hides game-over overlay. Sets `m.state = "title"`. Does NOT call `after_scene_show` (that's `init()`'s responsibility per the line above).
 - `enterPlaying()`: idempotent. Hides title + game-over overlays. Resets ball position; randomizes initial `vx` direction (toward player or CPU based on a deterministic-looking seed: `m.servesPlayed` parity). Starts `m.tick`. Sets `m.state = "playing"`. Calls `Modules_OnGameSceneAfterGameStart(m)`.
 - `enterGameOver()`: idempotent. Stops `m.tick`. Hides title; shows game-over overlay. Computes high-score update and writes to registry if `highScorePersistence` and `m.playerScore > m.highScore`. Sets `m.state = "gameover"`. Calls `Modules_OnGameSceneAfterGameOver(m)`.
 - `onKeyEvent(key, press)`: state-guarded.
@@ -149,18 +149,52 @@ templates/game_shell/
 
 ### 5.5 `pong.brs` (pure helpers; lib)
 
-Pure-math, no SG references, no `m.*`. Unit-testable off-device with bs-runner or Rooibos.
+Pure-math, no SG references, no `m.*`. Unit-testable off-device via TS shim (see §10 + §14 R7).
+
+**Coordinate system contract (load-bearing for all five helpers):**
+- Origin: top-left of the 1920x1080 logical canvas. `+x` is rightward, `+y` is downward (matches SceneGraph translation semantics).
+- All `*X`/`*Y` parameters are positions of the node's top-left corner (NOT centroid).
+- Logical canvas constants live IN `pong.brs` as module-level constants:
+  - `PONG_SCREEN_W% = 1920`, `PONG_SCREEN_H% = 1080`
+  - `PONG_PADDLE_W% = 20`, `PONG_PADDLE_H% = 140`
+  - `PONG_BALL_SIZE% = 24`
+  - `PONG_PADDLE_SPEED_PX% = 12` (per-tick player paddle delta; CPU is capped at 1.2x per R1)
+  - `PONG_BALL_VX_INITIAL! = 9.0`, `PONG_BALL_VY_INITIAL! = 4.5`
+- These constants are mirrored verbatim into the TS shim at `tests/templates/pong-helpers.ts` (sidecar; reviewed in same PR per R7).
+
+**Function signatures and contracts:**
 
 ```brightscript
-' Returns updated paddleY for CPU side, lagged by lagPx.
+' Returns updated paddleY for CPU side. Tracks ballY toward paddle centre, lagged by lagPx.
+' CPU paddle delta is capped at 1.2 * PONG_PADDLE_SPEED_PX per tick (R1 mitigation).
 function Pong_StepCpu(currentPaddleY as float, ballY as float, lagPx as integer) as float
+
+' Advances ball position by (vx, vy). DOES NOT perform wall or paddle collision -- caller
+' invokes Pong_CollideWall and Pong_CollidePaddle separately. Tests left/right SCREEN edges
+' for scoring; returns scored="player" if ball passed left edge (CPU scored on player wall),
+' "cpu" if passed right edge, "" otherwise. Returns assocArray:
+'   { ballX as float, ballY as float, vx as float, vy as float, scored as string }
 function Pong_StepBall(ballX as float, ballY as float, vx as float, vy as float) as object
-function Pong_CollidePaddle(ballX as float, ballY as float, vx as float, vy as float, paddleX as float, paddleY as float, paddleW as integer, paddleH as integer) as object
+
+' Detects rect-vs-rect overlap. Returns updated {vx, vy} ONLY on the moving-toward-paddle
+' frame (i.e., paddleX > ballX and vx > 0 means ball is approaching right paddle and may
+' have entered it; reflect vx). Returns vy nudged by (ballCentreY - paddleCentreY) / (PADDLE_H/2)
+' to give "english". Returns the SAME {vx, vy} unchanged when (a) no overlap, OR (b) overlap
+' but ball is moving away from paddle (prevents stick-collision: if ball is inside the paddle
+' for >1 tick, only the first frame reflects). Returns assocArray { vx as float, vy as float }.
+function Pong_CollidePaddle(ballX as float, ballY as float, vx as float, vy as float, paddleX as float, paddleY as float) as object
+
+' Detects ball-vs-wall (top OR bottom). If ballY <= 0 or ballY + PONG_BALL_SIZE >= screenH,
+' returns -vy (flipped). Otherwise returns vy unchanged.
 function Pong_CollideWall(ballY as float, vy as float, screenH as integer) as float
-function Pong_DifficultyToLagPx(difficulty as string) as integer ' 'easy' -> 60, 'normal' -> 25, 'hard' -> 5
+
+' Maps 'easy' -> 60, 'normal' -> 25, 'hard' -> 5. Unknown values fall back to 25.
+function Pong_DifficultyToLagPx(difficulty as string) as integer
 ```
 
-All five functions are deterministic (no `Rnd()`, no time reads). Initial serve direction uses parity of `m.servesPlayed` (deterministic).
+All five functions are deterministic (no `Rnd()`, no time reads). Initial serve direction in `enterPlaying()` uses parity of `m.servesPlayed` (deterministic; even = serve toward CPU, odd = serve toward player).
+
+**Stick-collision invariant (also restated in `Pong_CollidePaddle` comment above):** the helper -- not the caller -- owns the "only reflect on approaching-frame" check. Caller can invoke `Pong_CollidePaddle` every tick without disciplining. This keeps `onTick` orchestration simple.
 
 ### 5.6 Init-hook exports
 
@@ -208,7 +242,11 @@ The `String(<number/bool>)` conversion is consistent with how `transition_second
 
 The existing emission gate `if (branding.primary_color || content || effectivePrimaryColor)` (widened in v0.5.3 to fire on any `content` field) already covers all three. No new emission gate needed.
 
-**No new validators, no new error codes, no new warning codes.** Plan 4e's strict-template-schema downstream-data flow (`appSpec = strict.data`) automatically handles Zod defaults for `game_shell` because `templates/game_shell/schema.ts` ships and parses successfully.
+**Always-emitted property:** because §6's schema declares `.default(...)` for all three fields AND because Plan 4e's strict-template-schema downstream-data flow (`appSpec = strict.data`) populates them post-parse, all three fields will ALWAYS be defined when the engine reaches the threading lines. This means `cpu_difficulty=normal`, `score_to_win=5`, `high_score_persistence=true` will appear in `TemplateConfig()` for every `game_shell` channel -- even on a bare spec with no `content` block. The e2e golden zip's `config.brs` will therefore be non-trivial even on the canonical no-content spec. This is desired (defaults are explicit at runtime) but worth knowing for snapshot test authors.
+
+The implementation also requires extending the local TypeScript `content` cast in `generate-app.ts` (currently spans `feed_url`, `feed_format`, `live_label`, `service_name`, `transition_seconds`, `motion`) to include the three new fields. This is a mechanical edit alongside the 3 threading lines; not a separate engine surface.
+
+**No new validators, no new error codes, no new warning codes.**
 
 ## 8. Bundled assets
 
@@ -239,8 +277,7 @@ Steps:
 10. `screenshotNoError` -> `A3-playing-later.png`.
 11. SHA-256 compare A2 vs A3; assert different (game is animating).
 12. ECP `keypress('Back')` to return to title; `sleep(1000)`.
-13. `screenshotNoError` -> `A4-title-after-back.png` (title overlay shown again).
-14. Foreground-check via `screenshotNoError`'s built-in `assertActiveAppIsOurs` is sufficient for A4 (we do NOT byte-compare A1 vs A4 because the high-score Label may have updated mid-game; the `assertActiveAppIsOurs` + size heuristic is the binding gate).
+13. `screenshotNoError` -> `A4-title-after-back.png` (title overlay shown again). The `screenshotNoError` call is itself the binding "Back returns to title without exiting channel" gate -- its built-in `assertActiveAppIsOurs` foreground check fails if Back accidentally exited the channel to Roku Home. We do NOT byte-compare A1 vs A4 because the high-score Label may have updated mid-game; the foreground-check + size heuristic inside `screenshotNoError` is the binding gate. (Step 13 is therefore load-bearing, not redundant.)
 
 ### 9.2 Phase B: operator-override of `cpu_difficulty` / `score_to_win`
 
@@ -264,7 +301,8 @@ All under `packages/brs-gen/`.
   - `content.high_score_persistence=false` -> emits `high_score_persistence=false` in `TemplateConfig()`.
 - **Conflict-matrix entry** (`tests/build/conflict-matrix.test.ts`): add `game_shell` row to verify file-overlay, manifest-patching, component-patching cross-template no-conflicts (mirrors Plan 4e Task 13).
 - **Determinism entry** (`tests/build/determinism.test.ts`): two consecutive generates produce byte-equal zips.
-- **Pure helpers unit tests** (`tests/templates/pong-helpers.test.ts`): off-device Vitest tests of `Pong_StepCpu`, `Pong_StepBall`, `Pong_CollidePaddle`, `Pong_CollideWall`, `Pong_DifficultyToLagPx`. Easiest path: transpile the `pong.brs` to a TS shim with identical semantics, OR shell out to `roca`/`bs-runner` if already available; OR translate the function signatures to TS for off-device coverage and rely on the e2e golden + lint for in-channel coverage. Recommendation: TS-translation (smallest dependency surface; matches the project's existing pattern).
+- **Pure helpers unit tests** (`tests/templates/pong-helpers.test.ts`): off-device Vitest tests of `Pong_StepCpu`, `Pong_StepBall`, `Pong_CollidePaddle`, `Pong_CollideWall`, `Pong_DifficultyToLagPx`, executed against the TS shim at `tests/templates/pong-helpers.ts` (verbatim translation of `pong.brs`; smallest dependency surface; matches the project's existing pattern of "pure-math helpers tested in TS, BRS-side covered by snapshot + lint + e2e").
+- **Const parity test** (`tests/templates/pong-const-parity.test.ts`): parses the BRS const block at the top of `templates/game_shell/files/source/lib/pong.brs` (regex extraction of `PONG_*% = N` and `PONG_*! = N.M` lines) and asserts numeric equality with the TS shim's exported constants. Catches the most common R7 drift class.
 
 ## 11. File layout summary (new files)
 
@@ -300,7 +338,9 @@ packages/brs-gen/tests/__golden__/game_shell/
 
 packages/brs-gen/tests/templates/
   game-shell-schema.test.ts                       # Zod schema coverage
-  pong-helpers.test.ts                            # pure-helper unit tests
+  pong-helpers.ts                                 # TS shim (verbatim translation of pong.brs)
+  pong-helpers.test.ts                            # pure-helper unit tests against the TS shim
+  pong-const-parity.test.ts                       # parses pong.brs const block; asserts shim parity
 
 packages/brs-gen/tests/e2e/
   game-shell.test.ts                              # generate + zip + lint + validate
@@ -362,7 +402,7 @@ This makes Plan 4f the most surgically-minimal of the v1 catalog template plans.
 | R4 | `Rectangle` rendering performance at 60 Hz Timer + 17 children may surface frame-drop on lower-tier Rokus (e.g., Express 4K). | The scene has 17 nodes + 1 ball move per tick. SceneGraph compositing handles this trivially on FHD-capable Rokus. Phase A T27 captures real-device behavior; if frame-drop observed, the fix is to reduce Timer frequency to 30 Hz (no scope change). |
 | R5 | High-score registry write may fail silently if storage is full (rare). | Use `try`/`catch` around `roRegistry.Flush()`; on failure, keep `m.highScore` in memory only. No user-visible regression. |
 | R6 | `screen_saver_private=1` may conflict with parent Roku UX expectations (e.g., user expects Roku to screensaver after 5 min of paused game on title screen). | This is a deliberate cert recommendation for active-input apps, not a universal best practice. Game on title screen is user-paused, not active gameplay. Acceptable trade-off; future v1.x could time-out to OS screensaver after N minutes on title (out of scope). |
-| R7 | Pong helpers in `pong.brs` are duplicated as TS shims for off-device unit testing (per §10). Drift risk between BRS and TS implementations. | TS shim is verbatim translation, reviewed in same PR. Snapshot test of `pong.brs.snap` catches BRS-side drift; TS shim re-imports the same constant table. Acceptable for v1; v1.x could use `roca` or `bs-runner` for true BRS unit tests. |
+| R7 | Pong helpers in `pong.brs` are duplicated as TS shims for off-device unit testing (per §10). Drift risk between BRS and TS implementations. | All numeric constants (paddle/ball dimensions, speeds, screen size, lag-px-per-difficulty mapping) are declared as module-level constants in `pong.brs` per §5.5; the TS shim at `tests/templates/pong-helpers.ts` mirrors them verbatim and is reviewed in the same PR. Snapshot test `pong.brs.snap` catches BRS-side drift; the TS shim's unit tests catch TS-side drift; an additional const-parity test (`pong-const-parity.test.ts`) parses the BRS const block and asserts numeric equality with the TS shim's exported constants. Acceptable for v1; v1.x could use `roca` or `bs-runner` for true BRS unit tests. |
 | R8 | The reference repo (`FlappyBat-game-Roku`) is hand-authored, not template-driven; consulted but NOT mined for code. Risk that we miss a battle-tested pattern (e.g., the FlappyBat `state` machine + `enterX` triplet, the `m.lastAnimState` debounce). | Plan 4f's GameScene state machine + enterX triplet IS modeled on FlappyBat's pattern (best practice; common to game architecture). The Animation-debounce pattern is FlappyBat-specific (PipePair animations); Pong has no such Animation -- collision is Timer-driven. No transferable risk surface. |
 
 ## 15. PRD obligations
