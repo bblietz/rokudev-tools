@@ -440,6 +440,14 @@ registerToolsModule((tools) => {
           exclude: ['.rokudev-tools/sourcemaps', '.rokudev-tools/staging'],
         });
         zipBytes = (await stat(zipPath)).size;
+
+        // 13a. Cert rule 3.7: screensaver zip size check (template-conditional).
+        const { validateScreensaverZipSize } = await import('../build/screensaver-validators.js');
+        const manifestText = await readFile(join(outputDir, 'manifest'), 'utf8');
+        const ssvr = await validateScreensaverZipSize(zipPath, manifestText);
+        for (const w of ssvr.warnings) {
+          warnings.push({ code: 'SCREENSAVER_ZIP_TOO_LARGE', message: w });
+        }
       }
 
       // 14. Optional sideload. brs-gen does not resolve from the device registry;

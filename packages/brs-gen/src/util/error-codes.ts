@@ -27,6 +27,10 @@ export const BRS_GEN_ERROR_CODES = [
   // declares a file that was not loaded. Defensive guard kept distinct from
   // FILE_COLLISION.
   'CATALOG_INTEGRITY',
+  // SCREENSAVER_ZIP_TOO_LARGE is raised by the post-zip cert validator when a
+  // screensaver zip exceeds the 4 MB cert rule 3.7 limit. Template-conditional:
+  // only fires when the manifest contains screensaver_title=.
+  'SCREENSAVER_ZIP_TOO_LARGE',
 ] as const;
 
 export const BRS_GEN_WARNING_CODES = [
