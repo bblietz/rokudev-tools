@@ -370,6 +370,9 @@ registerToolsModule((tools) => {
             service_name?: string;
             transition_seconds?: number;
             motion?: string;
+            cpu_difficulty?: 'easy' | 'normal' | 'hard';
+            score_to_win?: number;
+            high_score_persistence?: boolean;
           };
         }
       ).content;
@@ -384,6 +387,9 @@ registerToolsModule((tools) => {
         if (content?.service_name) cfg['service_name'] = content.service_name;
         if (content?.transition_seconds !== undefined) cfg['transition_seconds'] = String(content.transition_seconds);
         if (content?.motion) cfg['motion'] = content.motion;
+        if (content?.cpu_difficulty) cfg['cpu_difficulty'] = String(content.cpu_difficulty);
+        if (content?.score_to_win !== undefined) cfg['score_to_win'] = String(content.score_to_win);
+        if (content?.high_score_persistence !== undefined) cfg['high_score_persistence'] = String(content.high_score_persistence);
         templateConfigBrs = emitTemplateConfigBs(cfg);
       }
 
