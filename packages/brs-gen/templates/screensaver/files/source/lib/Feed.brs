@@ -1,0 +1,24 @@
+function ScreensaverFeed_LoadBundled() as object
+    raw = ReadAsciiFile("pkg:/data/screensaver-feed.json")
+    return ParseJSON(raw)
+end function
+
+function ScreensaverFeed_LoadOperator(rawJson as string) as object
+    return ParseJSON(rawJson)
+end function
+
+function ScreensaverFeed_BuildContentNodes(feed as object) as object
+    nodes = []
+    if feed = invalid then return nodes
+    if feed.photos = invalid then return nodes
+    for each photo in feed.photos
+        node = CreateObject("roSGNode", "ContentNode")
+        node.url = photo.url
+        if photo.title <> invalid then node.title = photo.title
+        ' ShortDescriptionLine2 is the documented descriptive-text field
+        ' for ContentNode (Plan 4d lesson; not SecondaryTitle).
+        if photo.credit <> invalid then node.ShortDescriptionLine2 = photo.credit
+        nodes.push(node)
+    end for
+    return nodes
+end function

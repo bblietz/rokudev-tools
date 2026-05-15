@@ -604,6 +604,11 @@ describe('screensaver snapshots', () => {
       join(PKG_ROOT, 'templates', 'screensaver', 'files', 'source', 'main.brs'),
       join(projectDir, 'source', 'main.brs'),
     );
+    await mkdir(join(projectDir, 'source', 'lib'), { recursive: true });
+    await copyFile(
+      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'source', 'lib', 'Feed.brs'),
+      join(projectDir, 'source', 'lib', 'Feed.brs'),
+    );
   });
 
   afterAll(async () => {
@@ -650,5 +655,21 @@ describe('screensaver snapshots', () => {
     expect(s).toContain('roAppMemoryMonitor');
     expect(s).toContain('EnableLowGeneralMemoryEvent');
     expect(s).toContain('roSGScreenEvent');
+  });
+
+  it('source/lib/Feed.brs matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'source', 'lib', 'Feed.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/Feed.brs.snap.txt');
+  });
+
+  it('Feed.brs exports the 3 helpers used by Screensaver.bs', async () => {
+    const s = await readFile(join(projectDir, 'source', 'lib', 'Feed.brs'), 'utf8');
+    expect(s).toMatch(/function\s+ScreensaverFeed_LoadBundled/);
+    expect(s).toMatch(/function\s+ScreensaverFeed_LoadOperator/);
+    expect(s).toMatch(/function\s+ScreensaverFeed_BuildContentNodes/);
+    // Guard against the Plan 4d anti-pattern: field-write to node.SecondaryTitle.
+    // The regex targets the assignment form so mentions in comments are allowed.
+    expect(s).not.toMatch(/node\.SecondaryTitle/);
+    expect(s).toContain('ShortDescriptionLine2');
   });
 });
