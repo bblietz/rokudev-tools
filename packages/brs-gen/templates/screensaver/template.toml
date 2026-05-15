@@ -1,0 +1,24 @@
+[template]
+id = "screensaver"
+version = "0.1.0"
+spec_compat = ">=2"
+description = "Pure-screensaver Roku channel: deterministic photo slideshow with Ken Burns motion + crossfade. Manifest declares ONLY screensaver_title + version + rsg_version + ui_resolutions; NO app-only keys."
+
+[template.manifest_defaults]
+title = "<%= spec.app.name %>"
+major_version = "<%= spec.app.major_version %>"
+minor_version = "<%= spec.app.minor_version %>"
+build_version = "<%= spec.app.build_version %>"
+rsg_version = "1.3"
+ui_resolutions = "hd,fhd"
+screensaver_title = "<%= spec.app.name %>"
+
+[template.exports]
+init_hooks = [
+  { scope = "Screensaver", phase = "after_scene_show", file = "components/Screensaver.bs", signature = "(m as object) as void" },
+]
+scene_nodes = [
+  { name = "Screensaver", file = "components/Screensaver.xml" },
+  { name = "PhotoCycle",  file = "components/PhotoCycle.xml" },
+  { name = "HttpTask",    file = "components/HttpTask.xml" },
+]

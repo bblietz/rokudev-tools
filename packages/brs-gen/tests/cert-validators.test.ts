@@ -103,3 +103,69 @@ describe('SCREENSAVER_ZIP_TOO_LARGE validator', () => {
     }
   });
 });
+
+import { Schema as ScreensaverSchema } from '../templates/screensaver/schema.js';
+
+describe('SCREENSAVER_TITLE_CONTAINS_ROKU validator', () => {
+  const baseSpec = {
+    spec_version: 2 as const,
+    template: 'screensaver' as const,
+    modules: [],
+    app: { name: 'PLACEHOLDER', major_version: 1, minor_version: 0, build_version: 0 },
+  };
+
+  it('rejects spec.app.name containing "Roku" (case-insensitive)', () => {
+    const r1 = ScreensaverSchema.safeParse({ ...baseSpec, app: { ...baseSpec.app, name: 'Roku Photos' } });
+    expect(r1.success).toBe(false);
+    if (!r1.success) {
+      expect(JSON.stringify(r1.error.format())).toMatch(/screensaver_title cannot contain the word \\"Roku\\"/);
+    }
+
+    const r2 = ScreensaverSchema.safeParse({ ...baseSpec, app: { ...baseSpec.app, name: 'ROKU PHOTOS' } });
+    expect(r2.success).toBe(false);
+
+    const r3 = ScreensaverSchema.safeParse({ ...baseSpec, app: { ...baseSpec.app, name: 'My rOKu Channel' } });
+    expect(r3.success).toBe(false);
+  });
+
+  it('accepts spec.app.name without "Roku"', () => {
+    const r = ScreensaverSchema.safeParse({ ...baseSpec, app: { ...baseSpec.app, name: 'Family Photos' } });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe('screensaver content schema', () => {
+  const base = {
+    spec_version: 2 as const,
+    template: 'screensaver' as const,
+    modules: [],
+    app: { name: 'OK Name', major_version: 1, minor_version: 0, build_version: 0 },
+  };
+
+  it('applies defaults: motion=ken_burns, transition_seconds=7, feed_format=rokudev_screensaver_v1', () => {
+    const r = ScreensaverSchema.parse({ ...base, content: {} });
+    expect(r.content?.motion).toBe('ken_burns');
+    expect(r.content?.transition_seconds).toBe(7);
+    expect(r.content?.feed_format).toBe('rokudev_screensaver_v1');
+  });
+
+  it('rejects transition_seconds < 4', () => {
+    const r = ScreensaverSchema.safeParse({ ...base, content: { transition_seconds: 3 } });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects transition_seconds > 30', () => {
+    const r = ScreensaverSchema.safeParse({ ...base, content: { transition_seconds: 31 } });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects unknown content fields (strict)', () => {
+    const r = ScreensaverSchema.safeParse({ ...base, content: { random_field: true } as object });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects motion outside enum', () => {
+    const r = ScreensaverSchema.safeParse({ ...base, content: { motion: 'sparkles' } as object });
+    expect(r.success).toBe(false);
+  });
+});

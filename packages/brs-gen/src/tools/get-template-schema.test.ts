@@ -64,6 +64,11 @@ describe('get_template_schema tool — real catalog', () => {
     handler = t.handler;
   });
 
+  it('catalog includes screensaver template', async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    expect(cat.templates.has('screensaver')).toBe(true);
+  });
+
   it('surfaces video_grid_channel required branding + content fields', async () => {
     const r = (await handler({ id: 'video_grid_channel' })) as {
       ok: boolean;
