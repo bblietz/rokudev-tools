@@ -71,7 +71,7 @@ packages/brs-gen/
       PhotoCycle.brs.snap.txt                          # Task 10
       Screensaver.xml.snap.txt                         # Task 11
       Screensaver.brs.snap.txt                         # Task 11
-      __init_hooks.bs.snap.txt                         # Task 11
+      __init_hooks.brs.snap.txt                        # Task 11
       files-listing.snap.txt                           # Task 11
     __golden__/
       screensaver.zip                                  # Task 13
@@ -101,6 +101,8 @@ package.json (root) + packages/*/package.json          # Task 19 (v0.5.5)
 ---
 
 ## Phase 0: Engine prep (independent of template files)
+
+> **Phase 0 is NOT a hard gate before Phase 1.** Task 1's test stays red until the screensaver template scaffolding lands in Task 3 (it depends on the template being loadable). That is intentional — the engine change is wired correctly when Task 1 ships, and the test goes green automatically when Task 3 ships. Implementers may interleave Phase 0 and Phase 1 if convenient. Phase 2+ assume Phase 0 is in place because they depend on the cert validator + TemplateConfig threading.
 
 ### Task 1: TemplateConfig threading for `transition_seconds` + `motion`
 
@@ -519,7 +521,7 @@ export const Schema = z
   .object({
     spec_version: z.literal(2),
     template: z.literal('screensaver'),
-    modules: z.array(z.record(z.unknown())),
+    modules: z.array(z.object({ id: z.string(), config: z.unknown().optional() })).default([]),
     app: z
       .object({
         name: z
@@ -1454,7 +1456,12 @@ end sub
 
 NOTE: PhotoCycle's `photos` field is declared `type="array"`; we pass plain assocArrays (`{ url, title }`) NOT ContentNodes, since PhotoCycle reads `.url` directly. ContentNodes work too but assocArrays keep the field schema simple.
 
-CONFIRM: read other templates' patterns for whether `photos` field should be ContentNode array vs plain assocarray; if news_channel/music_player uses ContentNode arrays for similar fields, mirror them.
+**Deterministic decision path** (do this BEFORE Step 3): Read `packages/brs-gen/templates/news_channel/files/components/CategoryRail.bs` and `packages/brs-gen/templates/music_player/files/components/MainScene.bs`. Find the assignment that writes to a child component's `content`-equivalent / array-of-items interface field.
+
+- If those templates write ContentNode arrays (e.g. via `Feed_BuildContentNodes`), CHANGE `bindFeed` here: drop the `photoData = []` for-loop and write the ContentNode array directly: `m.photoCycle.photos = nodes`. PhotoCycle.bs `onPhotosChanged` reads `m.top.photos[0].url` either way (ContentNode `.url` access works the same).
+- If those templates write plain assocarrays, KEEP this implementation as-is.
+
+Document the choice in the commit message ("photos field: ContentNode array, mirroring news_channel" OR "photos field: plain assocarray, simpler than ContentNode").
 
 - [ ] **Step 3: Add snapshot tests + assertions for init-hook firing**
 
@@ -2050,9 +2057,17 @@ Expected: `host` is set; ECP responds with device-info XML.
 
 - [ ] **Step 2: Reverse-engineer the dev portal's screensaver-trigger form**
 
-Run: `curl --digest -u rokudev:1234 -s "http://$ROKUDEV_DEFAULT_ROKU_HOST/plugin_inspect" -F "archive=" -F "mysubmit=Test screensaver" -o /tmp/r.html; head -c 500 /tmp/r.html`
+Run (with archive field — first variant; some endpoints require an `archive` part even if empty):
+```bash
+curl --digest -u rokudev:1234 -s "http://$ROKUDEV_DEFAULT_ROKU_HOST/plugin_inspect" -F "archive=" -F "mysubmit=Test screensaver" -o /tmp/r.html; head -c 500 /tmp/r.html
+```
 
-(Try variations: `mysubmit=Screensaver`, `mysubmit=Test+Screensaver`, etc.)
+Run (without archive field — second variant; some endpoints reject empty `archive=` parts):
+```bash
+curl --digest -u rokudev:1234 -s "http://$ROKUDEV_DEFAULT_ROKU_HOST/plugin_inspect" -F "mysubmit=Test screensaver" -o /tmp/r2.html; head -c 500 /tmp/r2.html
+```
+
+(Try variations on `mysubmit`: `Screensaver`, `Test+Screensaver`, `Test%20screensaver`, `screensaver`, `inspect_screensaver`, etc.)
 
 Look at the response. If 200 with normal portal HTML, the trigger MIGHT have fired. Switch to the device and observe: did the screensaver come up?
 
