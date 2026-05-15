@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<component name="PhotoCycle" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/PhotoCycle.bs" />
+
+  <interface>
+    <field id="photos"             type="array"   value="[]" />
+    <field id="transitionSeconds"  type="integer" value="7" />
+    <field id="motion"             type="string"  value="ken_burns" />
+    <field id="currentIndex"       type="integer" value="0" />
+  </interface>
+
+  <children>
+    <Group id="content" translation="[0,0]">
+      <Poster id="posterA" width="1920" height="1080" loadDisplayMode="scaleToFill" opacity="1.0" />
+      <Poster id="posterB" width="1920" height="1080" loadDisplayMode="scaleToFill" opacity="0.0" />
+    </Group>
+
+    <Timer id="cycleTimer" repeat="true" duration="7" />
+
+    <Animation id="crossfade" duration="1.0" repeat="false" easeFunction="inOutCubic">
+      <FloatFieldInterpolator fieldToInterp="posterA.opacity" key="[0.0, 1.0]" keyValue="[1.0, 0.0]" />
+      <FloatFieldInterpolator fieldToInterp="posterB.opacity" key="[0.0, 1.0]" keyValue="[0.0, 1.0]" />
+    </Animation>
+
+    <Animation id="kenBurnsA" duration="7" repeat="false" easeFunction="linear" control="start">
+      <Vector2DFieldInterpolator fieldToInterp="posterA.translation" key="[0.0, 1.0]" keyValue="[ [0,0], [-40,-30] ]" />
+      <Vector2DFieldInterpolator fieldToInterp="posterA.scale"       key="[0.0, 1.0]" keyValue="[ [1.0,1.0], [1.05,1.05] ]" />
+    </Animation>
+
+    <Animation id="kenBurnsB" duration="7" repeat="false" easeFunction="linear">
+      <Vector2DFieldInterpolator fieldToInterp="posterB.translation" key="[0.0, 1.0]" keyValue="[ [0,0], [-40,-30] ]" />
+      <Vector2DFieldInterpolator fieldToInterp="posterB.scale"       key="[0.0, 1.0]" keyValue="[ [1.0,1.0], [1.05,1.05] ]" />
+    </Animation>
+
+    <Animation id="pixelShift" duration="90" repeat="true" easeFunction="inOutQuad" control="start">
+      <Vector2DFieldInterpolator
+        fieldToInterp="content.translation"
+        key="[0.0, 0.25, 0.50, 0.75, 1.0]"
+        keyValue="[ [0,0], [8,5], [0,0], [-8,-5], [0,0] ]" />
+    </Animation>
+  </children>
+</component>

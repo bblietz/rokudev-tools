@@ -623,6 +623,16 @@ describe('screensaver snapshots', () => {
       join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'HttpTask.bs'),
       join(projectDir, 'components', 'HttpTask.bs'),
     );
+    await Promise.all([
+      copyFile(
+        join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'PhotoCycle.xml'),
+        join(projectDir, 'components', 'PhotoCycle.xml'),
+      ),
+      copyFile(
+        join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'PhotoCycle.bs'),
+        join(projectDir, 'components', 'PhotoCycle.bs'),
+      ),
+    ]);
   });
 
   afterAll(async () => {
@@ -729,5 +739,35 @@ describe('screensaver snapshots', () => {
     const s = await readFile(join(projectDir, 'components', 'HttpTask.xml'), 'utf8');
     expect(s).toMatch(/uri="pkg:\/components\/HttpTask\.brs"/);
     expect(s).not.toMatch(/uri="pkg:\/components\/HttpTask\.bs"/);
+  });
+
+  it('PhotoCycle.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components', 'PhotoCycle.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/PhotoCycle.xml.snap.txt');
+  });
+
+  it('PhotoCycle.bs (source) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components', 'PhotoCycle.bs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/PhotoCycle.bs.snap.txt');
+  });
+
+  // The test name reflects 4 Animation nodes + 1 Timer = 5 named animation-related
+  // elements. The regex assertions check exactly the 4 Animation ids present in the XML.
+  it('PhotoCycle.xml declares the 4 named animations, 1 Timer, and 4 interface fields', async () => {
+    const s = await readFile(join(projectDir, 'components', 'PhotoCycle.xml'), 'utf8');
+    for (const animId of ['crossfade', 'kenBurnsA', 'kenBurnsB', 'pixelShift']) {
+      expect(s).toMatch(new RegExp(`<Animation\\s+id="${animId}"`));
+    }
+    for (const field of ['photos', 'transitionSeconds', 'motion', 'currentIndex']) {
+      expect(s).toMatch(new RegExp(`<field\\s+id="${field}"`));
+    }
+    expect(s).toMatch(/<Timer\s+id="cycleTimer"/);
+  });
+
+  it('PhotoCycle.bs locks kenBurns duration to transitionSeconds and uses programmatic control=start', async () => {
+    const s = await readFile(join(projectDir, 'components', 'PhotoCycle.bs'), 'utf8');
+    expect(s).toMatch(/m\.kenBurnsAAnim\.duration\s*=\s*m\.top\.transitionSeconds/);
+    expect(s).toMatch(/m\.kenBurnsBAnim\.duration\s*=\s*m\.top\.transitionSeconds/);
+    expect(s).toMatch(/m\.pixelShiftAnim\.control\s*=\s*"start"/);
   });
 });
