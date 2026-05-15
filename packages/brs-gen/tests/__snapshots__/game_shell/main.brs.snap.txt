@@ -9,3 +9,5 @@ sub Main()
     if type(msg) = "roSGScreenEvent" and msg.isScreenClosed() then return
   end while
 end sub
+
+'//# sourceMappingURL=./main.brs.map

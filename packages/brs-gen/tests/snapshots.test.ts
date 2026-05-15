@@ -833,4 +833,9 @@ describe('game_shell snapshots', () => {
     const s = await readFile(join(projectDir, 'manifest'), 'utf8');
     await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/manifest.snap.txt');
   });
+
+  it('source/main.brs matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'source', 'main.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/main.brs.snap.txt');
+  });
 });
