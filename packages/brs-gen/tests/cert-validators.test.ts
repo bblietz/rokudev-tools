@@ -114,15 +114,21 @@ describe('SCREENSAVER_TITLE_CONTAINS_ROKU validator', () => {
     app: { name: 'PLACEHOLDER', major_version: 1, minor_version: 0, build_version: 0 },
   };
 
-  it('rejects spec.app.name containing "Roku" (case-insensitive)', () => {
+  it('rejects spec.app.name containing "Roku" (case-insensitive) and includes the offender in the message', () => {
     const r1 = ScreensaverSchema.safeParse({ ...baseSpec, app: { ...baseSpec.app, name: 'Roku Photos' } });
     expect(r1.success).toBe(false);
     if (!r1.success) {
-      expect(JSON.stringify(r1.error.format())).toMatch(/screensaver_title cannot contain the word \\"Roku\\"/);
+      const json = JSON.stringify(r1.error.format());
+      // Spec §4 contract: message contains the cert-rule preface AND the offending value.
+      expect(json).toMatch(/screensaver_title cannot contain the word \\"Roku\\"/);
+      expect(json).toMatch(/spec\.app\.name was \\"Roku Photos\\"/);
     }
 
     const r2 = ScreensaverSchema.safeParse({ ...baseSpec, app: { ...baseSpec.app, name: 'ROKU PHOTOS' } });
     expect(r2.success).toBe(false);
+    if (!r2.success) {
+      expect(JSON.stringify(r2.error.format())).toMatch(/spec\.app\.name was \\"ROKU PHOTOS\\"/);
+    }
 
     const r3 = ScreensaverSchema.safeParse({ ...baseSpec, app: { ...baseSpec.app, name: 'My rOKu Channel' } });
     expect(r3.success).toBe(false);

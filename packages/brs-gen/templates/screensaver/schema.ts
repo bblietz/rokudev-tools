@@ -22,8 +22,13 @@ export const Schema = z
           .string()
           .min(1)
           .max(50)
-          .refine((v) => !/roku/i.test(v), {
-            message: 'screensaver_title cannot contain the word "Roku" per Roku Channel Store cert rules',
+          .superRefine((v, ctx) => {
+            if (/roku/i.test(v)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `screensaver_title cannot contain the word "Roku" per Roku Channel Store cert rules; spec.app.name was "${v}"`,
+              });
+            }
           }),
         major_version: NonNegInt,
         minor_version: NonNegInt,
