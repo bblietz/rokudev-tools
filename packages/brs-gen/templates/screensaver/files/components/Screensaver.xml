@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<component name="Screensaver" extends="Scene">
+  <script type="text/brightscript" uri="pkg:/components/Screensaver.bs" />
+  <script type="text/brightscript" uri="pkg:/source/lib/Feed.brs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+
+  <interface>
+    <field id="currentPhotoIndex" type="integer" value="0" />
+  </interface>
+
+  <children>
+    <PhotoCycle id="photoCycle" />
+  </children>
+</component>

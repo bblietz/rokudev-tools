@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <component name="PhotoCycle" extends="Group">
-  <script type="text/brightscript" uri="pkg:/components/PhotoCycle.bs" />
+  <script type="text/brightscript" uri="pkg:/components/PhotoCycle.brs" />
 
   <interface>
     <field id="photos"             type="array"   value="[]" />

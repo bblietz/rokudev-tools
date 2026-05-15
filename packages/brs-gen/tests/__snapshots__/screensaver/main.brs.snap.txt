@@ -30,3 +30,5 @@ sub RunScreenSaver()
         end if
     end while
 end sub
+
+'//# sourceMappingURL=./main.brs.map

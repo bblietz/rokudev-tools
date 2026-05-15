@@ -22,3 +22,5 @@ function ScreensaverFeed_BuildContentNodes(feed as object) as object
     end for
     return nodes
 end function
+
+'//# sourceMappingURL=./Feed.brs.map

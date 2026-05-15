@@ -4,7 +4,10 @@ end sub
 
 sub doRequest()
     if m.top.url = invalid or m.top.url = "" then
-        m.top.response = { ok: false, error: "no_url" }
+        m.top.response = {
+            ok: false
+            error: "no_url"
+        }
         return
     end if
     transfer = CreateObject("roUrlTransfer")
@@ -15,8 +18,15 @@ sub doRequest()
     transfer.SetUrl(m.top.url)
     body = transfer.GetToString()
     if body = "" then
-        m.top.response = { ok: false, error: "empty" }
+        m.top.response = {
+            ok: false
+            error: "empty"
+        }
         return
     end if
-    m.top.response = { ok: true, body: body }
+    m.top.response = {
+        ok: true
+        body: body
+    }
 end sub
+'//# sourceMappingURL=./HttpTask.brs.map

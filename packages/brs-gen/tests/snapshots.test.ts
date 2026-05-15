@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import ejs from 'ejs';
 import { loadCatalog } from '../src/catalog/loader.js';
 import { buildEmittedProject } from '../src/merger/build.js';
 import { renderTemplateFiles } from '../src/render/ejs.js';
@@ -578,62 +577,37 @@ describe('screensaver snapshots', () => {
   let projectDir: string;
 
   beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+
     parentDir = await mkdtemp(join(tmpdir(), 'brs-gen-ssvr-'));
     projectDir = join(parentDir, 'project');
-    await mkdir(projectDir, { recursive: true });
-    // Render manifest.ejs in isolation (full pipeline requires Tasks 5-11 source
-    // files that don't exist yet). This is the recommended fallback from the task
-    // spec: render the EJS directly so the snapshot and allowlist tests pass now.
-    //
-    // FIXME(Plan 4e Task 11): collapse this beforeAll to the full-pipeline pattern
-    // used by other templates' snapshot blocks (call getGenerateAppHandler against
-    // the screensaver template). At that point also convert
-    // templates/screensaver/files/manifest.ejs to the placeholder convention used
-    // by the other 4 templates (the merger emits the manifest from
-    // template_manifest_defaults in template.toml; the .ejs file is structurally
-    // vestigial). Snapshot will need re-saving because the merger emits keys in
-    // alphabetical order, while the EJS-isolation render preserves .ejs line order.
-    const ejsPath = join(PKG_ROOT, 'templates', 'screensaver', 'files', 'manifest.ejs');
-    const ejsTemplate = await readFile(ejsPath, 'utf8');
-    const rendered = ejs.render(ejsTemplate, {
-      spec: { app: { name: 'Demo Photos', major_version: 0, minor_version: 1, build_version: 0 } },
+
+    const handler = getGenerateAppHandler();
+    const result = await handler({
+      spec: {
+        spec_version: 2,
+        template: 'screensaver',
+        modules: [],
+        app: { name: 'Demo Photos', major_version: 0, minor_version: 1, build_version: 0 },
+        // Include content so the engine emits TemplateConfig() (which Screensaver.bs
+        // calls unconditionally). Per templates/screensaver/schema.ts, transition_seconds
+        // and motion are optional; setting them explicitly makes the snapshot deterministic.
+        // (feed_format is intentionally omitted at the wrapper-spec level because the
+        // wrapper's content schema enums it to roku_direct_publisher_json; the screensaver
+        // template-specific schema layers its own enum on top in the strict template parse.)
+        content: {
+          transition_seconds: 7,
+          motion: 'ken_burns',
+        },
+      },
+      output_dir: projectDir,
     });
-    await writeFile(join(projectDir, 'manifest'), rendered, 'utf8');
-    await mkdir(join(projectDir, 'source'), { recursive: true });
-    await copyFile(
-      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'source', 'main.brs'),
-      join(projectDir, 'source', 'main.brs'),
-    );
-    await mkdir(join(projectDir, 'source', 'lib'), { recursive: true });
-    await copyFile(
-      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'source', 'lib', 'Feed.brs'),
-      join(projectDir, 'source', 'lib', 'Feed.brs'),
-    );
-    await mkdir(join(projectDir, 'data'), { recursive: true });
-    await copyFile(
-      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'data', 'screensaver-feed.json'),
-      join(projectDir, 'data', 'screensaver-feed.json'),
-    );
-    await mkdir(join(projectDir, 'components'), { recursive: true });
-    await copyFile(
-      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'HttpTask.xml'),
-      join(projectDir, 'components', 'HttpTask.xml'),
-    );
-    await copyFile(
-      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'HttpTask.bs'),
-      join(projectDir, 'components', 'HttpTask.bs'),
-    );
-    await Promise.all([
-      copyFile(
-        join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'PhotoCycle.xml'),
-        join(projectDir, 'components', 'PhotoCycle.xml'),
-      ),
-      copyFile(
-        join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'PhotoCycle.bs'),
-        join(projectDir, 'components', 'PhotoCycle.bs'),
-      ),
-    ]);
-  });
+    const payload = result as Record<string, unknown>;
+    if (!payload['ok']) {
+      throw new Error(`generate_app failed in beforeAll: ${JSON.stringify(payload)}`);
+    }
+  }, 30_000);
 
   afterAll(async () => {
     if (parentDir) await rm(parentDir, { recursive: true, force: true });
@@ -718,13 +692,13 @@ describe('screensaver snapshots', () => {
     await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/HttpTask.xml.snap.txt');
   });
 
-  it('HttpTask.bs (source) matches saved snapshot', async () => {
-    const s = await readFile(join(projectDir, 'components', 'HttpTask.bs'), 'utf8');
-    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/HttpTask.bs.snap.txt');
+  it('HttpTask.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components', 'HttpTask.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/HttpTask.brs.snap.txt');
   });
 
-  it('HttpTask.bs declares the doRequest task entry and cert-setup boilerplate', async () => {
-    const s = await readFile(join(projectDir, 'components', 'HttpTask.bs'), 'utf8');
+  it('HttpTask.brs declares the doRequest task entry and cert-setup boilerplate', async () => {
+    const s = await readFile(join(projectDir, 'components', 'HttpTask.brs'), 'utf8');
     expect(s).toMatch(/m\.top\.functionName\s*=\s*"doRequest"/);
     expect(s).toContain('SetCertificatesFile');
     expect(s).toContain('InitClientCertificates');
@@ -732,10 +706,9 @@ describe('screensaver snapshots', () => {
     expect(s).toContain('EnableHostVerification');
   });
 
-  // FIXME(Plan 4e Task 11): once the snapshot beforeAll switches to the full
-  // pipeline (brighterscript compile + URI sweep), un-skip this test to verify
-  // HttpTask.xml's <script uri> is rewritten from .bs to .brs at compile time.
-  it.skip('HttpTask.xml has script URI rewritten to .brs (post-compile sweep) - skipped until Task 11', async () => {
+  // Plan 4e Task 11: post-compile sweep rewrites HttpTask.xml's <script uri>
+  // from .bs to .brs.
+  it('HttpTask.xml has script URI rewritten to .brs (post-compile sweep)', async () => {
     const s = await readFile(join(projectDir, 'components', 'HttpTask.xml'), 'utf8');
     expect(s).toMatch(/uri="pkg:\/components\/HttpTask\.brs"/);
     expect(s).not.toMatch(/uri="pkg:\/components\/HttpTask\.bs"/);
@@ -746,9 +719,9 @@ describe('screensaver snapshots', () => {
     await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/PhotoCycle.xml.snap.txt');
   });
 
-  it('PhotoCycle.bs (source) matches saved snapshot', async () => {
-    const s = await readFile(join(projectDir, 'components', 'PhotoCycle.bs'), 'utf8');
-    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/PhotoCycle.bs.snap.txt');
+  it('PhotoCycle.brs (post-compile) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components', 'PhotoCycle.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/PhotoCycle.brs.snap.txt');
   });
 
   // The test name reflects 4 Animation nodes + 1 Timer = 5 named animation-related
@@ -764,10 +737,65 @@ describe('screensaver snapshots', () => {
     expect(s).toMatch(/<Timer\s+id="cycleTimer"/);
   });
 
-  it('PhotoCycle.bs locks kenBurns duration to transitionSeconds and uses programmatic control=start', async () => {
-    const s = await readFile(join(projectDir, 'components', 'PhotoCycle.bs'), 'utf8');
+  it('PhotoCycle.brs locks kenBurns duration to transitionSeconds and uses programmatic control=start', async () => {
+    const s = await readFile(join(projectDir, 'components', 'PhotoCycle.brs'), 'utf8');
     expect(s).toMatch(/m\.kenBurnsAAnim\.duration\s*=\s*m\.top\.transitionSeconds/);
     expect(s).toMatch(/m\.kenBurnsBAnim\.duration\s*=\s*m\.top\.transitionSeconds/);
     expect(s).toMatch(/m\.pixelShiftAnim\.control\s*=\s*"start"/);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Plan 4e Task 11: Screensaver root scene + full-pipeline collapse tests.
+  // ---------------------------------------------------------------------------
+
+  it('Screensaver.xml matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components', 'Screensaver.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/Screensaver.xml.snap.txt');
+  });
+
+  it('Screensaver.brs matches saved snapshot (post-compile)', async () => {
+    const s = await readFile(join(projectDir, 'components', 'Screensaver.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/Screensaver.brs.snap.txt');
+  });
+
+  it('Screensaver.xml has explicit <script> for source/lib/Feed.brs (Plan 4c invariant)', async () => {
+    const s = await readFile(join(projectDir, 'components', 'Screensaver.xml'), 'utf8');
+    expect(s).toMatch(/<script\s+type="text\/brightscript"\s+uri="pkg:\/source\/lib\/Feed\.brs"\s*\/>/);
+  });
+
+  it('Screensaver.brs fires the after_scene_show init hook', async () => {
+    const s = await readFile(join(projectDir, 'components', 'Screensaver.brs'), 'utf8');
+    expect(s).toContain('Modules_OnScreensaverAfterSceneShow(m)');
+  });
+
+  it('__init_hooks declares Modules_OnScreensaverAfterSceneShow', async () => {
+    // Verify whether merger emits .bs or .brs for __init_hooks; try both.
+    let s: string;
+    try {
+      s = await readFile(join(projectDir, 'source', '_modules', '__init_hooks.brs'), 'utf8');
+    } catch {
+      s = await readFile(join(projectDir, 'source', '_modules', '__init_hooks.bs'), 'utf8');
+    }
+    expect(s).toMatch(/sub\s+Modules_OnScreensaverAfterSceneShow\s*\(\s*m\s+as\s+object\s*\)\s+as\s+void/);
+  });
+
+  it('full files listing matches saved snapshot', async () => {
+    const paths = await sortedRelPaths(projectDir);
+    await expect(paths.join('\n') + '\n').toMatchFileSnapshot(
+      '__snapshots__/screensaver/files-listing.snap.txt',
+    );
+  });
+
+  it('__init_hooks post-compile matches saved snapshot', async () => {
+    // Try both extensions; merger may emit .bs or .brs depending on compile sweep.
+    let s: string;
+    let ext = 'brs';
+    try {
+      s = await readFile(join(projectDir, 'source', '_modules', `__init_hooks.brs`), 'utf8');
+    } catch {
+      ext = 'bs';
+      s = await readFile(join(projectDir, 'source', '_modules', '__init_hooks.bs'), 'utf8');
+    }
+    await expect(s).toMatchFileSnapshot(`__snapshots__/screensaver/__init_hooks.${ext}.snap.txt`);
   });
 });

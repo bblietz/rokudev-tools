@@ -1,0 +1,63 @@
+sub init()
+    m.photoCycle = m.top.findNode("photoCycle")
+    m.feedTaskRef = invalid
+    cfg = TemplateConfig()
+    ' Configure the cycle from TemplateConfig.
+    transitionSec = 7
+    if cfg.transition_seconds <> invalid then
+        transitionSec = Val(cfg.transition_seconds)
+        if transitionSec < 4 then
+            transitionSec = 7
+        end if
+    end if
+    m.photoCycle.transitionSeconds = transitionSec
+    if cfg.motion <> invalid then
+        m.photoCycle.motion = cfg.motion
+    end if
+    ' Bind feed: operator URL if set, else bundled.
+    if cfg.feed_url <> invalid and cfg.feed_url <> "" then
+        m.feedTaskRef = CreateObject("roSGNode", "HttpTask")
+        m.feedTaskRef.observeField("response", "onFeedResponse")
+        m.feedTaskRef.url = cfg.feed_url
+        m.feedTaskRef.control = "RUN"
+    else
+        feed = ScreensaverFeed_LoadBundled()
+        bindFeed(feed)
+    end if
+    Modules_OnScreensaverAfterSceneShow(m)
+end sub
+
+sub onFeedResponse(event as object)
+    resp = event.getData()
+    if resp = invalid or resp.ok = false or resp.body = invalid then
+        ' Operator feed failed; fall back to bundled so the screensaver still renders.
+        feed = ScreensaverFeed_LoadBundled()
+        bindFeed(feed)
+        return
+    end if
+    feed = ScreensaverFeed_LoadOperator(resp.body)
+    bindFeed(feed)
+end sub
+
+sub bindFeed(feed as object)
+    nodes = ScreensaverFeed_BuildContentNodes(feed)
+    if nodes.count() = 0 then
+        ' Defensive: empty feed -> bundled fallback.
+        bundled = ScreensaverFeed_LoadBundled()
+        nodes = ScreensaverFeed_BuildContentNodes(bundled)
+    end if
+    photoData = []
+    for each n in nodes
+        photoData.push({
+            url: n.url
+            title: n.title
+        })
+    end for
+    m.photoCycle.observeField("currentIndex", "onCurrentIndexChanged")
+    m.photoCycle.photos = photoData
+end sub
+
+sub onCurrentIndexChanged()
+    m.top.currentPhotoIndex = m.photoCycle.currentIndex
+end sub
+'//# sourceMappingURL=./Screensaver.brs.map

@@ -1,26 +1,22 @@
 sub init()
-    m.cycleTimer    = m.top.findNode("cycleTimer")
+    m.cycleTimer = m.top.findNode("cycleTimer")
     m.crossfadeAnim = m.top.findNode("crossfade")
     m.kenBurnsAAnim = m.top.findNode("kenBurnsA")
     m.kenBurnsBAnim = m.top.findNode("kenBurnsB")
     m.pixelShiftAnim = m.top.findNode("pixelShift")
     m.posterA = m.top.findNode("posterA")
     m.posterB = m.top.findNode("posterB")
-
     m.activeIsA = true
     m.elapsedSec = 0
-
     ' Lock Ken Burns duration to the configured transitionSeconds so the pan
     ' completes exactly when the swap happens (avoids low-transitionSeconds bug).
     m.kenBurnsAAnim.duration = m.top.transitionSeconds
     m.kenBurnsBAnim.duration = m.top.transitionSeconds
     m.cycleTimer.duration = m.top.transitionSeconds
-
     ' Idempotent control=start guard (XML inline control="start" can fail at scene load).
     m.kenBurnsAAnim.control = "start"
     m.kenBurnsBAnim.control = "start"
     m.pixelShiftAnim.control = "start"
-
     m.posterA.observeField("loadStatus", "onPosterLoad")
     m.posterB.observeField("loadStatus", "onPosterLoad")
     m.cycleTimer.observeField("fire", "onCycleTimerFire")
@@ -28,8 +24,12 @@ sub init()
 end sub
 
 sub onPhotosChanged()
-    if m.top.photos = invalid then return
-    if m.top.photos.count() = 0 then return
+    if m.top.photos = invalid then
+        return
+    end if
+    if m.top.photos.count() = 0 then
+        return
+    end if
     m.top.currentIndex = 0
     m.posterA.uri = m.top.photos[0].url
     m.activeIsA = true
@@ -47,15 +47,12 @@ sub onCycleTimerFire()
         else
             m.posterA.uri = m.top.photos[nextIndex].url
         end if
-
         if m.top.motion <> "none" then
             m.crossfadeAnim.control = "start"
         end if
-
         m.top.currentIndex = nextIndex
         m.activeIsA = not m.activeIsA
         m.elapsedSec = 0
-
         if m.top.motion = "ken_burns" then
             if m.activeIsA then
                 m.kenBurnsAAnim.control = "start"
@@ -72,3 +69,4 @@ sub onPosterLoad(event as object)
         print "[PhotoCycle] poster failed to load; skipping frame"
     end if
 end sub
+'//# sourceMappingURL=./PhotoCycle.brs.map
