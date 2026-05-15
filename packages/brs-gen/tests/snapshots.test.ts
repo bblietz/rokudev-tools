@@ -609,6 +609,11 @@ describe('screensaver snapshots', () => {
       join(PKG_ROOT, 'templates', 'screensaver', 'files', 'source', 'lib', 'Feed.brs'),
       join(projectDir, 'source', 'lib', 'Feed.brs'),
     );
+    await mkdir(join(projectDir, 'data'), { recursive: true });
+    await copyFile(
+      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'data', 'screensaver-feed.json'),
+      join(projectDir, 'data', 'screensaver-feed.json'),
+    );
   });
 
   afterAll(async () => {
@@ -671,5 +676,21 @@ describe('screensaver snapshots', () => {
     // The regex targets the assignment form so mentions in comments are allowed.
     expect(s).not.toMatch(/node\.SecondaryTitle/);
     expect(s).toContain('ShortDescriptionLine2');
+  });
+
+  it('data/screensaver-feed.json matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'data', 'screensaver-feed.json'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/screensaver-feed.json.snap.txt');
+  });
+
+  it('screensaver-feed.json contains exactly 8 sequential entries with stable ids', async () => {
+    const raw = await readFile(join(projectDir, 'data', 'screensaver-feed.json'), 'utf8');
+    const feed = JSON.parse(raw) as { version: number; photos: Array<{ id: string; url: string }> };
+    expect(feed.version).toBe(1);
+    expect(feed.photos).toHaveLength(8);
+    feed.photos.forEach((p, i) => {
+      expect(p.id).toBe(`p${i + 1}`);
+      expect(p.url).toBe(`pkg:/images/sample-photo-${i + 1}.jpg`);
+    });
   });
 });

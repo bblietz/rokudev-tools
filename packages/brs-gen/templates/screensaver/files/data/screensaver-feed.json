@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "photos": [
+    { "id": "p1", "url": "pkg:/images/sample-photo-1.jpg", "title": "Sample Photo 1", "credit": "Generated placeholder" },
+    { "id": "p2", "url": "pkg:/images/sample-photo-2.jpg", "title": "Sample Photo 2", "credit": "Generated placeholder" },
+    { "id": "p3", "url": "pkg:/images/sample-photo-3.jpg", "title": "Sample Photo 3", "credit": "Generated placeholder" },
+    { "id": "p4", "url": "pkg:/images/sample-photo-4.jpg", "title": "Sample Photo 4", "credit": "Generated placeholder" },
+    { "id": "p5", "url": "pkg:/images/sample-photo-5.jpg", "title": "Sample Photo 5", "credit": "Generated placeholder" },
+    { "id": "p6", "url": "pkg:/images/sample-photo-6.jpg", "title": "Sample Photo 6", "credit": "Generated placeholder" },
+    { "id": "p7", "url": "pkg:/images/sample-photo-7.jpg", "title": "Sample Photo 7", "credit": "Generated placeholder" },
+    { "id": "p8", "url": "pkg:/images/sample-photo-8.jpg", "title": "Sample Photo 8", "credit": "Generated placeholder" }
+  ]
+}

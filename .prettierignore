@@ -7,3 +7,6 @@ corpus/build
 docs/superpowers
 packages/brs-gen/tests/__golden__
 packages/brs-gen/tests/__snapshots__/video-grid
+packages/brs-gen/templates/news_channel/files/data
+packages/brs-gen/templates/music_player/files/data
+packages/brs-gen/templates/screensaver/files/data
