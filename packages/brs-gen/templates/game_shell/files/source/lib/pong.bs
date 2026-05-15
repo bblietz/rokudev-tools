@@ -58,8 +58,8 @@ function Pong_CollidePaddle(ballX as float, ballY as float, vx as float, vy as f
     if ballY + PONG_BALL_SIZE% < paddleY then return { vx: vx, vy: vy }
     if ballY > paddleY + PONG_PADDLE_H% then return { vx: vx, vy: vy }
     ' Approaching-frame check: paddle on left of ball means ball is moving
-    ' rightward into a left paddle (vx < 0 = approaching); paddle on right
-    ' of ball means ball moving rightward (vx > 0 = approaching).
+    ' leftward into a left paddle (vx < 0 = approaching); paddle on right
+    ' of ball means ball moving rightward into a right paddle (vx > 0 = approaching).
     paddleCentreX = paddleX + (PONG_PADDLE_W% / 2)
     if paddleCentreX < ballX and vx > 0 then return { vx: vx, vy: vy }   ' moving away
     if paddleCentreX > ballX and vx < 0 then return { vx: vx, vy: vy }   ' moving away
