@@ -31,6 +31,7 @@ describe('error-codes registry', () => {
       'NOT_IMPLEMENTED',
       'DEVICE_NO_PASSWORD',
       'CATALOG_INTEGRITY',
+      'SCREENSAVER_ZIP_TOO_LARGE',
     ]) {
       expect(BRS_GEN_ERROR_CODES).toContain(c);
     }
@@ -44,6 +45,7 @@ describe('error-codes registry', () => {
       'SPEC_AUTO_PROMOTED',
       'HOOK_DISPATCH_NOT_INVOKED',
       'MANIFEST_DRIFT',
+      'SCREENSAVER_ZIP_NEAR_LIMIT',
     ]) {
       expect(BRS_GEN_WARNING_CODES).toContain(c);
     }

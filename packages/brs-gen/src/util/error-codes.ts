@@ -40,6 +40,10 @@ export const BRS_GEN_WARNING_CODES = [
   'SPEC_AUTO_PROMOTED',
   'HOOK_DISPATCH_NOT_INVOKED',
   'MANIFEST_DRIFT',
+  // SCREENSAVER_ZIP_NEAR_LIMIT is pushed as a warning when a screensaver zip
+  // is between 3.5 MB and 4 MB (approaching cert rule 3.7 limit). Distinct
+  // from SCREENSAVER_ZIP_TOO_LARGE (error registry) which fires above 4 MB.
+  'SCREENSAVER_ZIP_NEAR_LIMIT',
 ] as const;
 
 export type BrsGenErrorCode = (typeof BRS_GEN_ERROR_CODES)[number];

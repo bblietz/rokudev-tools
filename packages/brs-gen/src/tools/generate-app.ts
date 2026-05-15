@@ -18,6 +18,7 @@ import { renderTemplateFiles } from '../render/ejs.js';
 import { writeProject } from '../build/write.js';
 import { compileProject } from '../build/compile.js';
 import { packageProject } from '../build/zip.js';
+import { validateScreensaverZipSize } from '../build/screensaver-validators.js';
 import type { ModuleToml } from '../catalog/module-toml.js';
 import { findPkgRoot, importTemplateSchema, readPkgVersion } from '../util/paths.js';
 
@@ -442,11 +443,12 @@ registerToolsModule((tools) => {
         zipBytes = (await stat(zipPath)).size;
 
         // 13a. Cert rule 3.7: screensaver zip size check (template-conditional).
-        const { validateScreensaverZipSize } = await import('../build/screensaver-validators.js');
+        // Validator throws SCREENSAVER_ZIP_TOO_LARGE if > 4 MB; returns warnings
+        // tagged SCREENSAVER_ZIP_NEAR_LIMIT for the 3.5-4 MB amber band.
         const manifestText = await readFile(join(outputDir, 'manifest'), 'utf8');
         const ssvr = await validateScreensaverZipSize(zipPath, manifestText);
         for (const w of ssvr.warnings) {
-          warnings.push({ code: 'SCREENSAVER_ZIP_TOO_LARGE', message: w });
+          warnings.push({ code: 'SCREENSAVER_ZIP_NEAR_LIMIT', message: w });
         }
       }
 
