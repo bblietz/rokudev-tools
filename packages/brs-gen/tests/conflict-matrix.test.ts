@@ -342,3 +342,13 @@ describe('conflict-matrix: music_player entries', () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe('conflict-matrix: screensaver entries', () => {
+  it('screensaver + no modules: merges cleanly', async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    const template = cat.templates.get('screensaver')!;
+    expect(template).toBeDefined();
+    const result = await runEntry(template, []);
+    expect(result.ok).toBe(true);
+  });
+});
