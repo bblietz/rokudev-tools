@@ -149,9 +149,9 @@ describe('game_shell template threading', () => {
     );
     expect(result.ok).toBe(true);
     const cfg = readFileSync(join(result.outputDir, 'source/_template/config.brs'), 'utf8');
-    expect(cfg).toContain('"cpu_difficulty": "normal"');
-    expect(cfg).toContain('"score_to_win": "5"');
-    expect(cfg).toContain('"high_score_persistence": "true"');
+    expect(cfg).toContain('cpu_difficulty: "normal"');
+    expect(cfg).toContain('score_to_win: "5"');
+    expect(cfg).toContain('high_score_persistence: "true"');
   });
 
   it('emits cpu_difficulty=hard when set', async () => {
@@ -161,7 +161,7 @@ describe('game_shell template threading', () => {
     );
     expect(result.ok).toBe(true);
     const cfg = readFileSync(join(result.outputDir, 'source/_template/config.brs'), 'utf8');
-    expect(cfg).toContain('"cpu_difficulty": "hard"');
+    expect(cfg).toContain('cpu_difficulty: "hard"');
   });
 
   it('emits score_to_win=10 when set', async () => {
@@ -171,7 +171,7 @@ describe('game_shell template threading', () => {
     );
     expect(result.ok).toBe(true);
     const cfg = readFileSync(join(result.outputDir, 'source/_template/config.brs'), 'utf8');
-    expect(cfg).toContain('"score_to_win": "10"');
+    expect(cfg).toContain('score_to_win: "10"');
   });
 
   it('emits high_score_persistence=false when set', async () => {
@@ -181,7 +181,7 @@ describe('game_shell template threading', () => {
     );
     expect(result.ok).toBe(true);
     const cfg = readFileSync(join(result.outputDir, 'source/_template/config.brs'), 'utf8');
-    expect(cfg).toContain('"high_score_persistence": "false"');
+    expect(cfg).toContain('high_score_persistence: "false"');
   });
 });
 ```

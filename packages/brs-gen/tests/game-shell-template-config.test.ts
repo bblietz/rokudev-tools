@@ -70,17 +70,17 @@ describe('game_shell template-config: bare spec (defaults)', () => {
 
   it('config.brs contains cpu_difficulty="normal" (Zod default)', async () => {
     const s = await readFile(join(projectDir, 'source/_template/config.brs'), 'utf8');
-    expect(s).toContain('"cpu_difficulty": "normal"');
+    expect(s).toContain('cpu_difficulty: "normal"');
   });
 
   it('config.brs contains score_to_win="5" (Zod default)', async () => {
     const s = await readFile(join(projectDir, 'source/_template/config.brs'), 'utf8');
-    expect(s).toContain('"score_to_win": "5"');
+    expect(s).toContain('score_to_win: "5"');
   });
 
   it('config.brs contains high_score_persistence="true" (Zod default)', async () => {
     const s = await readFile(join(projectDir, 'source/_template/config.brs'), 'utf8');
-    expect(s).toContain('"high_score_persistence": "true"');
+    expect(s).toContain('high_score_persistence: "true"');
   });
 });
 
@@ -123,7 +123,7 @@ describe('game_shell template-config: cpu_difficulty=hard', () => {
 
   it('config.brs contains cpu_difficulty="hard"', async () => {
     const s = await readFile(join(projectDir, 'source/_template/config.brs'), 'utf8');
-    expect(s).toContain('"cpu_difficulty": "hard"');
+    expect(s).toContain('cpu_difficulty: "hard"');
   });
 });
 
@@ -166,7 +166,7 @@ describe('game_shell template-config: score_to_win=10', () => {
 
   it('config.brs contains score_to_win="10"', async () => {
     const s = await readFile(join(projectDir, 'source/_template/config.brs'), 'utf8');
-    expect(s).toContain('"score_to_win": "10"');
+    expect(s).toContain('score_to_win: "10"');
   });
 });
 
@@ -209,6 +209,6 @@ describe('game_shell template-config: high_score_persistence=false', () => {
 
   it('config.brs contains high_score_persistence="false"', async () => {
     const s = await readFile(join(projectDir, 'source/_template/config.brs'), 'utf8');
-    expect(s).toContain('"high_score_persistence": "false"');
+    expect(s).toContain('high_score_persistence: "false"');
   });
 });
