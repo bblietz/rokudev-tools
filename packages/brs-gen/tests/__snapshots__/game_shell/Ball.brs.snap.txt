@@ -1,0 +1,13 @@
+sub init()
+    m.ballRect = m.top.findNode("ballRect")
+    m.top.observeField("ballX", "onBallPos")
+    m.top.observeField("ballY", "onBallPos")
+end sub
+
+sub onBallPos()
+    m.ballRect.translation = [
+        m.top.ballX
+        m.top.ballY
+    ]
+end sub
+'//# sourceMappingURL=./Ball.brs.map

@@ -843,4 +843,14 @@ describe('game_shell snapshots', () => {
     const s = await readFile(join(projectDir, 'source', 'lib', 'pong.brs'), 'utf8');
     await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/pong.brs.snap.txt');
   });
+
+  it('Ball.xml', async () => {
+    const s = await readFile(join(projectDir, 'components', 'Ball.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/Ball.xml.snap.txt');
+  });
+
+  it('Ball.brs', async () => {
+    const s = await readFile(join(projectDir, 'components', 'Ball.brs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/Ball.brs.snap.txt');
+  });
 });

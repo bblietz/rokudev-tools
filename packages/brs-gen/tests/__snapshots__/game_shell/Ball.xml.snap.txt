@@ -6,7 +6,7 @@
         <field id="vx" type="float" />
         <field id="vy" type="float" />
     </interface>
-    <script type="text/brightscript" uri="Ball.bs" />
+    <script type="text/brightscript" uri="Ball.brs" />
     <children>
         <Rectangle id="ballRect" width="24" height="24" color="0xFFFFFFFF" />
     </children>
