@@ -1,0 +1,85 @@
+' ---------------------------------------------------------------------
+' pong.brs - pure-math helpers for game_shell template (Pong reference).
+' No SG references, no m.*. Deterministic. TS shim mirrors this file
+' verbatim at packages/brs-gen/tests/pong-helpers.ts; keep
+' the constants below in sync (covered by pong-const-parity.test.ts).
+' ---------------------------------------------------------------------
+
+' Logical canvas constants (1920x1080 top-left origin; +x right, +y down).
+const PONG_SCREEN_W% = 1920
+const PONG_SCREEN_H% = 1080
+const PONG_PADDLE_W% = 20
+const PONG_PADDLE_H% = 140
+const PONG_BALL_SIZE% = 24
+const PONG_PADDLE_SPEED_PX% = 12
+const PONG_BALL_VX_INITIAL! = 9.0
+const PONG_BALL_VY_INITIAL! = 4.5
+
+' CPU paddle: track ballY toward paddle centre, lagged by lagPx.
+' Returns the new top-left paddleY for the CPU side. CPU delta is
+' capped at 1.2 * PONG_PADDLE_SPEED_PX per tick (R1 mitigation).
+function Pong_StepCpu(currentPaddleY as float, ballY as float, lagPx as integer) as float
+    targetCentre = ballY
+    paddleCentre = currentPaddleY + (PONG_PADDLE_H% / 2)
+    delta = targetCentre - paddleCentre
+    if abs(delta) <= lagPx then return currentPaddleY
+    maxDelta = PONG_PADDLE_SPEED_PX% * 1.2
+    if delta > maxDelta then delta = maxDelta
+    if delta < -maxDelta then delta = -maxDelta
+    newY = currentPaddleY + delta
+    if newY < 0 then newY = 0
+    maxY = PONG_SCREEN_H% - PONG_PADDLE_H%
+    if newY > maxY then newY = maxY
+    return newY
+end function
+
+' Advances ball by (vx, vy). Does NOT perform wall or paddle collision.
+' Tests left/right edges for scoring. Returns assocArray:
+'   { ballX: float, ballY: float, vx: float, vy: float, scored: string }
+' scored is "" / "player" (passed left edge; CPU wins this rally) /
+' "cpu" (passed right edge; player wins this rally).
+function Pong_StepBall(ballX as float, ballY as float, vx as float, vy as float) as object
+    nx = ballX + vx
+    ny = ballY + vy
+    scored = ""
+    if nx + PONG_BALL_SIZE% < 0 then scored = "player"
+    if nx > PONG_SCREEN_W% then scored = "cpu"
+    return { ballX: nx, ballY: ny, vx: vx, vy: vy, scored: scored }
+end function
+
+' Detects rect-vs-rect overlap of ball and paddle. Reflects vx ONLY when
+' ball is moving toward the paddle (prevents stick-collision when ball
+' overlaps paddle for >1 tick). Adds vy "english" based on hit position
+' relative to paddle centre. Returns { vx: float, vy: float }.
+function Pong_CollidePaddle(ballX as float, ballY as float, vx as float, vy as float, paddleX as float, paddleY as float) as object
+    ' Overlap check.
+    if ballX + PONG_BALL_SIZE% < paddleX then return { vx: vx, vy: vy }
+    if ballX > paddleX + PONG_PADDLE_W% then return { vx: vx, vy: vy }
+    if ballY + PONG_BALL_SIZE% < paddleY then return { vx: vx, vy: vy }
+    if ballY > paddleY + PONG_PADDLE_H% then return { vx: vx, vy: vy }
+    ' Approaching-frame check: paddle on left of ball means ball is moving
+    ' rightward into a left paddle (vx < 0 = approaching); paddle on right
+    ' of ball means ball moving rightward (vx > 0 = approaching).
+    paddleCentreX = paddleX + (PONG_PADDLE_W% / 2)
+    if paddleCentreX < ballX and vx > 0 then return { vx: vx, vy: vy }   ' moving away
+    if paddleCentreX > ballX and vx < 0 then return { vx: vx, vy: vy }   ' moving away
+    ' Reflect vx; add english based on (ballCentreY - paddleCentreY).
+    ballCentreY = ballY + (PONG_BALL_SIZE% / 2)
+    paddleCentreY = paddleY + (PONG_PADDLE_H% / 2)
+    english = (ballCentreY - paddleCentreY) / (PONG_PADDLE_H% / 2)   ' -1.0 .. 1.0
+    return { vx: -vx, vy: vy + (english * 3.0) }
+end function
+
+' Detects ball-vs-wall (top OR bottom). Flips vy on wall hit.
+function Pong_CollideWall(ballY as float, vy as float, screenH as integer) as float
+    if ballY <= 0 and vy < 0 then return -vy
+    if ballY + PONG_BALL_SIZE% >= screenH and vy > 0 then return -vy
+    return vy
+end function
+
+' Difficulty -> CPU lag in pixels. Unknown -> 25 (normal).
+function Pong_DifficultyToLagPx(difficulty as string) as integer
+    if difficulty = "easy" then return 60
+    if difficulty = "hard" then return 5
+    return 25
+end function

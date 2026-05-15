@@ -1,0 +1,146 @@
+' ---------------------------------------------------------------------
+' pong.brs - pure-math helpers for game_shell template (Pong reference).
+' No SG references, no m.*. Deterministic. TS shim mirrors this file
+' verbatim at packages/brs-gen/tests/pong-helpers.ts; keep
+' the constants below in sync (covered by pong-const-parity.test.ts).
+' ---------------------------------------------------------------------
+' Logical canvas constants (1920x1080 top-left origin; +x right, +y down).
+
+
+
+
+
+
+
+
+
+' CPU paddle: track ballY toward paddle centre, lagged by lagPx.
+' Returns the new top-left paddleY for the CPU side. CPU delta is
+' capped at 1.2 * PONG_PADDLE_SPEED_PX per tick (R1 mitigation).
+function Pong_StepCpu(currentPaddleY as float, ballY as float, lagPx as integer) as float
+    targetCentre = ballY
+    paddleCentre = currentPaddleY + (140 / 2)
+    delta = targetCentre - paddleCentre
+    if abs(delta) <= lagPx then
+        return currentPaddleY
+    end if
+    maxDelta = 12 * 1.2
+    if delta > maxDelta then
+        delta = maxDelta
+    end if
+    if delta < -maxDelta then
+        delta = -maxDelta
+    end if
+    newY = currentPaddleY + delta
+    if newY < 0 then
+        newY = 0
+    end if
+    maxY = 1080 - 140
+    if newY > maxY then
+        newY = maxY
+    end if
+    return newY
+end function
+
+' Advances ball by (vx, vy). Does NOT perform wall or paddle collision.
+' Tests left/right edges for scoring. Returns assocArray:
+'   { ballX: float, ballY: float, vx: float, vy: float, scored: string }
+' scored is "" / "player" (passed left edge; CPU wins this rally) /
+' "cpu" (passed right edge; player wins this rally).
+function Pong_StepBall(ballX as float, ballY as float, vx as float, vy as float) as object
+    nx = ballX + vx
+    ny = ballY + vy
+    scored = ""
+    if nx + 24 < 0 then
+        scored = "player"
+    end if
+    if nx > 1920 then
+        scored = "cpu"
+    end if
+    return {
+        ballX: nx
+        ballY: ny
+        vx: vx
+        vy: vy
+        scored: scored
+    }
+end function
+
+' Detects rect-vs-rect overlap of ball and paddle. Reflects vx ONLY when
+' ball is moving toward the paddle (prevents stick-collision when ball
+' overlaps paddle for >1 tick). Adds vy "english" based on hit position
+' relative to paddle centre. Returns { vx: float, vy: float }.
+function Pong_CollidePaddle(ballX as float, ballY as float, vx as float, vy as float, paddleX as float, paddleY as float) as object
+    ' Overlap check.
+    if ballX + 24 < paddleX then
+        return {
+            vx: vx
+            vy: vy
+        }
+    end if
+    if ballX > paddleX + 20 then
+        return {
+            vx: vx
+            vy: vy
+        }
+    end if
+    if ballY + 24 < paddleY then
+        return {
+            vx: vx
+            vy: vy
+        }
+    end if
+    if ballY > paddleY + 140 then
+        return {
+            vx: vx
+            vy: vy
+        }
+    end if
+    ' Approaching-frame check: paddle on left of ball means ball is moving
+    ' rightward into a left paddle (vx < 0 = approaching); paddle on right
+    ' of ball means ball moving rightward (vx > 0 = approaching).
+    paddleCentreX = paddleX + (20 / 2)
+    if paddleCentreX < ballX and vx > 0 then
+        return {
+            vx: vx
+            vy: vy
+        }
+    end if ' moving away
+    if paddleCentreX > ballX and vx < 0 then
+        return {
+            vx: vx
+            vy: vy
+        }
+    end if ' moving away
+    ' Reflect vx; add english based on (ballCentreY - paddleCentreY).
+    ballCentreY = ballY + (24 / 2)
+    paddleCentreY = paddleY + (140 / 2)
+    english = (ballCentreY - paddleCentreY) / (140 / 2) ' -1.0 .. 1.0
+    return {
+        vx: -vx
+        vy: vy + (english * 3.0)
+    }
+end function
+
+' Detects ball-vs-wall (top OR bottom). Flips vy on wall hit.
+function Pong_CollideWall(ballY as float, vy as float, screenH as integer) as float
+    if ballY <= 0 and vy < 0 then
+        return -vy
+    end if
+    if ballY + 24 >= screenH and vy > 0 then
+        return -vy
+    end if
+    return vy
+end function
+
+' Difficulty -> CPU lag in pixels. Unknown -> 25 (normal).
+function Pong_DifficultyToLagPx(difficulty as string) as integer
+    if difficulty = "easy" then
+        return 60
+    end if
+    if difficulty = "hard" then
+        return 5
+    end if
+    return 25
+end function
+'//# sourceMappingURL=./pong.brs.map
