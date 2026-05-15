@@ -584,6 +584,15 @@ describe('screensaver snapshots', () => {
     // Render manifest.ejs in isolation (full pipeline requires Tasks 5-11 source
     // files that don't exist yet). This is the recommended fallback from the task
     // spec: render the EJS directly so the snapshot and allowlist tests pass now.
+    //
+    // FIXME(Plan 4e Task 11): collapse this beforeAll to the full-pipeline pattern
+    // used by other templates' snapshot blocks (call getGenerateAppHandler against
+    // the screensaver template). At that point also convert
+    // templates/screensaver/files/manifest.ejs to the placeholder convention used
+    // by the other 4 templates (the merger emits the manifest from
+    // template_manifest_defaults in template.toml; the .ejs file is structurally
+    // vestigial). Snapshot will need re-saving because the merger emits keys in
+    // alphabetical order, while the EJS-isolation render preserves .ejs line order.
     const ejsPath = join(PKG_ROOT, 'templates', 'screensaver', 'files', 'manifest.ejs');
     const ejsTemplate = await readFile(ejsPath, 'utf8');
     const rendered = ejs.render(ejsTemplate, {
