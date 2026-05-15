@@ -35,6 +35,11 @@ sub init()
     ' Wire timer + key handler.
     m.tick.observeField("fire", "onTick")
 
+    ' Explicit Scene-root focus: with no focusable child (no PosterGrid /
+    ' Button) the default focus is unreliable on some Roku firmwares; this
+    ' guarantees onKeyEvent receives D-pad input.
+    m.top.setFocus(true)
+
     ' Enter title (idempotent).
     enterTitle()
 
@@ -94,8 +99,11 @@ sub enterGameOver()
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
+    ' Roku firmware variation: ECP "Select" maps to key="OK" on most platforms
+    ' but key="select" (lowercase) on Roku TV Native (per music_player/news_channel
+    ' precedent). Accept either to be firmware-agnostic.
     if m.state = "title" then
-        if key = "OK" and press then
+        if (key = "OK" or key = "select") and press then
             enterPlaying()
             return true
         end if
@@ -117,7 +125,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return false
     end if
     if m.state = "gameover" then
-        if (key = "OK" or key = "back") and press then
+        if (key = "OK" or key = "select" or key = "back") and press then
             enterTitle()
             return true
         end if
