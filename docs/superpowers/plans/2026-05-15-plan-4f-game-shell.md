@@ -53,21 +53,21 @@ packages/brs-gen/
   scripts/
     t27-game-shell.mjs                                 # Task 13
   tests/
-    templates/
-      game-shell-schema.test.ts                        # Task 2
-      pong-helpers.ts                                  # Task 6 (TS shim, NOT a test)
-      pong-helpers.test.ts                             # Task 6
-      pong-const-parity.test.ts                        # Task 7
-    e2e/
-      game-shell.test.ts                               # Task 12
-    __golden__/game_shell/
-      game-shell.zip                                   # Task 12 (regen)
-      manifest.snap                                    # Task 3
-      main.brs.snap                                    # Task 4
-      pong.brs.snap                                    # Task 5
-      Ball.xml.snap, Ball.bs.snap                      # Task 8
-      Paddle.xml.snap, Paddle.bs.snap                  # Task 9
-      GameScene.xml.snap, GameScene.bs.snap            # Task 10
+    game-shell-schema.test.ts                          # Task 2 (flat; new file)
+    pong-helpers.ts                                    # Task 6 (TS shim; sibling, NOT a test)
+    pong-helpers.test.ts                               # Task 6 (flat; new file)
+    pong-const-parity.test.ts                          # Task 7 (flat; new file)
+    __snapshots__/game_shell/                          # Tasks 3, 4, 5, 8, 9, 10
+      manifest.snap.txt
+      main.brs.snap.txt
+      pong.brs.snap.txt
+      Ball.xml.snap.txt, Ball.brs.snap.txt
+      Paddle.xml.snap.txt, Paddle.brs.snap.txt
+      GameScene.xml.snap.txt, GameScene.brs.snap.txt
+      files-listing.snap.txt
+    __golden__/                                        # Task 12 (flat layout, hyphen naming per video-grid pattern)
+      game-shell.zip
+      game-shell.provenance.json
 
 docs/t27-evidence/
   2026-05-15-game-shell-phase-a.md                     # Task 14
@@ -79,12 +79,17 @@ docs/t27-evidence/
 **Modified:**
 
 - `packages/brs-gen/src/tools/generate-app.ts` — 3 threading lines + 3 content-cast field additions (Task 1).
-- `packages/brs-gen/tests/tools/generate-app.test.ts` — 4 new game_shell coverage entries (Task 1 within same task; tests are part of the engine-change TDD cycle).
-- `packages/brs-gen/tests/build/conflict-matrix.test.ts` — 1 new game_shell row (Task 11).
-- `packages/brs-gen/tests/build/determinism.test.ts` — 1 new game_shell entry (Task 11).
+- `packages/brs-gen/tests/snapshots.test.ts` — new `describe('game_shell snapshots', ...)` block at end of file with all per-file snapshot assertions (Tasks 3, 4, 5, 8, 9, 10). Uses the same `loadCatalog` + `buildEmittedProject` + `renderTemplateFiles` pattern as the existing `screensaver`, `news_channel`, `music_player` blocks (NOT the `generateApp` MCP entry).
+- `packages/brs-gen/tests/conflict-matrix.test.ts` — new `describe('conflict-matrix: game_shell entries', ...)` block (Task 11).
+- `packages/brs-gen/tests/determinism.test.ts` — new `it('game_shell full-pipeline byte equality across two in-process runs')` inside the existing `describe('determinism', ...)` (Task 11).
+- `packages/brs-gen/tests/e2e.test.ts` — new `describe('game_shell', ...)` inner block inside the existing `describe('brs-gen e2e: MCP smoke + golden fixtures', ...)`, mirroring the `describe('screensaver', ...)` block at lines 660-720+ (Task 12).
+- `packages/brs-gen/scripts/regen-golden.mjs` — new `regenGameShell()` async function + call from `main()` + addition to the final stdout summary string list (Task 12).
+- (Engine-cases test) — search the existing test files (NOT `tests/tools/generate-app.test.ts` which does not exist; the actual location is one of `tests/snapshots.test.ts`, `tests/conflict-matrix.test.ts`, `tests/cert-validators.test.ts`, OR a new flat file). For the 4 engine TemplateConfig threading cases, add them to a new flat file `tests/game-shell-template-config.test.ts` with the same `loadCatalog` + `buildEmittedProject` pattern (mirrors the screensaver / music_player template-config pattern; if a sibling exists like `screensaver-template-config.test.ts`, mirror it; otherwise the new file is the canonical home).
 - `README.md` — v0.5.6 release notes appended at END (ASCENDING order; Task 15).
 - `package.json` (monorepo root) — version bump to `0.5.6` (Task 17).
 - `packages/brs-gen/package.json` — version bump to `0.5.6` (Task 17).
+- `packages/roku-device-client/package.json` and `packages/rokudev-device/package.json` — IF Plan 4e's release commit (8fd4c99) bumped them, also bump to `0.5.6` (Task 17 Step 3 verifies via `git show 8fd4c99 --stat`).
+- `packages/brs-gen/tests/__golden__/{stub,blank,video-grid,news,music,screensaver,game-shell}.{zip,provenance.json}` — ALL goldens regenerated after version bump because provenance JSON embeds `BRS_GEN_VERSION` (Task 17 includes this critical step).
 - `~/.claude/projects/-Users-bblietz-Work-ClaudeProjects-rokudev-tools/memory/MEMORY.md` — Plan 4f status line + topic-file pointer (Task 16).
 
 ---
@@ -96,8 +101,8 @@ docs/t27-evidence/
 3. `manifest.ejs` + manifest snapshot test.
 4. `source/main.brs` (standard `Main()` + message pump) + snapshot.
 5. `source/lib/pong.brs` (5 helpers + module-level constants) + snapshot.
-6. `tests/templates/pong-helpers.ts` (TS shim, verbatim translation) + `pong-helpers.test.ts` (off-device unit tests).
-7. `tests/templates/pong-const-parity.test.ts` (parses BRS const block, asserts equality with TS shim).
+6. `tests/pong-helpers.ts` (TS shim, verbatim translation) + `pong-helpers.test.ts` (off-device unit tests).
+7. `tests/pong-const-parity.test.ts` (parses BRS const block, asserts equality with TS shim).
 8. `Ball.xml` + `Ball.bs` (1-Rectangle inner + position mirror) + snapshots.
 9. `Paddle.xml` + `Paddle.bs` (1-Rectangle inner + paddleY mirror + side-conditional X) + snapshots.
 10. `GameScene.xml` + `GameScene.bs` (root scene; state machine; Timer; key handler; init-hook firing from `init()`) + snapshots.
@@ -116,8 +121,12 @@ docs/t27-evidence/
 **Goal:** Thread three new `content` fields into `TemplateConfig()`. Mechanical edit; mirrors Plan 4d (`service_name`) and Plan 4e (`transition_seconds`, `motion`) exactly.
 
 **Files:**
-- Modify: `packages/brs-gen/src/tools/generate-app.ts` (TemplateConfig emission block + local content type cast)
-- Modify: `packages/brs-gen/tests/tools/generate-app.test.ts` (4 new game_shell test cases)
+- Modify: `packages/brs-gen/src/tools/generate-app.ts` (TemplateConfig emission block at lines ~360-388 + local content type cast)
+- Create: `packages/brs-gen/tests/game-shell-template-config.test.ts` (NEW flat file; the 4 engine threading test cases). Tests will fail until Task 2 ships `template.toml` + `schema.ts`.
+
+**Pre-flight (REQUIRED before editing):**
+- Run `grep -n "transition_seconds\|service_name\|live_label" packages/brs-gen/src/tools/generate-app.ts` to find the exact lines of the existing TemplateConfig threading block (per reviewer's audit, this is around lines 360-388).
+- Run `ls packages/brs-gen/tests/*.test.ts | xargs grep -l "TemplateConfig\|template-config\|transition_seconds"` to find where existing template-config emission is exercised; if a `screensaver-template-config.test.ts` or similar exists, MIRROR its shape exactly. Otherwise, the new `game-shell-template-config.test.ts` is the canonical pattern.
 
 - [ ] **Step 1: Read existing TemplateConfig threading block to confirm pattern**
 
@@ -129,7 +138,7 @@ Expected: shows the existing `if (content?.X) cfg['X'] = String(content.X);` lin
 
 - [ ] **Step 2: Write 4 failing engine test cases**
 
-Edit `packages/brs-gen/tests/tools/generate-app.test.ts`. Find the existing screensaver-coverage block (search `/screensaver.*transition_seconds/i`) and add a parallel block for `game_shell` immediately after. The 4 cases:
+Create `packages/brs-gen/tests/game-shell-template-config.test.ts` (or, if `tests/screensaver-template-config.test.ts` exists per the pre-flight grep, mirror its file structure verbatim). 4 cases:
 
 ```typescript
 describe('game_shell template threading', () => {
@@ -177,12 +186,12 @@ describe('game_shell template threading', () => {
 });
 ```
 
-Use whatever `tmpProj()` helper / `readFileSync` import / `generateApp` import the surrounding tests already use. If the surrounding tests use a different naming or async setup, MIRROR that pattern verbatim (do not introduce a new style).
+**Critical:** the actual test layer in this repo uses `loadCatalog` + `buildEmittedProject` + `renderTemplateFiles` + `setCatalogForTests` (see `tests/snapshots.test.ts` lines 1-50 for imports), NOT the MCP-bound `generateApp`. If the pre-flight grep shows other `*-template-config.test.ts` files using `generateApp` directly, mirror them; otherwise mirror the snapshots.test.ts pattern (load catalog, render files, find `source/_template/config.brs` in the rendered file list, assert text content).
 
 - [ ] **Step 3: Run failing tests to confirm they fail**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/tools/generate-app.test.ts -t "game_shell template threading"`
-Expected: 4 FAIL — either "template not found: game_shell" (template.toml absent) OR "expected to contain ... but did not" (engine threading missing). Both are acceptable failure modes; both will be fixed by Tasks 1+2.
+Run: `pnpm -C packages/brs-gen exec vitest run tests/game-shell-template-config.test.ts`
+Expected: 4 FAIL — either "template not found: game_shell" (template.toml absent) OR "expected to contain ... but did not" (engine threading missing). Both acceptable; both fixed by Tasks 1+2.
 
 (Note: these tests REQUIRE the template scaffolding from Task 2 to actually pass; they will pass at the end of Task 2, not Task 1. We're writing them now so that the engine change in this task is TDD-shaped.)
 
@@ -226,7 +235,7 @@ The 4 test cases will fail until `templates/game_shell/template.toml` exists (Ta
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/brs-gen/src/tools/generate-app.ts packages/brs-gen/tests/tools/generate-app.test.ts
+git add packages/brs-gen/src/tools/generate-app.ts packages/brs-gen/tests/game-shell-template-config.test.ts
 git commit -m "$(cat <<'EOF'
 feat(brs-gen): thread game_shell content fields into TemplateConfig
 
@@ -300,35 +309,63 @@ scene_nodes = [
 
 - [ ] **Step 3: Write `schema.ts`**
 
+**IMPORTANT:** screensaver's `schema.ts` does NOT import any `AppSpecBaseSchema`; it inlines the full envelope. Mirror that pattern verbatim. The exports MUST be named `Schema` and `Example` (NOT `GameShellSpecSchema`); the brs-gen catalog loader looks for these specific export names.
+
 Create `packages/brs-gen/templates/game_shell/schema.ts`:
 
 ```typescript
 import { z } from 'zod';
-import { AppSpecBaseSchema } from '../../src/spec/wrapper.js';
 
-const GameShellContentSchema = z.object({
-  cpu_difficulty: z.enum(['easy', 'normal', 'hard']).default('normal'),
-  score_to_win: z.number().int().min(1).max(21).default(5),
-  high_score_persistence: z.boolean().default(true),
-}).strict().default({});
+const NonNegInt = z.number().int().min(0);
 
-export const GameShellSpecSchema = AppSpecBaseSchema.extend({
-  template: z.literal('game_shell'),
-  content: GameShellContentSchema,
-}).strict();
+export const GameShellContentSchema = z
+  .object({
+    cpu_difficulty: z.enum(['easy', 'normal', 'hard']).default('normal'),
+    score_to_win: z.number().int().min(1).max(21).default(5),
+    high_score_persistence: z.boolean().default(true),
+  })
+  .strict();
 
-export default GameShellSpecSchema;
+export const Schema = z
+  .object({
+    spec_version: z.literal(2),
+    template: z.literal('game_shell'),
+    modules: z.array(z.object({ id: z.string(), config: z.unknown().optional() })).default([]),
+    app: z
+      .object({
+        name: z.string().min(1).max(50),
+        major_version: NonNegInt,
+        minor_version: NonNegInt,
+        build_version: NonNegInt,
+      })
+      .strict(),
+    branding: z.object({}).passthrough().optional(),
+    content: GameShellContentSchema.default({}),
+  })
+  .strict();
+
+export const Example = {
+  spec_version: 2 as const,
+  template: 'game_shell' as const,
+  modules: [],
+  app: { name: 'Pong', major_version: 1, minor_version: 0, build_version: 0 },
+  content: {
+    cpu_difficulty: 'normal' as const,
+    score_to_win: 5,
+    high_score_persistence: true,
+  },
+};
 ```
 
-(If `AppSpecBaseSchema` lives at a different path or under a different name in the workspace, mirror what `templates/screensaver/schema.ts` imports. Run `cat packages/brs-gen/templates/screensaver/schema.ts` to confirm.)
+Cross-reference: `cat packages/brs-gen/templates/screensaver/schema.ts` — your file should look structurally identical except for the `template` literal and the content shape.
 
 - [ ] **Step 4: Write `game-shell-schema.test.ts`**
 
-Create `packages/brs-gen/tests/templates/game-shell-schema.test.ts`:
+Create `packages/brs-gen/tests/game-shell-schema.test.ts` (flat path, NOT under `tests/templates/`):
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { GameShellSpecSchema } from '../../templates/game_shell/schema.js';
+import { Schema as GameShellSpecSchema } from '../templates/game_shell/schema.js';
 
 const baseApp = { name: 'Pong', major_version: 0, minor_version: 1, build_version: 0 };
 const baseSpec = { spec_version: 2, template: 'game_shell' as const, modules: [], app: baseApp };
@@ -384,12 +421,12 @@ describe('GameShellSpecSchema', () => {
 
 - [ ] **Step 5: Run schema tests**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-schema.test.ts`
+Run: `pnpm -C packages/brs-gen exec vitest run tests/game-shell-schema.test.ts`
 Expected: all PASS.
 
 - [ ] **Step 6: Re-run Task 1 engine tests; expect pass**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/tools/generate-app.test.ts -t "game_shell template threading"`
+Run: `pnpm -C packages/brs-gen exec vitest run tests/game-shell-template-config.test.ts`
 Expected: 4 PASS. The bare-spec test verifies that Zod defaults flow downstream via Plan 4e's `appSpec = strict.data` mechanism.
 
 If the bare-spec test still fails with "config.brs not found", the engine's emission gate may not be firing. Re-check Task 1 Step 4's edit — the existing gate `if (branding.primary_color || content || effectivePrimaryColor)` should fire because `content` is defined post-strict-parse (defaults populate it).
@@ -402,7 +439,7 @@ Expected: zero TS errors.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add packages/brs-gen/templates/game_shell/template.toml packages/brs-gen/templates/game_shell/schema.ts packages/brs-gen/tests/templates/game-shell-schema.test.ts
+git add packages/brs-gen/templates/game_shell/template.toml packages/brs-gen/templates/game_shell/schema.ts packages/brs-gen/tests/game-shell-schema.test.ts
 git commit -m "$(cat <<'EOF'
 feat(brs-gen): game_shell template metadata + schema + schema tests
 
@@ -424,23 +461,71 @@ EOF
 
 ---
 
-## Task 3: `manifest.ejs` + manifest snapshot test
+---
 
-**Goal:** Render the manifest from EJS template + snapshot the output for regression detection.
+## Snapshot test pattern (LOAD-BEARING; applies to Tasks 3, 4, 5, 8, 9, 10)
+
+Per the actual repo convention, ALL per-template snapshot assertions live in a SINGLE describe block inside `packages/brs-gen/tests/snapshots.test.ts`. Snapshot files live at `packages/brs-gen/tests/__snapshots__/game_shell/<file>.snap.txt` (note `__snapshots__`, NOT `__golden__`; `.snap.txt`, NOT `.snap`). The describe block uses `loadCatalog` + `buildEmittedProject` + `renderTemplateFiles` + `walkTemplateFiles` (helpers already imported at the top of `snapshots.test.ts`), NOT `generateApp`.
+
+**Workflow for Tasks 3-10:** create the new template file (e.g. `manifest.ejs` for Task 3) AND add the corresponding `it(...)` clause inside the new `describe('game_shell snapshots', ...)` block. The block is opened ONCE in Task 3 (mirroring the structure of `describe('screensaver snapshots', ...)` at lines 575+). Subsequent tasks (4, 5, 8, 9, 10) ADD `it(...)` clauses to the same describe block.
+
+**Reference template structure** (mirror screensaver's block at `tests/snapshots.test.ts` lines 575-650 verbatim, swapping template id and file paths):
+
+```typescript
+describe('game_shell snapshots', () => {
+  let renderedFiles: Awaited<ReturnType<typeof renderTemplateFiles>>;
+
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    const template = cat.templates.get('game_shell')!;
+    const spec = {
+      spec_version: 2 as const,
+      template: 'game_shell' as const,
+      modules: [],
+      app: { name: 'Pong', major_version: 1, minor_version: 0, build_version: 0 },
+    };
+    const built = await buildEmittedProject({ spec, template, modules: [], catalog: cat, brsGenVersion: BRS_GEN_VERSION });
+    renderedFiles = await renderTemplateFiles({ spec, template, files: built.files, ctx: built.ctx });
+  });
+
+  it('manifest', async () => {
+    const f = renderedFiles.find((x) => x.path === 'manifest')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/manifest.snap.txt');
+  });
+
+  // ... (Task 4 adds main.brs; Task 5 adds pong.brs; Task 8 adds Ball.{xml,brs}; Task 9 Paddle; Task 10 GameScene)
+
+  it('files-listing', async () => {
+    const paths = renderedFiles.map((x) => x.path).sort();
+    await expect(paths.join('\n') + '\n').toMatchFileSnapshot('__snapshots__/game_shell/files-listing.snap.txt');
+  });
+});
+```
+
+The exact API of `loadCatalog` / `buildEmittedProject` / `renderTemplateFiles` / `walkTemplateFiles` and the `BRS_GEN_VERSION` constant are already used by the existing screensaver block — confirm by reading `tests/snapshots.test.ts` lines 1-100 (imports + constants) and 575-650 (screensaver block). Mirror them; do NOT introduce new helpers.
+
+**Path convention:** in the rendered files list, after `compile.ts` post-compile sweep, `.bs` source files appear as `.brs` (so `components/Ball.bs` becomes `components/Ball.brs`). Snapshot file naming follows the rendered (post-sweep) form: `Ball.brs.snap.txt`, NOT `Ball.bs.snap.txt`. Cross-check with `ls tests/__snapshots__/screensaver/`: you'll see `PhotoCycle.brs.snap.txt` etc.
+
+---
+
+## Task 3: `manifest.ejs` + manifest snapshot
+
+**Goal:** Render the manifest from EJS template + snapshot for regression detection. **Open the `describe('game_shell snapshots', ...)` block in `tests/snapshots.test.ts` for the first time.**
 
 **Files:**
 - Create: `packages/brs-gen/templates/game_shell/files/manifest.ejs`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/manifest.snap`
-- Modify: existing manifest snapshot test runner if a per-template registry exists; otherwise add inline test in `tests/templates/game-shell-manifest.test.ts`.
+- Modify: `packages/brs-gen/tests/snapshots.test.ts` (add the new describe block per the preamble pattern)
+- Create (auto-generated by `-u`): `packages/brs-gen/tests/__snapshots__/game_shell/manifest.snap.txt`
 
-- [ ] **Step 1: Inspect screensaver's `manifest.ejs` and how its snapshot test is wired**
+- [ ] **Step 1: Inspect screensaver's `manifest.ejs` + the `describe('screensaver snapshots', ...)` block**
 
 Run:
 ```
 cat packages/brs-gen/templates/screensaver/files/manifest.ejs
-ls packages/brs-gen/tests/templates/ | grep manifest
+sed -n '575,650p' packages/brs-gen/tests/snapshots.test.ts
+ls packages/brs-gen/tests/__snapshots__/screensaver/
 ```
-Confirm the per-template snapshot pattern (likely a `<template>-manifest.test.ts` file using `toMatchFileSnapshot`).
+Confirm: the screensaver describe block opens with `beforeAll` + a sequence of `it('<file>', ...)` calls. Snapshot files at `tests/__snapshots__/screensaver/<file>.snap.txt`.
 
 - [ ] **Step 2: Write `manifest.ejs`**
 
@@ -464,42 +549,44 @@ requires_audio_guide=0
 
 Note: `build_version` uses Roku's required 5-digit zero-padded format (`00000` minimum). Confirm whether the merger / EJS context handles padding upstream — if it does, drop `padStart(5, '0')` and emit raw. If unsure, run `cat packages/brs-gen/templates/screensaver/files/manifest.ejs` and mirror its build_version pattern.
 
-- [ ] **Step 3: Write manifest snapshot test**
+- [ ] **Step 3: Open the new describe block in `tests/snapshots.test.ts`**
 
-Create `packages/brs-gen/tests/templates/game-shell-manifest.test.ts`:
+Append (at the END of `packages/brs-gen/tests/snapshots.test.ts`, AFTER the existing `describe('screensaver snapshots', ...)` block):
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { generateApp } from '../../src/tools/generate-app.js';
+describe('game_shell snapshots', () => {
+  let renderedFiles: Awaited<ReturnType<typeof renderTemplateFiles>>;
 
-describe('game_shell manifest snapshot', () => {
-  it('matches golden manifest', async () => {
-    const outputDir = mkdtempSync(join(tmpdir(), 'game-shell-manifest-'));
-    const result = await generateApp(
-      { spec_version: 2, template: 'game_shell', modules: [], app: { name: 'Pong E2E', major_version: 0, minor_version: 1, build_version: 0 } },
-      { outputDir },
-    );
-    expect(result.ok).toBe(true);
-    const manifest = readFileSync(join(outputDir, 'manifest'), 'utf8');
-    await expect(manifest).toMatchFileSnapshot('../__golden__/game_shell/manifest.snap');
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    const template = cat.templates.get('game_shell')!;
+    const spec = {
+      spec_version: 2 as const,
+      template: 'game_shell' as const,
+      modules: [],
+      app: { name: 'Pong', major_version: 1, minor_version: 0, build_version: 0 },
+    };
+    const built = await buildEmittedProject({ spec, template, modules: [], catalog: cat, brsGenVersion: BRS_GEN_VERSION });
+    renderedFiles = await renderTemplateFiles({ spec, template, files: built.files, ctx: built.ctx });
+  });
+
+  it('manifest', async () => {
+    const f = renderedFiles.find((x) => x.path === 'manifest')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/manifest.snap.txt');
   });
 });
 ```
 
-Mirror whatever import paths and helper conventions the screensaver snapshot test uses (look at `tests/templates/screensaver-manifest.test.ts` if it exists).
+Adapt the API names to whatever the screensaver block at line 575+ actually uses (verbatim signatures observed in your Step 1 inspection take precedence over the sketch above).
 
 - [ ] **Step 4: Run snapshot test (first run creates the snap file)**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-manifest.test.ts -u`
-Expected: PASS. The `-u` flag writes the snapshot file. Verify the file exists at `tests/__golden__/game_shell/manifest.snap`.
+Run: `pnpm -C packages/brs-gen exec vitest run tests/snapshots.test.ts -t "game_shell snapshots > manifest" -u`
+Expected: PASS. The `-u` flag writes the snapshot file. Verify the file exists at `tests/__snapshots__/game_shell/manifest.snap.txt`.
 
-- [ ] **Step 5: Open the generated `manifest.snap` and audit against spec §4**
+- [ ] **Step 5: Open the generated snap and audit against spec §4**
 
-Run: `cat packages/brs-gen/tests/__golden__/game_shell/manifest.snap`
+Run: `cat packages/brs-gen/tests/__snapshots__/game_shell/manifest.snap.txt`
 Expected: 13 lines matching spec §4 verbatim. Confirm:
 - `title=Pong E2E`
 - `major_version=0`, `minor_version=1`, `build_version=00000` (or `0` — match whatever Step 2 produced)
@@ -513,13 +600,13 @@ If anything is off, fix `manifest.ejs` and re-run with `-u`.
 
 - [ ] **Step 6: Re-run without `-u` to confirm idempotent**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-manifest.test.ts`
+Run: `pnpm -C packages/brs-gen exec vitest run tests/snapshots.test.ts -t "game_shell snapshots > manifest"`
 Expected: PASS (no snapshot updates).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/brs-gen/templates/game_shell/files/manifest.ejs packages/brs-gen/tests/templates/game-shell-manifest.test.ts packages/brs-gen/tests/__golden__/game_shell/manifest.snap
+git add packages/brs-gen/templates/game_shell/files/manifest.ejs packages/brs-gen/tests/snapshots.test.ts packages/brs-gen/tests/__snapshots__/game_shell/manifest.snap.txt
 git commit -m "$(cat <<'EOF'
 feat(brs-gen): game_shell manifest.ejs + golden snapshot
 
@@ -541,8 +628,8 @@ EOF
 
 **Files:**
 - Create: `packages/brs-gen/templates/game_shell/files/source/main.brs`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/main.brs.snap`
-- Create: `packages/brs-gen/tests/templates/game-shell-main.test.ts`
+- Modify: `packages/brs-gen/tests/snapshots.test.ts` (add `it('main.brs', ...)` to the existing `describe('game_shell snapshots', ...)` block from Task 3)
+- Create (auto via `-u`): `packages/brs-gen/tests/__snapshots__/game_shell/main.brs.snap.txt`
 
 - [ ] **Step 1: Reference an existing template's `main.brs` for the canonical pattern**
 
@@ -574,35 +661,21 @@ end sub
 
 (If the existing template's `main.brs` uses a slightly different idiom — e.g. a local `m.global` setup, or a `roUrlTransfer`-priming workaround — match the existing pattern verbatim instead. Determinism matters more than novelty here.)
 
-- [ ] **Step 3: Write snapshot test**
+- [ ] **Step 3: Add `it('main.brs', ...)` to the existing describe block**
 
-Create `packages/brs-gen/tests/templates/game-shell-main.test.ts`:
+In `packages/brs-gen/tests/snapshots.test.ts`, inside the `describe('game_shell snapshots', ...)` opened in Task 3, add (after the `it('manifest', ...)`):
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { readFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { generateApp } from '../../src/tools/generate-app.js';
-
-describe('game_shell main.brs snapshot', () => {
-  it('matches golden main.brs', async () => {
-    const outputDir = mkdtempSync(join(tmpdir(), 'game-shell-main-'));
-    const result = await generateApp(
-      { spec_version: 2, template: 'game_shell', modules: [], app: { name: 'Pong', major_version: 0, minor_version: 1, build_version: 0 } },
-      { outputDir },
-    );
-    expect(result.ok).toBe(true);
-    const main = readFileSync(join(outputDir, 'source/main.brs'), 'utf8');
-    await expect(main).toMatchFileSnapshot('../__golden__/game_shell/main.brs.snap');
+  it('main.brs', async () => {
+    const f = renderedFiles.find((x) => x.path === 'source/main.brs')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/main.brs.snap.txt');
   });
-});
 ```
 
 - [ ] **Step 4: Run snapshot test with `-u`**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-main.test.ts -u`
-Expected: PASS. Snap file written.
+Run: `pnpm -C packages/brs-gen exec vitest run tests/snapshots.test.ts -t "game_shell snapshots > main.brs" -u`
+Expected: PASS. Snap file written at `tests/__snapshots__/game_shell/main.brs.snap.txt`.
 
 - [ ] **Step 5: Re-run without `-u`**
 
@@ -611,7 +684,7 @@ Expected: PASS, no updates.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/brs-gen/templates/game_shell/files/source/main.brs packages/brs-gen/tests/templates/game-shell-main.test.ts packages/brs-gen/tests/__golden__/game_shell/main.brs.snap
+git add packages/brs-gen/templates/game_shell/files/source/main.brs packages/brs-gen/tests/snapshots.test.ts packages/brs-gen/tests/__snapshots__/game_shell/main.brs.snap.txt
 git commit -m "feat(brs-gen): game_shell source/main.brs + golden snapshot
 
 Standard sub Main() + roSGScreen + message-pump loop. Creates the
@@ -628,8 +701,8 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `packages/brs-gen/templates/game_shell/files/source/lib/pong.brs`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/pong.brs.snap`
-- Create: `packages/brs-gen/tests/templates/game-shell-pong-brs.test.ts`
+- Modify: `packages/brs-gen/tests/snapshots.test.ts` (add `it('pong.brs', ...)` to the describe block)
+- Create (auto via `-u`): `packages/brs-gen/tests/__snapshots__/game_shell/pong.brs.snap.txt`
 
 - [ ] **Step 1: Write `pong.brs`**
 
@@ -639,7 +712,7 @@ Create `packages/brs-gen/templates/game_shell/files/source/lib/pong.brs`:
 ' ---------------------------------------------------------------------
 ' pong.brs - pure-math helpers for game_shell template (Pong reference).
 ' No SG references, no m.*. Deterministic. TS shim mirrors this file
-' verbatim at packages/brs-gen/tests/templates/pong-helpers.ts; keep
+' verbatim at packages/brs-gen/tests/pong-helpers.ts; keep
 ' the constants below in sync (covered by pong-const-parity.test.ts).
 ' ---------------------------------------------------------------------
 
@@ -723,35 +796,21 @@ function Pong_DifficultyToLagPx(difficulty as string) as integer
 end function
 ```
 
-- [ ] **Step 2: Write snapshot test**
+- [ ] **Step 2: Add `it('pong.brs', ...)` to the existing describe block**
 
-Create `packages/brs-gen/tests/templates/game-shell-pong-brs.test.ts`:
+In `packages/brs-gen/tests/snapshots.test.ts`, inside the `describe('game_shell snapshots', ...)`, append:
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { readFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { generateApp } from '../../src/tools/generate-app.js';
-
-describe('game_shell pong.brs snapshot', () => {
-  it('matches golden pong.brs', async () => {
-    const outputDir = mkdtempSync(join(tmpdir(), 'game-shell-pong-'));
-    const result = await generateApp(
-      { spec_version: 2, template: 'game_shell', modules: [], app: { name: 'Pong', major_version: 0, minor_version: 1, build_version: 0 } },
-      { outputDir },
-    );
-    expect(result.ok).toBe(true);
-    const pong = readFileSync(join(outputDir, 'source/lib/pong.brs'), 'utf8');
-    await expect(pong).toMatchFileSnapshot('../__golden__/game_shell/pong.brs.snap');
+  it('pong.brs', async () => {
+    const f = renderedFiles.find((x) => x.path === 'source/lib/pong.brs')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/pong.brs.snap.txt');
   });
-});
 ```
 
 - [ ] **Step 3: Run with `-u`**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-pong-brs.test.ts -u`
-Expected: PASS. Snap file written.
+Run: `pnpm -C packages/brs-gen exec vitest run tests/snapshots.test.ts -t "game_shell snapshots > pong.brs" -u`
+Expected: PASS. Snap file written at `tests/__snapshots__/game_shell/pong.brs.snap.txt`.
 
 - [ ] **Step 4: Re-run without `-u`**
 
@@ -760,7 +819,7 @@ Expected: PASS, no updates.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/brs-gen/templates/game_shell/files/source/lib/pong.brs packages/brs-gen/tests/templates/game-shell-pong-brs.test.ts packages/brs-gen/tests/__golden__/game_shell/pong.brs.snap
+git add packages/brs-gen/templates/game_shell/files/source/lib/pong.brs packages/brs-gen/tests/snapshots.test.ts packages/brs-gen/tests/__snapshots__/game_shell/pong.brs.snap.txt
 git commit -m "feat(brs-gen): game_shell source/lib/pong.brs + golden snapshot
 
 Five pure-math helpers + module-level constant table per spec §5.5.
@@ -771,7 +830,7 @@ Pong_DifficultyToLagPx (easy/normal/hard mapping). All deterministic.
 
 Constants (PONG_SCREEN_W/H, PADDLE_W/H, BALL_SIZE, PADDLE_SPEED_PX,
 BALL_VX/VY_INITIAL) mirrored verbatim in TS shim at
-tests/templates/pong-helpers.ts (Task 6); parity asserted in
+tests/pong-helpers.ts (Task 6); parity asserted in
 pong-const-parity.test.ts (Task 7).
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
@@ -784,12 +843,12 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Goal:** Verbatim TS translation of `pong.brs` so we can exercise the helpers under Vitest with no Roku in the loop. Per spec R7, this is the cheapest path to true unit coverage; const-parity test (Task 7) catches numeric drift.
 
 **Files:**
-- Create: `packages/brs-gen/tests/templates/pong-helpers.ts`
-- Create: `packages/brs-gen/tests/templates/pong-helpers.test.ts`
+- Create: `packages/brs-gen/tests/pong-helpers.ts`
+- Create: `packages/brs-gen/tests/pong-helpers.test.ts`
 
 - [ ] **Step 1: Write `pong-helpers.ts` (TS shim)**
 
-Create `packages/brs-gen/tests/templates/pong-helpers.ts`:
+Create `packages/brs-gen/tests/pong-helpers.ts`:
 
 ```typescript
 // pong-helpers.ts — verbatim TS translation of templates/game_shell/files/source/lib/pong.brs.
@@ -870,7 +929,7 @@ export function pongDifficultyToLagPx(difficulty: string): number {
 
 - [ ] **Step 2: Write `pong-helpers.test.ts`**
 
-Create `packages/brs-gen/tests/templates/pong-helpers.test.ts`:
+Create `packages/brs-gen/tests/pong-helpers.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -963,7 +1022,7 @@ describe('pongCollideWall', () => {
 
 - [ ] **Step 3: Run unit tests**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/pong-helpers.test.ts`
+Run: `pnpm -C packages/brs-gen exec vitest run tests/pong-helpers.test.ts`
 Expected: all PASS. If any fail, the bug is in `pong-helpers.ts` — fix the shim, NOT the tests, until they all pass. Then mirror the fix into `pong.brs` (Task 5) and re-run Task 5's snapshot to update the golden.
 
 - [ ] **Step 4: Build check**
@@ -974,7 +1033,7 @@ Expected: clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/brs-gen/tests/templates/pong-helpers.ts packages/brs-gen/tests/templates/pong-helpers.test.ts
+git add packages/brs-gen/tests/pong-helpers.ts packages/brs-gen/tests/pong-helpers.test.ts
 git commit -m "test(brs-gen): pong-helpers TS shim + off-device unit tests
 
 Verbatim TS translation of pong.brs for Vitest coverage. Five helper
@@ -995,11 +1054,11 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Goal:** Parse the `const PONG_*` block at the top of `pong.brs` and assert numeric equality with the TS shim's exported constants. Catches the most common R7 drift class.
 
 **Files:**
-- Create: `packages/brs-gen/tests/templates/pong-const-parity.test.ts`
+- Create: `packages/brs-gen/tests/pong-const-parity.test.ts`
 
 - [ ] **Step 1: Write the parity test**
 
-Create `packages/brs-gen/tests/templates/pong-const-parity.test.ts`:
+Create `packages/brs-gen/tests/pong-const-parity.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -1009,7 +1068,7 @@ import { fileURLToPath } from 'node:url';
 import * as shim from './pong-helpers.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PONG_BRS = join(HERE, '../../templates/game_shell/files/source/lib/pong.brs');
+const PONG_BRS = join(HERE, '../templates/game_shell/files/source/lib/pong.brs');
 
 // Map BRS const name -> TS shim export name.
 const PARITY: Array<[string, keyof typeof shim, number]> = [
@@ -1044,7 +1103,7 @@ describe('pong.brs <-> pong-helpers.ts const parity', () => {
 
 - [ ] **Step 2: Run the parity test**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/pong-const-parity.test.ts`
+Run: `pnpm -C packages/brs-gen exec vitest run tests/pong-const-parity.test.ts`
 Expected: 8 PASS. If any fail, the BRS regex did not match — inspect the actual `pong.brs` const-block formatting and adjust the regex (or the BRS file's whitespace) so the regex parses cleanly.
 
 - [ ] **Step 3: Build check**
@@ -1055,7 +1114,7 @@ Expected: clean.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/brs-gen/tests/templates/pong-const-parity.test.ts
+git add packages/brs-gen/tests/pong-const-parity.test.ts
 git commit -m "test(brs-gen): pong.brs <-> TS shim const-parity test
 
 Parses the const block at the top of pong.brs via regex and asserts
@@ -1076,9 +1135,8 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Files:**
 - Create: `packages/brs-gen/templates/game_shell/files/components/Ball.xml`
 - Create: `packages/brs-gen/templates/game_shell/files/components/Ball.bs`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/Ball.xml.snap`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/Ball.bs.snap`
-- Create: `packages/brs-gen/tests/templates/game-shell-ball.test.ts`
+- Modify: `packages/brs-gen/tests/snapshots.test.ts` (add 2 `it(...)` clauses to game_shell describe block)
+- Create (auto via `-u`): `packages/brs-gen/tests/__snapshots__/game_shell/Ball.xml.snap.txt`, `Ball.brs.snap.txt`
 
 - [ ] **Step 1: Write `Ball.xml`**
 
@@ -1120,39 +1178,27 @@ end sub
 
 (The `alias` attribute in XML may be sufficient; if so, `Ball.bs` becomes a no-op `init()`. The defensive observer is harmless either way — it overwrites `translation` to the same value the alias already set. Adopt whichever pattern prior templates use; check `cat packages/brs-gen/templates/screensaver/files/components/PhotoCycle.xml` for `alias=` precedent.)
 
-- [ ] **Step 3: Write snapshot test**
+- [ ] **Step 3: Add 2 `it(...)` clauses to the game_shell describe block**
 
-Create `packages/brs-gen/tests/templates/game-shell-ball.test.ts`:
+In `tests/snapshots.test.ts`, append inside `describe('game_shell snapshots', ...)`:
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { readFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { generateApp } from '../../src/tools/generate-app.js';
-
-describe('game_shell Ball component snapshot', () => {
-  it('matches golden Ball.xml + Ball.brs', async () => {
-    const outputDir = mkdtempSync(join(tmpdir(), 'game-shell-ball-'));
-    const result = await generateApp(
-      { spec_version: 2, template: 'game_shell', modules: [], app: { name: 'Pong', major_version: 0, minor_version: 1, build_version: 0 } },
-      { outputDir },
-    );
-    expect(result.ok).toBe(true);
-    const xml = readFileSync(join(outputDir, 'components/Ball.xml'), 'utf8');
-    const brs = readFileSync(join(outputDir, 'components/Ball.brs'), 'utf8');
-    await expect(xml).toMatchFileSnapshot('../__golden__/game_shell/Ball.xml.snap');
-    await expect(brs).toMatchFileSnapshot('../__golden__/game_shell/Ball.bs.snap');
+  it('Ball.xml', async () => {
+    const f = renderedFiles.find((x) => x.path === 'components/Ball.xml')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/Ball.xml.snap.txt');
   });
-});
+  it('Ball.brs', async () => {
+    const f = renderedFiles.find((x) => x.path === 'components/Ball.brs')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/Ball.brs.snap.txt');
+  });
 ```
 
-(Note: the post-compile sweep rewrites `.bs` -> `.brs` in the output, so we read `.brs` on disk but snapshot it under `.bs.snap` for naming consistency with the source.)
+(The post-compile sweep rewrites `.bs` -> `.brs` in the rendered output, so the `.path` lookup uses `.brs`. Snapshot file is `Ball.brs.snap.txt`, mirroring `screensaver/PhotoCycle.brs.snap.txt` etc.)
 
 - [ ] **Step 4: Run with `-u`**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-ball.test.ts -u`
-Expected: PASS. Two snap files written.
+Run: `pnpm -C packages/brs-gen exec vitest run tests/snapshots.test.ts -t "game_shell snapshots > Ball" -u`
+Expected: 2 PASS. Two snap files written.
 
 - [ ] **Step 5: Re-run without `-u`**
 
@@ -1161,7 +1207,7 @@ Expected: PASS, no updates.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/brs-gen/templates/game_shell/files/components/Ball.xml packages/brs-gen/templates/game_shell/files/components/Ball.bs packages/brs-gen/tests/templates/game-shell-ball.test.ts packages/brs-gen/tests/__golden__/game_shell/Ball.xml.snap packages/brs-gen/tests/__golden__/game_shell/Ball.bs.snap
+git add packages/brs-gen/templates/game_shell/files/components/Ball.xml packages/brs-gen/templates/game_shell/files/components/Ball.bs packages/brs-gen/tests/snapshots.test.ts packages/brs-gen/tests/__snapshots__/game_shell/Ball.xml.snap.txt packages/brs-gen/tests/__snapshots__/game_shell/Ball.brs.snap.txt
 git commit -m "feat(brs-gen): game_shell Ball component + golden snapshots
 
 Single inner Rectangle (24x24, white). Public ballX/ballY/vx/vy
@@ -1180,9 +1226,8 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Files:**
 - Create: `packages/brs-gen/templates/game_shell/files/components/Paddle.xml`
 - Create: `packages/brs-gen/templates/game_shell/files/components/Paddle.bs`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/Paddle.xml.snap`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/Paddle.bs.snap`
-- Create: `packages/brs-gen/tests/templates/game-shell-paddle.test.ts`
+- Modify: `packages/brs-gen/tests/snapshots.test.ts` (add 2 `it(...)` clauses to game_shell describe block)
+- Create (auto via `-u`): `packages/brs-gen/tests/__snapshots__/game_shell/Paddle.xml.snap.txt`, `Paddle.brs.snap.txt`
 
 - [ ] **Step 1: Write `Paddle.xml`**
 
@@ -1223,37 +1268,25 @@ sub onPaddleY()
 end sub
 ```
 
-- [ ] **Step 3: Write snapshot test**
+- [ ] **Step 3: Add 2 `it(...)` clauses for Paddle**
 
-Create `packages/brs-gen/tests/templates/game-shell-paddle.test.ts` (mirror Task 8's pattern but for Paddle):
+In `tests/snapshots.test.ts`, append inside `describe('game_shell snapshots', ...)`:
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { readFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { generateApp } from '../../src/tools/generate-app.js';
-
-describe('game_shell Paddle component snapshot', () => {
-  it('matches golden Paddle.xml + Paddle.brs', async () => {
-    const outputDir = mkdtempSync(join(tmpdir(), 'game-shell-paddle-'));
-    const result = await generateApp(
-      { spec_version: 2, template: 'game_shell', modules: [], app: { name: 'Pong', major_version: 0, minor_version: 1, build_version: 0 } },
-      { outputDir },
-    );
-    expect(result.ok).toBe(true);
-    const xml = readFileSync(join(outputDir, 'components/Paddle.xml'), 'utf8');
-    const brs = readFileSync(join(outputDir, 'components/Paddle.brs'), 'utf8');
-    await expect(xml).toMatchFileSnapshot('../__golden__/game_shell/Paddle.xml.snap');
-    await expect(brs).toMatchFileSnapshot('../__golden__/game_shell/Paddle.bs.snap');
+  it('Paddle.xml', async () => {
+    const f = renderedFiles.find((x) => x.path === 'components/Paddle.xml')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/Paddle.xml.snap.txt');
   });
-});
+  it('Paddle.brs', async () => {
+    const f = renderedFiles.find((x) => x.path === 'components/Paddle.brs')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/Paddle.brs.snap.txt');
+  });
 ```
 
 - [ ] **Step 4: Run with `-u`**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-paddle.test.ts -u`
-Expected: PASS. Two snap files written.
+Run: `pnpm -C packages/brs-gen exec vitest run tests/snapshots.test.ts -t "game_shell snapshots > Paddle" -u`
+Expected: 2 PASS.
 
 - [ ] **Step 5: Re-run without `-u`**
 
@@ -1262,7 +1295,7 @@ Expected: PASS, no updates.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/brs-gen/templates/game_shell/files/components/Paddle.xml packages/brs-gen/templates/game_shell/files/components/Paddle.bs packages/brs-gen/tests/templates/game-shell-paddle.test.ts packages/brs-gen/tests/__golden__/game_shell/Paddle.xml.snap packages/brs-gen/tests/__golden__/game_shell/Paddle.bs.snap
+git add packages/brs-gen/templates/game_shell/files/components/Paddle.xml packages/brs-gen/templates/game_shell/files/components/Paddle.bs packages/brs-gen/tests/snapshots.test.ts packages/brs-gen/tests/__snapshots__/game_shell/Paddle.xml.snap.txt packages/brs-gen/tests/__snapshots__/game_shell/Paddle.brs.snap.txt
 git commit -m "feat(brs-gen): game_shell Paddle component + golden snapshots
 
 Single inner Rectangle (20x140, white). Public paddleY + side
@@ -1281,9 +1314,8 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Files:**
 - Create: `packages/brs-gen/templates/game_shell/files/components/GameScene.xml`
 - Create: `packages/brs-gen/templates/game_shell/files/components/GameScene.bs`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/GameScene.xml.snap`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/GameScene.bs.snap`
-- Create: `packages/brs-gen/tests/templates/game-shell-gamescene.test.ts`
+- Modify: `packages/brs-gen/tests/snapshots.test.ts` (add 2 `it(...)` clauses for GameScene + the closing `it('files-listing', ...)`)
+- Create (auto via `-u`): `packages/brs-gen/tests/__snapshots__/game_shell/GameScene.xml.snap.txt`, `GameScene.brs.snap.txt`, `files-listing.snap.txt`
 
 - [ ] **Step 1: Write `GameScene.xml`**
 
@@ -1548,37 +1580,31 @@ sub onTick()
 end sub
 ```
 
-- [ ] **Step 4: Write snapshot test**
+- [ ] **Step 4: Add `it(...)` clauses for GameScene + closing files-listing**
 
-Create `packages/brs-gen/tests/templates/game-shell-gamescene.test.ts`:
+In `tests/snapshots.test.ts`, append inside `describe('game_shell snapshots', ...)`:
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { readFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { generateApp } from '../../src/tools/generate-app.js';
-
-describe('game_shell GameScene snapshot', () => {
-  it('matches golden GameScene.xml + GameScene.brs', async () => {
-    const outputDir = mkdtempSync(join(tmpdir(), 'game-shell-scene-'));
-    const result = await generateApp(
-      { spec_version: 2, template: 'game_shell', modules: [], app: { name: 'Pong', major_version: 0, minor_version: 1, build_version: 0 } },
-      { outputDir },
-    );
-    expect(result.ok).toBe(true);
-    const xml = readFileSync(join(outputDir, 'components/GameScene.xml'), 'utf8');
-    const brs = readFileSync(join(outputDir, 'components/GameScene.brs'), 'utf8');
-    await expect(xml).toMatchFileSnapshot('../__golden__/game_shell/GameScene.xml.snap');
-    await expect(brs).toMatchFileSnapshot('../__golden__/game_shell/GameScene.bs.snap');
+  it('GameScene.xml', async () => {
+    const f = renderedFiles.find((x) => x.path === 'components/GameScene.xml')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/GameScene.xml.snap.txt');
   });
-});
+  it('GameScene.brs', async () => {
+    const f = renderedFiles.find((x) => x.path === 'components/GameScene.brs')!;
+    await expect(f.bytes.toString('utf8')).toMatchFileSnapshot('__snapshots__/game_shell/GameScene.brs.snap.txt');
+  });
+  it('files-listing', async () => {
+    const paths = renderedFiles.map((x) => x.path).sort();
+    await expect(paths.join('\n') + '\n').toMatchFileSnapshot('__snapshots__/game_shell/files-listing.snap.txt');
+  });
 ```
+
+The `files-listing` test is the load-bearing "this template emits exactly these files and no others" assertion. Mirrors the screensaver block's closing `files-listing` test.
 
 - [ ] **Step 5: Run with `-u`**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-gamescene.test.ts -u`
-Expected: PASS. Two snap files written.
+Run: `pnpm -C packages/brs-gen exec vitest run tests/snapshots.test.ts -t "game_shell snapshots" -u`
+Expected: ALL game_shell snapshot tests PASS (manifest, main.brs, pong.brs, Ball.xml, Ball.brs, Paddle.xml, Paddle.brs, GameScene.xml, GameScene.brs, files-listing). Three new snap files written this task (GameScene.xml/brs + files-listing).
 
 - [ ] **Step 6: Lint the generated channel**
 
@@ -1601,7 +1627,7 @@ Expected: result has `ok: true` and the lint phase reports zero errors. If `bsc`
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/brs-gen/templates/game_shell/files/components/GameScene.xml packages/brs-gen/templates/game_shell/files/components/GameScene.bs packages/brs-gen/tests/templates/game-shell-gamescene.test.ts packages/brs-gen/tests/__golden__/game_shell/GameScene.xml.snap packages/brs-gen/tests/__golden__/game_shell/GameScene.bs.snap
+git add packages/brs-gen/templates/game_shell/files/components/GameScene.xml packages/brs-gen/templates/game_shell/files/components/GameScene.bs packages/brs-gen/tests/snapshots.test.ts packages/brs-gen/tests/__snapshots__/game_shell/GameScene.xml.snap.txt packages/brs-gen/tests/__snapshots__/game_shell/GameScene.brs.snap.txt packages/brs-gen/tests/__snapshots__/game_shell/files-listing.snap.txt
 git commit -m "$(cat <<'EOF'
 feat(brs-gen): game_shell GameScene root scene + golden snapshots
 
@@ -1632,34 +1658,32 @@ EOF
 **Goal:** Verify `game_shell` does not collide with the other 5 templates' file overlays, manifest patches, or component patches; and that two consecutive generates produce byte-equal zips.
 
 **Files:**
-- Modify: `packages/brs-gen/tests/build/conflict-matrix.test.ts`
-- Modify: `packages/brs-gen/tests/build/determinism.test.ts`
+- Modify: `packages/brs-gen/tests/conflict-matrix.test.ts`
+- Modify: `packages/brs-gen/tests/determinism.test.ts`
 
-- [ ] **Step 1: Read existing conflict-matrix test to understand the row pattern**
+- [ ] **Step 1: Read existing per-template describe blocks to understand the pattern**
 
-Run: `cat packages/brs-gen/tests/build/conflict-matrix.test.ts | head -80`
+Run: `grep -n "describe('conflict-matrix:" packages/brs-gen/tests/conflict-matrix.test.ts`
 
-Identify how each existing template (`screensaver`, `music_player`, `news_channel`, `video_grid_channel`, `blank_scenegraph`, `stub_hello`) is enumerated. Look for an array literal of template ids or a per-template `it()` block.
+Per the reviewer's confirmed audit: each template has its own `describe('conflict-matrix: <template> entries', () => { ... })` block. The screensaver block is around line 346. Mirror it.
 
-- [ ] **Step 2: Add `game_shell` row to conflict-matrix**
+- [ ] **Step 2: Add `describe('conflict-matrix: game_shell entries', ...)` block**
 
-If the test enumerates an array of template ids, add `'game_shell'`. If it has per-template `it()` blocks, add a parallel `it('game_shell does not conflict with other templates', () => { ... })` matching the existing shape.
-
-If the existing pattern uses a canonical spec helper, the canonical game_shell spec is:
+Append at the END of `packages/brs-gen/tests/conflict-matrix.test.ts`, mirroring the screensaver block at line 346 verbatim (swap `'screensaver'` for `'game_shell'`). Canonical game_shell spec for the test:
 
 ```typescript
 { spec_version: 2, template: 'game_shell', modules: [], app: { name: 'Pong Conflict', major_version: 0, minor_version: 1, build_version: 0 } }
 ```
 
-- [ ] **Step 3: Add `game_shell` row to determinism test**
+- [ ] **Step 3: Add `game_shell` `it()` to determinism test**
 
-Run: `cat packages/brs-gen/tests/build/determinism.test.ts | head -80`
+Run: `grep -n "describe('determinism'\|full-pipeline byte equality" packages/brs-gen/tests/determinism.test.ts`
 
-Same pattern: add `game_shell` to whatever array or per-template block enumerates the templates. The determinism test typically generates the same spec twice and asserts byte-equal zip output (requires `TZ=UTC`).
+The single `describe('determinism', ...)` block (around line 105) contains per-template `it()` clauses, e.g. `it('screensaver full-pipeline byte equality across two in-process runs', ...)` at line 306. Mirror that `it()` for `game_shell` (template id `'game_shell'`, generates twice and asserts byte-equal zip; requires `TZ=UTC`).
 
 - [ ] **Step 4: Run both tests under TZ=UTC**
 
-Run: `TZ=UTC pnpm -C packages/brs-gen exec vitest run tests/build/conflict-matrix.test.ts tests/build/determinism.test.ts`
+Run: `TZ=UTC pnpm -C packages/brs-gen exec vitest run tests/conflict-matrix.test.ts tests/determinism.test.ts`
 Expected: PASS for both. If determinism fails, the most likely cause is a non-deterministic snapshot in some component's emitted source (a timestamp, `Date.now()`, etc.) — but our template emits no such values, so a failure here points to a bug elsewhere (the build pipeline, the manifest EJS, etc.). Investigate; do NOT skip.
 
 - [ ] **Step 5: Build check**
@@ -1670,7 +1694,7 @@ Expected: clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/brs-gen/tests/build/conflict-matrix.test.ts packages/brs-gen/tests/build/determinism.test.ts
+git add packages/brs-gen/tests/conflict-matrix.test.ts packages/brs-gen/tests/determinism.test.ts
 git commit -m "test(brs-gen): conflict-matrix + determinism entries for game_shell
 
 Verifies game_shell does not collide with the other 5 v1 templates'
@@ -1683,90 +1707,92 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 ---
 
-## Task 12: E2E golden test + zip regen
+## Task 12: E2E golden + regen-golden.mjs extension
 
-**Goal:** Full pipeline (generate -> zip -> bsc lint -> validate_manifest -> validate_assets), with a checked-in byte-equal golden zip for regression detection.
+**Goal:** Full-pipeline coverage with byte-equal golden zip + provenance JSON. Per the actual repo convention (confirmed by reviewer): there is NO per-template `tests/e2e/<template>.test.ts` file — all e2e tests live as inner `describe('<template>', ...)` blocks inside the single `tests/e2e.test.ts`. `regen-golden.mjs` does NOT have an array of templates; it has explicit `regenX()` async functions called from `main()`.
 
 **Files:**
-- Create: `packages/brs-gen/tests/e2e/game-shell.test.ts`
-- Create (regen): `packages/brs-gen/tests/__golden__/game_shell/game-shell.zip`
+- Modify: `packages/brs-gen/tests/e2e.test.ts` (add `describe('game_shell', ...)` inner block, mirroring the existing `describe('screensaver', ...)` block at lines 660-720+)
+- Modify: `packages/brs-gen/scripts/regen-golden.mjs` (add `regenGameShell()` async function; call it from `main()`; update the final stdout summary)
+- Create (auto via regen): `packages/brs-gen/tests/__golden__/game-shell.zip` (flat path; hyphen naming per `video-grid.zip` precedent)
+- Create (auto via regen): `packages/brs-gen/tests/__golden__/game-shell.provenance.json`
 
-- [ ] **Step 1: Read an existing e2e test as the structural reference**
-
-Run: `cat packages/brs-gen/tests/e2e/screensaver.test.ts`
-
-Note the canonical spec, output paths, the assertions (zip bytes match golden, lint clean, validate_manifest passes, validate_assets passes), and how the golden zip is regenerated (typically via `scripts/regen-golden.mjs` or an explicit `-u` mode in the test).
-
-- [ ] **Step 2: Write `game-shell.test.ts`**
-
-Create `packages/brs-gen/tests/e2e/game-shell.test.ts` (mirror the screensaver.test.ts shape exactly; here is the conceptual outline):
-
-```typescript
-import { describe, it, expect } from 'vitest';
-import { readFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { generateApp } from '../../src/tools/generate-app.js';
-import { lint } from '../../src/tools/lint.js';
-import { validateManifest } from '../../src/tools/validate-manifest.js';
-import { validateAssets } from '../../src/tools/validate-assets.js';
-
-const GOLDEN = join(__dirname, '../__golden__/game_shell/game-shell.zip');
-const CANONICAL_SPEC = {
-  spec_version: 2,
-  template: 'game_shell' as const,
-  modules: [],
-  app: { name: 'Pong E2E', major_version: 0, minor_version: 1, build_version: 0 },
-};
-
-describe('game_shell e2e', () => {
-  it('generates byte-equal to golden zip + lint clean + validators pass', async () => {
-    const work = mkdtempSync(join(tmpdir(), 'game-shell-e2e-'));
-    const outputDir = join(work, 'project');
-    const outputZip = join(work, 'project.zip');
-
-    const result = await generateApp(CANONICAL_SPEC, { outputDir, outputZip });
-    expect(result.ok).toBe(true);
-
-    // Byte-equal golden.
-    const actual = readFileSync(outputZip);
-    const golden = readFileSync(GOLDEN);
-    expect(actual.equals(golden)).toBe(true);
-
-    // Lint clean.
-    const lintResult = await lint({ projectDir: outputDir });
-    expect(lintResult.errors).toEqual([]);
-
-    // Manifest validator.
-    const mfRes = await validateManifest({ projectDir: outputDir });
-    expect(mfRes.ok).toBe(true);
-
-    // Assets validator.
-    const aRes = await validateAssets({ projectDir: outputDir });
-    expect(aRes.ok).toBe(true);
-  });
-});
-```
-
-(Adapt imports/assertion shapes to match what `screensaver.test.ts` actually uses; the principle is full-pipeline coverage with the byte-equal golden.)
-
-- [ ] **Step 3: Regen the golden zip**
+- [ ] **Step 1: Read the existing screensaver e2e block + regen function as structural references**
 
 Run:
 ```
-TZ=UTC pnpm -C packages/brs-gen exec node scripts/regen-golden.mjs
+sed -n '660,720p' packages/brs-gen/tests/e2e.test.ts
+grep -n "regenScreensaver\|async function regen" packages/brs-gen/scripts/regen-golden.mjs
 ```
 
-This script (used in Plans 4-4e) iterates all templates and regenerates `tests/__golden__/<template>/<template>.zip`. After it runs, confirm `tests/__golden__/game_shell/game-shell.zip` exists.
+Mirror BOTH structures verbatim, swapping template id and golden file names.
 
-If `regen-golden.mjs` does NOT discover `game_shell` automatically, edit the script's template-id array to add `'game_shell'`. Read `cat packages/brs-gen/scripts/regen-golden.mjs` to find the array.
+- [ ] **Step 2: Add `regenGameShell()` to `regen-golden.mjs`**
 
-- [ ] **Step 4: Run e2e test under TZ=UTC**
+Append a new async function at the end of `packages/brs-gen/scripts/regen-golden.mjs`, mirroring the screensaver function:
 
-Run: `TZ=UTC pnpm -C packages/brs-gen exec vitest run tests/e2e/game-shell.test.ts`
-Expected: PASS.
+```javascript
+async function regenGameShell() {
+  const tmpSpecDir = join(PKG_ROOT, 'tests', '__tmp_regen__');
+  await mkdir(tmpSpecDir, { recursive: true });
+  const specPath = join(tmpSpecDir, 'game-shell.spec.json');
+  await writeFile(
+    specPath,
+    JSON.stringify({
+      spec_version: 2,
+      template: 'game_shell',
+      modules: [],
+      app: { name: 'Pong E2E', major_version: 0, minor_version: 1, build_version: 0 },
+    }, null, 2),
+  );
+  const work = join(tmpdir(), `brs-gen-regen-game-shell-${randomUUID()}`);
+  const outputDir = join(work, 'project');
+  const outputZip = join(PKG_ROOT, 'tests', '__golden__', 'game-shell.zip');
+  await generateAppForRegen({ outputDir, spec: specPath, outputZip });
+  // Provenance JSON is emitted by generateAppForRegen at <outputDir>/.rokudev-tools/provenance.json;
+  // copy to the golden location.
+  await copyFile(
+    join(outputDir, '.rokudev-tools', 'provenance.json'),
+    join(PKG_ROOT, 'tests', '__golden__', 'game-shell.provenance.json'),
+  );
+}
+```
 
-If the byte-equal assertion fails, the regen step (Step 3) and the test run did not produce the same bytes. Cross-check that BOTH are running under `TZ=UTC` (omitting it on either side breaks parity). Also confirm the canonical spec used in the test matches the canonical spec used by `regen-golden.mjs` (some helpers parameterize this differently; mirror what other e2e tests do).
+(Adapt to whatever exact pattern `regenScreensaver()` uses; the screensaver function may use different helper names, write the provenance file inline, or use a slightly different temp-dir pattern. Mirror it verbatim — including imports if a `copyFile` import is added at the top.)
+
+Also append `await regenGameShell();` inside `main()` after the existing `await regenScreensaver();` call (around line 90).
+
+Also extend the final stdout summary string list (around line 94+) to mention `game-shell.zip` and `game-shell.provenance.json`.
+
+- [ ] **Step 3: Run regen**
+
+Run: `TZ=UTC pnpm -C packages/brs-gen exec node scripts/regen-golden.mjs`
+Expected: stdout reports `game-shell.zip` + `game-shell.provenance.json` regenerated. Confirm:
+```
+ls -la packages/brs-gen/tests/__golden__/ | grep game-shell
+```
+Should show two new files.
+
+- [ ] **Step 4: Add `describe('game_shell', ...)` to `tests/e2e.test.ts`**
+
+Append at the END of the existing top-level `describe('brs-gen e2e: MCP smoke + golden fixtures', () => { ... })` block (after the screensaver inner block at lines 660-720+). Mirror the screensaver inner block verbatim, swapping:
+- `'screensaver'` -> `'game_shell'`
+- `screensaver.zip` -> `game-shell.zip`
+- `screensaver.provenance.json` -> `game-shell.provenance.json`
+- canonical spec.app.name -> `'Pong E2E'`
+- inner `describe` label -> `'game_shell'`
+
+The inner block typically does (per the screensaver block at line 664+):
+1. MCP `initialize` handshake
+2. `generate_app` tool call with the canonical spec
+3. byte-equal zip assertion vs `__golden__/game-shell.zip`
+4. byte-equal provenance assertion vs `__golden__/game-shell.provenance.json`
+5. (optionally) lint, validate_manifest, validate_assets via further tool calls
+
+- [ ] **Step 5: Run e2e test under TZ=UTC**
+
+Run: `TZ=UTC pnpm -C packages/brs-gen exec vitest run tests/e2e.test.ts -t game_shell`
+Expected: PASS. If byte-equal fails, confirm both regen (Step 3) and test (Step 5) ran under `TZ=UTC`. Also confirm canonical spec in Step 2 matches canonical spec in Step 4.
 
 - [ ] **Step 5: Run the FULL test suite under TZ=UTC**
 
@@ -1781,9 +1807,7 @@ Expected: clean.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/brs-gen/tests/e2e/game-shell.test.ts packages/brs-gen/tests/__golden__/game_shell/game-shell.zip
-# If regen-golden.mjs needed editing, also add it:
-# git add packages/brs-gen/scripts/regen-golden.mjs
+git add packages/brs-gen/tests/e2e.test.ts packages/brs-gen/scripts/regen-golden.mjs packages/brs-gen/tests/__golden__/game-shell.zip packages/brs-gen/tests/__golden__/game-shell.provenance.json
 git commit -m "test(brs-gen): game_shell e2e golden zip + lint + validate_manifest
 
 Full pipeline coverage: generate -> zip -> bsc lint clean ->
@@ -1856,8 +1880,8 @@ import {
   sideloadAndLaunch,
   screenshotNoError,
   sleep,
-  ecpKeypress,
-  ecpKeypressRepeat,
+  keypress,
+  keypressRepeat,
 } from './_t27-lib.mjs';
 import { generateAppForRegen } from './regen-helper.mjs';
 
@@ -1919,7 +1943,7 @@ try {
   );
 
   // Step 4: Select to start.
-  await assertStep('ECP Select to start', () => ecpKeypress(host, 'Select'));
+  await assertStep('ECP Select to start', () => keypress(host, 'Select'));
   await sleep(1500);
 
   // Step 5: screenshot playing-initial.
@@ -1928,9 +1952,9 @@ try {
   );
 
   // Step 6: move paddle up then down.
-  await assertStep('ECP Up x3', () => ecpKeypressRepeat(host, 'Up', 3, 100));
+  await assertStep('ECP Up x3', () => keypressRepeat(host, 'Up', 3, 100));
   await sleep(500);
-  await assertStep('ECP Down x3', () => ecpKeypressRepeat(host, 'Down', 3, 100));
+  await assertStep('ECP Down x3', () => keypressRepeat(host, 'Down', 3, 100));
   await sleep(500);
 
   // Step 7-8: sleep + screenshot playing-later.
@@ -1947,7 +1971,7 @@ try {
   });
 
   // Step 10: Back to return to title.
-  await assertStep('ECP Back to title', () => ecpKeypress(host, 'Back'));
+  await assertStep('ECP Back to title', () => keypress(host, 'Back'));
   await sleep(1000);
 
   // Step 11: screenshot title-after-back. screenshotNoError's foreground check
@@ -1973,7 +1997,7 @@ try {
 }
 ```
 
-If `_t27-lib.mjs` does not export `ecpKeypress` / `ecpKeypressRepeat` under those names, check the actual exports (`grep -n "^export" packages/brs-gen/scripts/_t27-lib.mjs`) and adapt. Plan 4d/4e drivers used these helpers; Plan 4e added the `screensaverMode` opt to `screenshotNoError` — the default (no opt) is what we want here.
+Confirmed exports in `_t27-lib.mjs`: `sleep`, `sideload`, `sideloadAndLaunch`, `keypress`, `keypressRepeat`, `screenshot`, `screenshotNoError`, `assertPlaybackStarts`, `assertPositionAdvanced`. Use those names verbatim. Plan 4e added the `screensaverMode` opt to `screenshotNoError` — the default (no opt) is what we want here.
 
 - [ ] **Step 3: Lint the script**
 
@@ -2185,7 +2209,7 @@ Open `README.md`, find the v0.5.5 release-notes block (`## What's in v0.5.5 (Pla
 Sixth and final v1 catalog template: `game_shell`. A regular Roku channel demonstrating the canonical state machine + Timer-driven game loop + D-pad input + registry-backed high-score pattern, composed of `Rectangle` + `Label` SceneGraph nodes only (zero bitmap sprites). Bundled reference game is **Pong**: classic 2-paddle table tennis with a CPU-controlled right paddle, deterministic AI lag, and per-difficulty handicap. Manifest is a standard app manifest (NOT pure-screensaver), with `screen_saver_private=1` to opt out of the OS screensaver during gameplay and `requires_audio_guide=0` declared explicitly. **v1 catalog COMPLETE: 6 of 6 templates shipped.**
 
 - **Template: `game_shell`** with three SceneGraph components (`GameScene`, `Paddle`, `Ball`).
-- **Pure-math collision/AI helpers** at `pkg:/source/lib/pong.brs` (5 functions: `Pong_StepCpu`, `Pong_StepBall`, `Pong_CollidePaddle`, `Pong_CollideWall`, `Pong_DifficultyToLagPx`) plus a module-level constant table (logical canvas = 1920x1080, top-left origin). Off-device Vitest coverage via TS shim at `tests/templates/pong-helpers.ts`; constant parity asserted by `tests/templates/pong-const-parity.test.ts`.
+- **Pure-math collision/AI helpers** at `pkg:/source/lib/pong.brs` (5 functions: `Pong_StepCpu`, `Pong_StepBall`, `Pong_CollidePaddle`, `Pong_CollideWall`, `Pong_DifficultyToLagPx`) plus a module-level constant table (logical canvas = 1920x1080, top-left origin). Off-device Vitest coverage via TS shim at `tests/pong-helpers.ts`; constant parity asserted by `tests/pong-const-parity.test.ts`.
 - **`AppSpec` content extension**: three new fields, all Zod-defaulted: `content.cpu_difficulty` (`'easy' | 'normal' | 'hard'`, default `'normal'`; CPU paddle tracking error: 60/25/5 px), `content.score_to_win` (int 1..21, default `5`), `content.high_score_persistence` (boolean, default `true`; gates `roRegistrySection("GameShell")` read/write).
 - **New init-hook exports**: three at scope `GameScene`: `after_scene_show` (fires once from `init()` per Plan 4d's `NowPlayingScene/after_scene_show` pattern; NOT from `enterTitle()`), `after_game_start` (fires every transition into `playing`), `after_game_over` (fires every transition into `gameover` with `m.playerScore`/`m.cpuScore`/`m.highScore` available). Matches PRD §6.4 `game_shell` + `analytics.event_pipe` default module pairing.
 - **Engine change**: three additive lines in `generate-app.ts` propagate `content.cpu_difficulty`, `content.score_to_win`, and `content.high_score_persistence` into the emitted `TemplateConfig()`. The local TypeScript `content` cast extended with the three new optional fields. No new validators, no new error or warning codes, no new shared engine surface. Zero behavior change for existing templates.
@@ -2366,24 +2390,44 @@ Edit `package.json` (monorepo root): `"version": "0.5.5"` -> `"version": "0.5.6"
 
 Edit `packages/brs-gen/package.json`: `"version": "0.5.5"` -> `"version": "0.5.6"`.
 
-(If `roku-device-client` and `rokudev-device` versions are also bumped per release per the project's convention, check the prior release commits to confirm. Plan 4e's release commit is `8fd4c99 chore(release): bump rokudev-tools to 0.5.5`; inspect with `git show 8fd4c99 --stat` to see exactly which package.json files Plan 4e bumped.)
+Inspect Plan 4e's release commit to confirm whether sibling packages also got bumped:
+```
+git show 8fd4c99 --stat | grep package.json
+```
+If `packages/roku-device-client/package.json` and `packages/rokudev-device/package.json` appear, bump them to `0.5.6` too. (Likely YES per Plan 4e cadence; the monorepo bumps in lockstep.)
 
-- [ ] **Step 5: Re-run full suite to confirm version bumps did not break anything**
+- [ ] **Step 4b: REGENERATE ALL GOLDENS (LOAD-BEARING; missed in initial plan draft)**
 
-Run: `TZ=UTC pnpm -C packages/brs-gen exec vitest run` (focused; the version is read by some tests).
-Expected: PASS.
+The provenance JSON written by `generateAppForRegen` (consumed by `tests/e2e.test.ts`) embeds the `BRS_GEN_VERSION` string. Bumping `packages/brs-gen/package.json` from `0.5.5` to `0.5.6` changes the embedded version in EVERY template's `provenance.json`, breaking the byte-equal assertions in 6+ e2e tests at once.
 
-- [ ] **Step 6: Verify `git status` is clean except for the version bumps**
+Run:
+```
+TZ=UTC pnpm -C packages/brs-gen exec node scripts/regen-golden.mjs
+```
+Expected: all goldens regenerated. Confirm:
+```
+git status | grep __golden__
+```
+Should show ALL of `stub`, `video-grid`, `blank`, `news`, `music`, `screensaver`, `game-shell` `.zip` and `.provenance.json` modified. (If any are NOT modified, the regen script may have a bug — investigate.)
+
+Also confirm that `BRS_GEN_VERSION` (a TS-side constant referenced in `tests/snapshots.test.ts` line ~17) tracks the package.json version. If it's hardcoded, bump it manually (search `packages/brs-gen/src` for `BRS_GEN_VERSION`).
+
+- [ ] **Step 5: Re-run full suite to confirm version bumps + golden regen are consistent**
+
+Run: `TZ=UTC pnpm -C packages/brs-gen exec vitest run`
+Expected: ALL tests PASS (including 6+ e2e tests that depend on regenerated provenance JSONs).
+
+- [ ] **Step 6: Verify `git status` is clean except for the version bumps + golden regen**
 
 Run: `git status`
-Expected: only `package.json` and `packages/brs-gen/package.json` (and any sibling package.json files if Step 4 bumped them) show as modified.
+Expected: only `package.json` (root + brs-gen + maybe siblings) AND `packages/brs-gen/tests/__golden__/*.{zip,provenance.json}` show as modified.
 
 - [ ] **Step 7: Release commit**
 
 Run:
 ```bash
-git add package.json packages/brs-gen/package.json
-# Add other package.json files if Step 4 bumped them.
+git add package.json packages/brs-gen/package.json packages/brs-gen/tests/__golden__/
+# Add other package.json files if Step 4 bumped them (likely roku-device-client + rokudev-device).
 git commit -m "$(cat <<'EOF'
 chore(release): bump rokudev-tools to 0.5.6 (Plan 4f game_shell)
 
