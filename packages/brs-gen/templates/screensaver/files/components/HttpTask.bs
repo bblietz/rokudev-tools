@@ -1,0 +1,22 @@
+sub init()
+    m.top.functionName = "doRequest"
+end sub
+
+sub doRequest()
+    if m.top.url = invalid or m.top.url = "" then
+        m.top.response = { ok: false, error: "no_url" }
+        return
+    end if
+    transfer = CreateObject("roUrlTransfer")
+    transfer.SetCertificatesFile("common:/certs/ca-bundle.crt")
+    transfer.InitClientCertificates()
+    transfer.EnablePeerVerification(true)
+    transfer.EnableHostVerification(true)
+    transfer.SetUrl(m.top.url)
+    body = transfer.GetToString()
+    if body = "" then
+        m.top.response = { ok: false, error: "empty" }
+        return
+    end if
+    m.top.response = { ok: true, body: body }
+end sub

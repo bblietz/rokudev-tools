@@ -614,6 +614,15 @@ describe('screensaver snapshots', () => {
       join(PKG_ROOT, 'templates', 'screensaver', 'files', 'data', 'screensaver-feed.json'),
       join(projectDir, 'data', 'screensaver-feed.json'),
     );
+    await mkdir(join(projectDir, 'components'), { recursive: true });
+    await copyFile(
+      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'HttpTask.xml'),
+      join(projectDir, 'components', 'HttpTask.xml'),
+    );
+    await copyFile(
+      join(PKG_ROOT, 'templates', 'screensaver', 'files', 'components', 'HttpTask.bs'),
+      join(projectDir, 'components', 'HttpTask.bs'),
+    );
   });
 
   afterAll(async () => {
@@ -692,5 +701,33 @@ describe('screensaver snapshots', () => {
       expect(p.id).toBe(`p${i + 1}`);
       expect(p.url).toBe(`pkg:/images/sample-photo-${i + 1}.jpg`);
     });
+  });
+
+  it('HttpTask.xml (source) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components', 'HttpTask.xml'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/HttpTask.xml.snap.txt');
+  });
+
+  it('HttpTask.bs (source) matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'components', 'HttpTask.bs'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/screensaver/HttpTask.bs.snap.txt');
+  });
+
+  it('HttpTask.bs declares the doRequest task entry and cert-setup boilerplate', async () => {
+    const s = await readFile(join(projectDir, 'components', 'HttpTask.bs'), 'utf8');
+    expect(s).toMatch(/m\.top\.functionName\s*=\s*"doRequest"/);
+    expect(s).toContain('SetCertificatesFile');
+    expect(s).toContain('InitClientCertificates');
+    expect(s).toContain('EnablePeerVerification');
+    expect(s).toContain('EnableHostVerification');
+  });
+
+  // FIXME(Plan 4e Task 11): once the snapshot beforeAll switches to the full
+  // pipeline (brighterscript compile + URI sweep), un-skip this test to verify
+  // HttpTask.xml's <script uri> is rewritten from .bs to .brs at compile time.
+  it.skip('HttpTask.xml has script URI rewritten to .brs (post-compile sweep) - skipped until Task 11', async () => {
+    const s = await readFile(join(projectDir, 'components', 'HttpTask.xml'), 'utf8');
+    expect(s).toMatch(/uri="pkg:\/components\/HttpTask\.brs"/);
+    expect(s).not.toMatch(/uri="pkg:\/components\/HttpTask\.bs"/);
   });
 });
