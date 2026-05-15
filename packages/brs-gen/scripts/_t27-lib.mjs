@@ -19,6 +19,18 @@ export function sleep(ms) {
 }
 
 /**
+ * Sideload the given zip (no ECP launch). Wraps DevPortal.sideload().
+ * Throws on any non-2xx, auth failure, or device rejection.
+ * Use this for screensaver channels where the OS (not ECP) activates the
+ * channel; calling EcpControl.launch('dev') would open it as a foreground
+ * channel instead.
+ */
+export async function sideload(zipPath, host, password) {
+  const portal = new DevPortal(host, password);
+  await portal.sideload(zipPath);
+}
+
+/**
  * Sideload the given zip, launch the dev app with optional ECP params, and
  * wait (up to 30s) until /query/active-app reports app id = 'dev'.
  * Throws on any non-2xx or timeout.

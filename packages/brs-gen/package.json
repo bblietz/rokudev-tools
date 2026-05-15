@@ -17,7 +17,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "format:check": "prettier --check src tests"
+    "format:check": "prettier --check src tests",
+    "t27-screensaver": "node scripts/t27-screensaver.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
