@@ -1,0 +1,11 @@
+sub init()
+  Modules_OnGameSceneAfterSceneShow(m)
+end sub
+
+sub onGameStart()
+  Modules_OnGameSceneAfterGameStart(m)
+end sub
+
+sub onGameOver()
+  Modules_OnGameSceneAfterGameOver(m)
+end sub

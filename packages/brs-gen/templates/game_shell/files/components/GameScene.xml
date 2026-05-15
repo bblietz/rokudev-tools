@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="GameScene" extends="Scene">
+  <script type="text/brightscript" uri="GameScene.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_modules/__init_hooks.bs" />
+  <script type="text/brightscript" uri="pkg:/source/_template/config.bs" />
+  <children>
+    <Group id="rootGroup" />
+  </children>
+</component>

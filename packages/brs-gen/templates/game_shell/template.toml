@@ -1,0 +1,32 @@
+[template]
+id = "game_shell"
+version = "0.1.0"
+spec_compat = ">=2"
+description = "Minimal game-shell Roku channel: SceneGraph-based game loop with Paddle and Ball nodes, configurable CPU difficulty, win condition, and optional high-score persistence."
+
+[template.manifest_defaults]
+title = "<%= spec.app.name %>"
+major_version = "<%= spec.app.major_version %>"
+minor_version = "<%= spec.app.minor_version %>"
+build_version = "<%= spec.app.build_version %>"
+ui_resolutions = "hd,fhd"
+mm_icon_focus_hd = "pkg:/images/icon_hd.png"
+mm_icon_focus_fhd = "pkg:/images/icon_fhd.png"
+splash_screen_hd = "pkg:/images/splash_hd.png"
+splash_screen_fhd = "pkg:/images/splash_fhd.png"
+splash_color = "#000000"
+splash_min_time = "1500"
+screen_saver_private = "1"
+requires_audio_guide = "0"
+
+[template.exports]
+init_hooks = [
+  { scope = "GameScene", phase = "after_scene_show", file = "components/GameScene.bs", signature = "(m as object) as void" },
+  { scope = "GameScene", phase = "after_game_start", file = "components/GameScene.bs", signature = "(m as object) as void" },
+  { scope = "GameScene", phase = "after_game_over",  file = "components/GameScene.bs", signature = "(m as object) as void" },
+]
+scene_nodes = [
+  { name = "GameScene", file = "components/GameScene.xml" },
+  { name = "Paddle",    file = "components/Paddle.xml" },
+  { name = "Ball",      file = "components/Ball.xml" },
+]

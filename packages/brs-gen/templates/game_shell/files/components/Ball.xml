@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="Ball" extends="Group">
+  <children>
+    <Rectangle id="rect" color="#FFFFFF" width="16" height="16" />
+  </children>
+</component>
