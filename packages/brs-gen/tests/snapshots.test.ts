@@ -793,3 +793,44 @@ describe('screensaver snapshots', () => {
     await expect(s).toMatchFileSnapshot(`__snapshots__/screensaver/__init_hooks.${ext}.snap.txt`);
   });
 });
+
+// ---------------------------------------------------------------------------
+// game_shell snapshots (Plan 4f Tasks 3-5)
+// ---------------------------------------------------------------------------
+
+describe('game_shell snapshots', () => {
+  let parentDir: string;
+  let projectDir: string;
+
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+
+    parentDir = await mkdtemp(join(tmpdir(), 'brs-gen-game-'));
+    projectDir = join(parentDir, 'project');
+
+    const handler = getGenerateAppHandler();
+    const result = await handler({
+      spec: {
+        spec_version: 2,
+        template: 'game_shell',
+        modules: [],
+        app: { name: 'Pong', major_version: 1, minor_version: 0, build_version: 0 },
+      },
+      output_dir: projectDir,
+    });
+    const payload = result as Record<string, unknown>;
+    if (!payload['ok']) {
+      throw new Error(`generate_app failed in beforeAll: ${JSON.stringify(payload)}`);
+    }
+  }, 30_000);
+
+  afterAll(async () => {
+    if (parentDir) await rm(parentDir, { recursive: true, force: true });
+  });
+
+  it('manifest matches saved snapshot', async () => {
+    const s = await readFile(join(projectDir, 'manifest'), 'utf8');
+    await expect(s).toMatchFileSnapshot('__snapshots__/game_shell/manifest.snap.txt');
+  });
+});
