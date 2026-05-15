@@ -4,7 +4,7 @@
         <field id="paddleY" type="float" />
         <field id="side" type="string" />
     </interface>
-    <script type="text/brightscript" uri="Paddle.bs" />
+    <script type="text/brightscript" uri="Paddle.brs" />
     <children>
         <Rectangle id="paddleRect" width="20" height="140" color="0xFFFFFFFF" />
     </children>
