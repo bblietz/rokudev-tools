@@ -983,3 +983,89 @@ describe('TemplateConfig service_name threading', () => {
     }
   });
 });
+
+describe('TemplateConfig transition_seconds + motion threading', () => {
+  // Note: screensaver template is created in Task 3. Until then these tests
+  // fail with "Unknown template: screensaver". After Task 3's first commit
+  // they proceed to fail with file-not-found errors against component XMLs
+  // (which Tasks 4-11 populate). After Task 11 both should pass.
+  //
+  // The engine threading edit (Task 1, this commit) is verified by the first
+  // test going from "Unknown template" -> assertion-pass once the template
+  // lands and the schema declares transition_seconds + motion in its content
+  // block. If the engine threading were absent those assertions would fail.
+  beforeAll(async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+  });
+
+  afterAll(async () => {
+    // Restore the bundled catalog so downstream describe blocks are unaffected.
+    const bundledCat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(bundledCat);
+  });
+
+  it('threads spec.content.transition_seconds and spec.content.motion into emitted TemplateConfig() body', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-ss-cfg-'));
+    try {
+      const handler = getHandler();
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'screensaver',
+          modules: [],
+          app: { name: 'SSTest', major_version: 0, minor_version: 1, build_version: 0 },
+          content: { transition_seconds: 12, motion: 'crossfade_only' },
+        },
+        output_dir: join(tmpDir, 'out'),
+        overwrite: true,
+      });
+      const payload = parsePayload(result);
+      expect(payload['ok']).toBe(true);
+      // bsc compile renames .bs -> .brs; read the post-compile output.
+      const configBrs = await readFile(
+        join(tmpDir, 'out', 'source', '_template', 'config.brs'),
+        'utf8',
+      );
+      // transition_seconds is stored as String(number) in cfg: Record<string,string>,
+      // so stringifyAsBsValue emits it quoted. Consumer uses Val() to parse.
+      expect(configBrs).toContain('transition_seconds: "12"');
+      expect(configBrs).toContain('motion: "crossfade_only"');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('omits transition_seconds and motion keys when absent from spec.content', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-ss-cfg-absent-'));
+    try {
+      const handler = getHandler();
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'screensaver',
+          modules: [],
+          app: { name: 'SSTest', major_version: 0, minor_version: 1, build_version: 0 },
+        },
+        output_dir: join(tmpDir, 'out'),
+        overwrite: true,
+      });
+      const payload = parsePayload(result);
+      expect(payload['ok']).toBe(true);
+      // screensaver declares template_branding_defaults.primary_color so
+      // effectivePrimaryColor is non-null and templateConfigBrs IS emitted even
+      // without content. Assert the file exists and lacks both new keys.
+      expect(
+        await pathExists(join(tmpDir, 'out', 'source', '_template', 'config.brs')),
+      ).toBe(true);
+      const configBrs = await readFile(
+        join(tmpDir, 'out', 'source', '_template', 'config.brs'),
+        'utf8',
+      );
+      expect(configBrs).not.toContain('transition_seconds:');
+      expect(configBrs).not.toContain('motion:');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+});

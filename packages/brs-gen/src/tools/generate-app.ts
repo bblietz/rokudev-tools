@@ -362,6 +362,8 @@ registerToolsModule((tools) => {
             feed_format?: string;
             live_label?: string;
             service_name?: string;
+            transition_seconds?: number;
+            motion?: string;
           };
         }
       ).content;
@@ -374,6 +376,8 @@ registerToolsModule((tools) => {
         if (content?.feed_format) cfg['feed_format'] = content.feed_format;
         if (content?.live_label) cfg['live_label'] = content.live_label;
         if (content?.service_name) cfg['service_name'] = content.service_name;
+        if (content?.transition_seconds !== undefined) cfg['transition_seconds'] = String(content.transition_seconds);
+        if (content?.motion) cfg['motion'] = content.motion;
         templateConfigBrs = emitTemplateConfigBs(cfg);
       }
 
