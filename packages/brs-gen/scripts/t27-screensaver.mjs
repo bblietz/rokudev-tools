@@ -20,10 +20,14 @@
 //   ROKUDEV_HOST=10.x.x.x ROKUDEV_DEV_PASSWORD=... \
 //     node packages/brs-gen/scripts/t27-screensaver.mjs
 //
-// Option A trigger (triggerScreensaverViaDevPortal) is currently a deliberate
-// throw placeholder. Task 16 will reverse-engineer the actual form-POST value
-// from the Roku dev-portal HTML and replace this function with a real
-// implementation.
+// Option A trigger (triggerScreensaverViaDevPortal) is a documented no-op:
+// Task 16 (2026-05-15) verified that the Roku dev portal on Native 2910X
+// firmware does NOT expose a "Test screensaver" HTTP endpoint; the
+// `/plugin_inspect` form only offers Inspect / Rekey / Screenshot /
+// dloadProf. The function throws to signal "fall back to Option B (manual
+// operator trigger)" per spec §10 D-impl-1. Registration is verified
+// out-of-band via `/query/screensavers` (which returns the sideloaded
+// channel as `id="dev"`); see docs/t27-evidence/2026-05-15-screensaver-phase-a.md.
 //
 // Failure capture: forensic screenshots use {assertForeground:false} so
 // the active-app check does not shadow the original failure.
@@ -93,16 +97,23 @@ function assertStep(name, thunk) {
 // value is discovered by GETting /plugin_inspect and inspecting the HTML
 // for input[type=submit] elements.
 //
-// This is a deliberate throw placeholder. Task 16 will:
-//   1. GET /plugin_inspect (with Digest auth)
-//   2. Extract screensaver-specific submit button value(s)
-//   3. POST multipart/form-data with discovered mysubmit value
-//   4. Verify the screensaver activates (via /query/active-app type='ssvr')
-//   5. Replace this function with the real implementation
+// Task 16 (2026-05-15) verified on Roku Native 2910X firmware that the dev
+// portal does NOT expose a screensaver-trigger HTTP endpoint. `/plugin_inspect`
+// offers only Inspect / Rekey / Screenshot / dloadProf submit buttons. There
+// is no documented ECP keypress that immediately activates a screensaver
+// either; activation happens only when the OS idle-timer elapses (default 5+
+// minutes) AND the channel is set as the active screensaver in Settings >
+// Theme > Screensavers > Custom. Registration correctness is verified
+// out-of-band by querying `/query/screensavers` (the sideloaded channel
+// appears with `id="dev"`).
+//
+// This function therefore always throws to drive the script into the Option
+// B (manual operator) fallback path. See docs/t27-evidence/
+// 2026-05-15-screensaver-phase-a.md for the full investigation.
 // ---------------------------------------------------------------------------
 async function triggerScreensaverViaDevPortal(_host, _password) {
   throw new Error(
-    'triggerScreensaverViaDevPortal: not yet implemented; see Task 16 for discovery',
+    'no dev-portal endpoint exists on Native 2910X firmware; falling back to Option B per spec §10 D-impl-1',
   );
 }
 
