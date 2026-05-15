@@ -86,6 +86,9 @@ async function main() {
   // Regen music goldens.
   await regenMusic();
 
+  // Regen screensaver goldens.
+  await regenScreensaver();
+
   process.stdout.write(
     '\n========================================================================\n' +
       'Golden files regenerated:\n' +
@@ -99,8 +102,10 @@ async function main() {
       `  ${join(GOLDEN_DIR, 'news.provenance.json')}\n` +
       `  ${join(GOLDEN_DIR, 'music.zip')}\n` +
       `  ${join(GOLDEN_DIR, 'music.provenance.json')}\n` +
-      'Please commit all ten files with a clear cause in the commit message\n' +
-      '(e.g. "regen goldens: add music_player goldens").\n' +
+      `  ${join(GOLDEN_DIR, 'screensaver.zip')}\n` +
+      `  ${join(GOLDEN_DIR, 'screensaver.provenance.json')}\n` +
+      'Please commit all twelve files with a clear cause in the commit message\n' +
+      '(e.g. "regen goldens: add screensaver goldens").\n' +
       '========================================================================\n',
   );
 }
@@ -229,6 +234,33 @@ async function regenMusic() {
     await copyFile(zip_path, join(GOLDEN_DIR, 'music.zip'));
     const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
     await writeFile(join(GOLDEN_DIR, 'music.provenance.json'), provenance);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+async function regenScreensaver() {
+  const CANONICAL_SCREENSAVER_SPEC = {
+    spec_version: 2,
+    template: 'screensaver',
+    modules: [],
+    app: { name: 'Screensaver E2E', major_version: 0, minor_version: 1, build_version: 0 },
+  };
+
+  const work = join(tmpdir(), `brs-gen-regen-ssvr-${randomUUID()}`);
+  const outputDir = join(work, 'project');
+  const outputZip = join(work, 'project.zip');
+  await mkdir(work, { recursive: true });
+
+  try {
+    const { zip_path, output_dir } = await generateAppForRegen({
+      outputDir,
+      spec: CANONICAL_SCREENSAVER_SPEC,
+      outputZip,
+    });
+    await copyFile(zip_path, join(GOLDEN_DIR, 'screensaver.zip'));
+    const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
+    await writeFile(join(GOLDEN_DIR, 'screensaver.provenance.json'), provenance);
   } finally {
     await rm(work, { recursive: true, force: true });
   }

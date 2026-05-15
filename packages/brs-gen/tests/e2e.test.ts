@@ -656,4 +656,91 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
       ).toEqual([]);
     }, 45_000);
   });
+
+  // screensaver tests (Plan 4e T13)
+  //
+  // Option B: beforeAll generates the project once; all 3 tests share it.
+  // ---------------------------------------------------------------------------
+  describe('screensaver', () => {
+    const CANONICAL_SCREENSAVER_SPEC = {
+      spec_version: 2,
+      template: 'screensaver',
+      modules: [],
+      app: { name: 'Screensaver E2E', major_version: 0, minor_version: 1, build_version: 0 },
+    };
+
+    let ssvrWorkDir: string;
+    let ssvrOutputDir: string;
+    let ssvrZipPath: string;
+    let ssvrClient: McpChild;
+
+    beforeAll(async () => {
+      ssvrWorkDir = await mkdtemp(join(tmpdir(), 'brs-gen-e2e-ssvr-'));
+      ssvrOutputDir = join(ssvrWorkDir, 'project');
+      ssvrZipPath = join(ssvrWorkDir, 'project.zip');
+
+      ssvrClient = new McpChild();
+      const initResp = await ssvrClient.request('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'brs-gen-e2e-screensaver', version: '1' },
+      });
+      if (initResp.error) {
+        throw new Error(`screensaver initialize failed: ${JSON.stringify(initResp.error)}`);
+      }
+
+      const gen = await ssvrClient.request('tools/call', {
+        name: 'generate_app',
+        arguments: {
+          spec: CANONICAL_SCREENSAVER_SPEC,
+          output_dir: ssvrOutputDir,
+          zip: { output_zip: ssvrZipPath },
+        },
+      });
+      if (gen.error) {
+        throw new Error(`screensaver generate_app failed: ${JSON.stringify(gen.error)}`);
+      }
+      parseToolPayload(gen.result); // throws on isError
+    }, 60_000);
+
+    afterAll(async () => {
+      ssvrClient.kill();
+      await rm(ssvrWorkDir, { recursive: true, force: true });
+    });
+
+    it('generate_app on screensaver produces byte-equal golden zip + provenance', async () => {
+      const emitted = await readFile(ssvrZipPath);
+      const golden = await readFile(join(GOLDEN_DIR, 'screensaver.zip'));
+      expect(emitted.equals(golden)).toBe(true);
+
+      const emittedProv = await readFile(join(ssvrOutputDir, '.rokudev-tools', 'provenance.json'));
+      const goldenProv = await readFile(join(GOLDEN_DIR, 'screensaver.provenance.json'));
+      expect(emittedProv.equals(goldenProv)).toBe(true);
+    }, 10_000);
+
+    it('validate_manifest returns ok:true on the screensaver project', async () => {
+      const vm = await ssvrClient.request('tools/call', {
+        name: 'validate_manifest',
+        arguments: { project_dir: ssvrOutputDir },
+      });
+      expect(vm.error).toBeUndefined();
+      const payload = parseToolPayload(vm.result);
+      expect(payload['ok']).toBe(true);
+    }, 15_000);
+
+    it('lint reports no errors on the screensaver project', async () => {
+      const lintResp = await ssvrClient.request('tools/call', {
+        name: 'lint',
+        arguments: { project_dir: ssvrOutputDir },
+      });
+      expect(lintResp.error).toBeUndefined();
+      const payload = parseToolPayload(lintResp.result);
+      expect(payload['ok']).toBe(true);
+      expect(
+        (payload['diagnostics'] as Array<{ severity: string }>).filter(
+          (d) => d.severity === 'error',
+        ),
+      ).toEqual([]);
+    }, 45_000);
+  });
 });
