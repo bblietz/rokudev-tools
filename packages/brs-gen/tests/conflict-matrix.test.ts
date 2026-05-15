@@ -352,3 +352,13 @@ describe('conflict-matrix: screensaver entries', () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe('conflict-matrix: game_shell entries', () => {
+  it('game_shell + no modules: merges cleanly', async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    const template = cat.templates.get('game_shell')!;
+    expect(template).toBeDefined();
+    const result = await runEntry(template, []);
+    expect(result.ok).toBe(true);
+  });
+});
