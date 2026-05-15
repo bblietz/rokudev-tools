@@ -1036,13 +1036,12 @@ describe('TemplateConfig transition_seconds + motion threading', () => {
     }
   });
 
-  it('omits transition_seconds and motion keys from cfg when content provides only feed_url', async () => {
-    // The TemplateConfig emission gate (generate-app.ts) fires when ANY of
-    // brandingSpec.primary_color, content, or effectivePrimaryColor is truthy.
-    // The screensaver template has no branding_defaults and no static branding,
-    // so the gate requires `content` to be present. We therefore pass a content
-    // object containing ONLY feed_url and assert that transition_seconds/motion
-    // do NOT appear in the emitted config.brs.
+  it('includes transition_seconds and motion schema defaults in cfg when content provides only feed_url', async () => {
+    // Screensaver.bs unconditionally calls TemplateConfig() and reads transition_seconds
+    // and motion. The strict screensaver schema applies .default({}) to the content
+    // field, so sub-field defaults (transition_seconds=7, motion=ken_burns) always flow
+    // downstream via the engine's use of strict.data. Supplying only feed_url results
+    // in a config.brs that contains all three keys: feed_url, transition_seconds, motion.
     const tmpDir = await mkdtemp(join(tmpdir(), 'brs-gen-ss-cfg-absent-'));
     try {
       const handler = getHandler();
@@ -1066,10 +1065,10 @@ describe('TemplateConfig transition_seconds + motion threading', () => {
         join(tmpDir, 'out', 'source', '_template', 'config.brs'),
         'utf8',
       );
-      // feed_url SHOULD be present; the new threading keys SHOULD NOT.
+      // feed_url SHOULD be present; schema defaults fill in transition_seconds and motion.
       expect(configBrs).toContain('feed_url:');
-      expect(configBrs).not.toContain('transition_seconds:');
-      expect(configBrs).not.toContain('motion:');
+      expect(configBrs).toContain('transition_seconds:');
+      expect(configBrs).toContain('motion:');
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

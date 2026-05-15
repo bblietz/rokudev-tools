@@ -5,11 +5,26 @@
 // the manifest contains screensaver_title=. Regular app zips are unaffected.
 
 import { describe, it, expect } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import yazl from 'yazl';
 import { createWriteStream } from 'node:fs';
+import { loadCatalog } from '../src/catalog/loader.js';
+import { setCatalogForTests } from '../src/tools/_catalog-singleton.js';
+import { registerAllTools, type ToolDef } from '../src/tools/_register.js';
+import '../src/tools/generate-app.js';
+
+const PKG_ROOT = dirname(fileURLToPath(new URL('.', import.meta.url)));
+
+function getGenerateAppHandler(): ToolDef['handler'] {
+  const tools = new Map<string, ToolDef>();
+  registerAllTools(tools);
+  const def = tools.get('generate_app');
+  if (!def) throw new Error('generate_app tool not registered');
+  return def.handler;
+}
 
 // Helper: build a synthetic zip of approximately sizeBytes by stuffing a
 // single large padding file. compress: false keeps the encoded size close to
@@ -174,4 +189,38 @@ describe('screensaver content schema', () => {
     const r = ScreensaverSchema.safeParse({ ...base, content: { motion: 'sparkles' } as object });
     expect(r.success).toBe(false);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Regression test: generate_app screensaver with NO content block must succeed
+// and emit source/_template/config.brs with the schema defaults.
+// Bug found in Task 11 review: engine gate skipped config.brs when content
+// was absent, causing bsc to fail with "Cannot find function 'TemplateConfig'".
+// ---------------------------------------------------------------------------
+describe('screensaver no-content regression', () => {
+  it('generates screensaver project without content block (uses schema defaults)', async () => {
+    const cat = await loadCatalog(PKG_ROOT);
+    setCatalogForTests(cat);
+    const handler = getGenerateAppHandler();
+    const dir = await mkdtemp(join(tmpdir(), 'brs-gen-ssvr-no-content-'));
+    try {
+      const result = await handler({
+        spec: {
+          spec_version: 2,
+          template: 'screensaver',
+          modules: [],
+          app: { name: 'NoContent', major_version: 0, minor_version: 1, build_version: 0 },
+          // Intentionally no content block — the strict schema must supply defaults.
+        },
+        output_dir: join(dir, 'out'),
+      });
+      const payload = result as { ok: boolean };
+      expect(payload.ok).toBe(true);
+      const cfg = await readFile(join(dir, 'out', 'source', '_template', 'config.brs'), 'utf8');
+      expect(cfg).toContain('transition_seconds:');
+      expect(cfg).toContain('motion:');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
 });

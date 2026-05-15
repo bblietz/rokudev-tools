@@ -200,7 +200,7 @@ registerToolsModule((tools) => {
           issues: parsed.error.issues,
         });
       }
-      const appSpec = parsed.data;
+      let appSpec = parsed.data;
 
       // 4a. Template-strict schema parse. Each template ships a schema.ts
       //     (source tree) or schema.js (compiled) exporting a strict `Schema`.
@@ -208,7 +208,7 @@ registerToolsModule((tools) => {
       const templateMod = await importTemplateSchema(pkgRoot, spec.template);
       if (templateMod?.Schema) {
         const schemaMod = templateMod.Schema as {
-          safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown } };
+          safeParse: (x: unknown) => { success: boolean; error?: { issues: unknown }; data?: unknown };
         };
         const strict = schemaMod.safeParse(spec);
         if (!strict.success) {
@@ -217,6 +217,11 @@ registerToolsModule((tools) => {
             `AppSpec failed strict validation against template '${spec.template}'`,
             { template_id: spec.template, issues: strict.error?.issues },
           );
+        }
+        // Use the strict schema's parsed output (which carries template-level defaults,
+        // e.g. screensaver content defaults) so downstream code sees fully-defaulted values.
+        if (strict.data !== undefined) {
+          appSpec = strict.data as typeof appSpec;
         }
       }
 

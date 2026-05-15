@@ -590,16 +590,10 @@ describe('screensaver snapshots', () => {
         template: 'screensaver',
         modules: [],
         app: { name: 'Demo Photos', major_version: 0, minor_version: 1, build_version: 0 },
-        // Include content so the engine emits TemplateConfig() (which Screensaver.bs
-        // calls unconditionally). Per templates/screensaver/schema.ts, transition_seconds
-        // and motion are optional; setting them explicitly makes the snapshot deterministic.
-        // (feed_format is intentionally omitted at the wrapper-spec level because the
-        // wrapper's content schema enums it to roku_direct_publisher_json; the screensaver
-        // template-specific schema layers its own enum on top in the strict template parse.)
-        content: {
-          transition_seconds: 7,
-          motion: 'ken_burns',
-        },
+        // No content block: the screensaver strict schema applies defaults
+        // (transition_seconds=7, motion=ken_burns, feed_format=rokudev_screensaver_v1)
+        // and the engine uses those defaults to emit source/_template/config.brs.
+        // This exercises the fix for the no-content bug found in Task 11 review.
       },
       output_dir: projectDir,
     });

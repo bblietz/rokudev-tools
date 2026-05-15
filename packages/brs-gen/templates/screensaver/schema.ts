@@ -36,7 +36,7 @@ export const Schema = z
       })
       .strict(),
     branding: z.object({}).passthrough().optional(),
-    content: ScreensaverContentSchema.optional(),
+    content: ScreensaverContentSchema.default({}),
   })
   .strict();
 
