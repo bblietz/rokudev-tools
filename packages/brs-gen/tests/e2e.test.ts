@@ -743,4 +743,87 @@ describe('brs-gen e2e: MCP smoke + golden fixtures', () => {
       ).toEqual([]);
     }, 45_000);
   });
+
+  describe('game_shell', () => {
+    const CANONICAL_GAME_SHELL_SPEC = {
+      spec_version: 2,
+      template: 'game_shell',
+      modules: [],
+      app: { name: 'Pong E2E', major_version: 0, minor_version: 1, build_version: 0 },
+    };
+
+    let gameWorkDir: string;
+    let gameOutputDir: string;
+    let gameZipPath: string;
+    let gameClient: McpChild;
+
+    beforeAll(async () => {
+      gameWorkDir = await mkdtemp(join(tmpdir(), 'brs-gen-e2e-game-'));
+      gameOutputDir = join(gameWorkDir, 'project');
+      gameZipPath = join(gameWorkDir, 'project.zip');
+
+      gameClient = new McpChild();
+      const initResp = await gameClient.request('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'brs-gen-e2e-game-shell', version: '1' },
+      });
+      if (initResp.error) {
+        throw new Error(`game_shell initialize failed: ${JSON.stringify(initResp.error)}`);
+      }
+
+      const gen = await gameClient.request('tools/call', {
+        name: 'generate_app',
+        arguments: {
+          spec: CANONICAL_GAME_SHELL_SPEC,
+          output_dir: gameOutputDir,
+          zip: { output_zip: gameZipPath },
+        },
+      });
+      if (gen.error) {
+        throw new Error(`game_shell generate_app failed: ${JSON.stringify(gen.error)}`);
+      }
+      parseToolPayload(gen.result); // throws on isError
+    }, 60_000);
+
+    afterAll(async () => {
+      gameClient.kill();
+      await rm(gameWorkDir, { recursive: true, force: true });
+    });
+
+    it('generate_app on game_shell produces byte-equal golden zip + provenance', async () => {
+      const emitted = await readFile(gameZipPath);
+      const golden = await readFile(join(GOLDEN_DIR, 'game-shell.zip'));
+      expect(emitted.equals(golden)).toBe(true);
+
+      const emittedProv = await readFile(join(gameOutputDir, '.rokudev-tools', 'provenance.json'));
+      const goldenProv = await readFile(join(GOLDEN_DIR, 'game-shell.provenance.json'));
+      expect(emittedProv.equals(goldenProv)).toBe(true);
+    }, 10_000);
+
+    it('validate_manifest returns ok:true on the game_shell project', async () => {
+      const vm = await gameClient.request('tools/call', {
+        name: 'validate_manifest',
+        arguments: { project_dir: gameOutputDir },
+      });
+      expect(vm.error).toBeUndefined();
+      const payload = parseToolPayload(vm.result);
+      expect(payload['ok']).toBe(true);
+    }, 15_000);
+
+    it('lint reports no errors on the game_shell project', async () => {
+      const lintResp = await gameClient.request('tools/call', {
+        name: 'lint',
+        arguments: { project_dir: gameOutputDir },
+      });
+      expect(lintResp.error).toBeUndefined();
+      const payload = parseToolPayload(lintResp.result);
+      expect(payload['ok']).toBe(true);
+      expect(
+        (payload['diagnostics'] as Array<{ severity: string }>).filter(
+          (d) => d.severity === 'error',
+        ),
+      ).toEqual([]);
+    }, 45_000);
+  });
 });

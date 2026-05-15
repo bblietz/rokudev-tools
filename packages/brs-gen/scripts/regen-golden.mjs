@@ -89,6 +89,9 @@ async function main() {
   // Regen screensaver goldens.
   await regenScreensaver();
 
+  // Regen game_shell goldens.
+  await regenGameShell();
+
   process.stdout.write(
     '\n========================================================================\n' +
       'Golden files regenerated:\n' +
@@ -104,8 +107,10 @@ async function main() {
       `  ${join(GOLDEN_DIR, 'music.provenance.json')}\n` +
       `  ${join(GOLDEN_DIR, 'screensaver.zip')}\n` +
       `  ${join(GOLDEN_DIR, 'screensaver.provenance.json')}\n` +
-      'Please commit all twelve files with a clear cause in the commit message\n' +
-      '(e.g. "regen goldens: add screensaver goldens").\n' +
+      `  ${join(GOLDEN_DIR, 'game-shell.zip')}\n` +
+      `  ${join(GOLDEN_DIR, 'game-shell.provenance.json')}\n` +
+      'Please commit all fourteen files with a clear cause in the commit message\n' +
+      '(e.g. "regen goldens: add game_shell goldens").\n' +
       '========================================================================\n',
   );
 }
@@ -261,6 +266,33 @@ async function regenScreensaver() {
     await copyFile(zip_path, join(GOLDEN_DIR, 'screensaver.zip'));
     const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
     await writeFile(join(GOLDEN_DIR, 'screensaver.provenance.json'), provenance);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+async function regenGameShell() {
+  const CANONICAL_GAME_SHELL_SPEC = {
+    spec_version: 2,
+    template: 'game_shell',
+    modules: [],
+    app: { name: 'Pong E2E', major_version: 0, minor_version: 1, build_version: 0 },
+  };
+
+  const work = join(tmpdir(), `brs-gen-regen-game-${randomUUID()}`);
+  const outputDir = join(work, 'project');
+  const outputZip = join(work, 'project.zip');
+  await mkdir(work, { recursive: true });
+
+  try {
+    const { zip_path, output_dir } = await generateAppForRegen({
+      outputDir,
+      spec: CANONICAL_GAME_SHELL_SPEC,
+      outputZip,
+    });
+    await copyFile(zip_path, join(GOLDEN_DIR, 'game-shell.zip'));
+    const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
+    await writeFile(join(GOLDEN_DIR, 'game-shell.provenance.json'), provenance);
   } finally {
     await rm(work, { recursive: true, force: true });
   }
