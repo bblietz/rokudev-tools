@@ -107,7 +107,7 @@ docs/t27-evidence/
 9. `Paddle.xml` + `Paddle.bs` (1-Rectangle inner + paddleY mirror + side-conditional X) + snapshots.
 10. `GameScene.xml` + `GameScene.bs` (root scene; state machine; Timer; key handler; init-hook firing from `init()`) + snapshots.
 11. Conflict-matrix entry + determinism entry (covers cross-template no-conflict + byte-equal regen).
-12. E2E golden test (`tests/e2e/game-shell.test.ts`) + golden zip regen via `TZ=UTC ... regen-golden.mjs`.
+12. E2E golden: add `describe('game_shell', ...)` block to existing `tests/e2e.test.ts` + add `regenGameShell()` to `scripts/regen-golden.mjs`; regen via `TZ=UTC ... regen-golden.mjs`.
 13. T27 driver `scripts/t27-game-shell.mjs`.
 14. Run T27 on device 10.128.162.107; capture screenshots; write Phase A evidence doc.
 15. README v0.5.6 release notes (appended at END; ASCENDING order).
@@ -261,7 +261,7 @@ EOF
 **Files:**
 - Create: `packages/brs-gen/templates/game_shell/template.toml`
 - Create: `packages/brs-gen/templates/game_shell/schema.ts`
-- Create: `packages/brs-gen/tests/templates/game-shell-schema.test.ts`
+- Create: `packages/brs-gen/tests/game-shell-schema.test.ts`
 
 - [ ] **Step 1: Read Plan 4e's screensaver template.toml + schema.ts as the structural reference**
 
@@ -1608,7 +1608,7 @@ Expected: ALL game_shell snapshot tests PASS (manifest, main.brs, pong.brs, Ball
 
 - [ ] **Step 6: Lint the generated channel**
 
-Run: `pnpm -C packages/brs-gen exec vitest run tests/templates/game-shell-gamescene.test.ts` (without `-u`); also run lint via the engine path:
+Run: `pnpm -C packages/brs-gen exec vitest run tests/snapshots.test.ts -t "game_shell snapshots"` (without `-u`); also run lint via the engine path:
 
 ```
 mkdir -p /tmp/game-shell-lint && pnpm -C packages/brs-gen exec node -e "
@@ -2410,7 +2410,11 @@ git status | grep __golden__
 ```
 Should show ALL of `stub`, `video-grid`, `blank`, `news`, `music`, `screensaver`, `game-shell` `.zip` and `.provenance.json` modified. (If any are NOT modified, the regen script may have a bug — investigate.)
 
-Also confirm that `BRS_GEN_VERSION` (a TS-side constant referenced in `tests/snapshots.test.ts` line ~17) tracks the package.json version. If it's hardcoded, bump it manually (search `packages/brs-gen/src` for `BRS_GEN_VERSION`).
+Also resolve `BRS_GEN_VERSION` source-of-truth. Run:
+```
+grep -rn "BRS_GEN_VERSION" packages/brs-gen/src packages/brs-gen/tests
+```
+If results show a `readPkgVersion()` call (project's util at `packages/brs-gen/src/util/paths.ts`), the constant is auto-derived from `package.json` and no manual bump is needed. If `BRS_GEN_VERSION` is a hardcoded literal (e.g., `const BRS_GEN_VERSION = '0.5.5'`), bump it to `'0.5.6'` manually wherever it appears, then re-run the regen + full suite.
 
 - [ ] **Step 5: Re-run full suite to confirm version bumps + golden regen are consistent**
 
