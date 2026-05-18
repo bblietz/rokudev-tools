@@ -396,17 +396,45 @@ The dispatcher's pure functions (queue normalization, identity merge, RIDA-condi
 - Target device: Roku Native 2910X (10.128.160.39 if reachable; fall back to user-supplied IP).
 - Loop 4 templates: `video_grid_channel`, `news_channel`, `music_player`, `game_shell`. (Skip `screensaver` — no user navigation; skip `blank_scenegraph` — sample-only.)
 - Per template:
-  1. Compose `template + analytics.event_pipe` (console sink only, no HTTP).
+  1. Compose `template + analytics.event_pipe` with **T27-specific config: `batch_interval_ms: 1500`, `batch_max_events: 5`** (so each 1.5s capture window reliably drains the queue to ConsoleSink). Console sink only, no HTTP.
   2. Sideload + launch via `sideloadAndLaunch`.
-  3. Standard navigation sequence (4 keypresses tailored per template):
-     - `video_grid_channel`: Right, Right, Select (enter Details), Select (play) → expect screen_view, screen_view, content_start.
-     - `news_channel`: Right (CategoryGrid), Select (play) → expect screen_view, content_start.
-     - `music_player`: Right, Select → expect screen_view (NowPlaying); content_start manual (skip assertion).
-     - `game_shell`: Select (start) → expect screen_view, game_start.
-  4. Tail BrightScript log (port 8085) for 8s after each keypress sequence.
-  5. Grep `[Analytics]` lines.
-  6. Assert: `channel_start` appears exactly once at the start with `cold_start=true`; subsequent events appear in expected order with expected props.
-- T27 evidence file: `docs/t27-evidence/2026-MM-DD-analytics-event-pipe.md` with PASS rows per template.
+  3. Tail BrightScript log (port 8085) starting at launch.
+  4. Wait 2.5s for initial scene mount + first flush tick → capture mount events.
+  5. Send keypress sequence tailored per template (see §12.4.1); after each subsequence, wait 2s (≥ `batch_interval_ms + jitter`) and capture additional events.
+  6. Grep `[Analytics]` lines from the tail buffer; parse each into `(name, props)` tuples.
+  7. Assert per-template expected event sequence (see §12.4.2).
+- T27 evidence file: `docs/t27-evidence/<YYYY-MM-DD>-analytics-event-pipe.md` with PASS rows per template.
+
+> **Why batch_interval_ms must be small in T27:** ConsoleSink (like all sinks) receives events at flush time, not synchronously on `Analytics_Track`. With the default `batch_interval_ms=10000` and `batch_max_events=50`, the 2-4 events emitted by a T27 navigation sequence neither trigger a threshold flush nor wait long enough for a timer flush. The 1500ms override ensures flushes fire between captures without requiring `Analytics_Flush()` calls from test code.
+
+#### 12.4.1 Per-template keypress sequence (informative; exact sequence finalized at T27 driver authoring time after re-inspecting each template's interaction model)
+
+| Template | Suggested sequence | Notes |
+|---|---|---|
+| `video_grid_channel` | Right ×N (no events), Select (no event — DetailsScene not wired), Down (focus play), Select (play) | Right keypresses absorbed by RowList focus; DetailsScene has no optional_init_calls entry; only PlayerScene Select fires `content_start`. |
+| `news_channel` | template-specific path to PlayerScene (consult `MainScene.bs` / `CategoryGridScene.bs` at driver authoring) | If CategoryGridScene mounts on a navigation action, a second screen_view fires before content_start. |
+| `music_player` | Right (next poster), Select (open NowPlaying) | NowPlaying mount fires `screen_view(NowPlayingScene)`. `content_start` is manual in v1 (skip assertion). |
+| `game_shell` | Select (start game) | `after_game_start` fires `game_start` custom event. |
+
+#### 12.4.2 Per-template event assertions (normative)
+
+> Sequences below list `[Analytics]` events ONLY; keypresses that produce no wired hook (e.g. RowList focus changes, Back-to-channel-exit) emit nothing and are silent in this table.
+
+Each template's `[Analytics]` log lines MUST match exactly this multiset, in this order:
+
+| Template | Required sequence |
+|---|---|
+| `video_grid_channel` | 1. `channel_start` (`cold_start=true`)<br>2. `screen_view` (`screen_name=MainScene`)<br>3. `content_start` (`content_id` present, `content_kind=video`) |
+| `news_channel` | 1. `channel_start` (`cold_start=true`)<br>2. `screen_view` (`screen_name=MainScene`)<br>3. `screen_view` (`screen_name=CategoryGridScene`) — driver MUST navigate via a category tile selection so this hook fires deterministically<br>4. `content_start` (`content_kind=video`) |
+| `music_player` | 1. `channel_start` (`cold_start=true`)<br>2. `screen_view` (`screen_name=MainScene`)<br>3. `screen_view` (`screen_name=NowPlayingScene`) |
+| `game_shell` | 1. `channel_start` (`cold_start=true`)<br>2. `screen_view` (`screen_name=GameScene`)<br>3. `game_start` |
+
+Common assertions across all four:
+- Exactly one `channel_start` per template run.
+- `channel_start` is the FIRST event observed (precedes the initial-mount `screen_view`).
+- Every event carries auto-props: `channel_client_id`, `session_id`, `channel_version`, `roku_model`, `roku_fw`, `ts_epoch_ms`.
+- `rida` is present OR omitted; both branches are acceptable (driver does NOT assert specific RIDA state — depends on the test device's settings).
+- Event timestamps are monotonically non-decreasing.
 
 ## 13. File structure
 
