@@ -9,7 +9,7 @@ type = "object"
 additionalProperties = false
 
   [module.config_schema.properties]
-  http_endpoint     = { type = "string", format = "uri", default = "" }
+  http_endpoint     = { type = "string", default = "" }
   http_app_key      = { type = "string", default = "" }
   console_sink      = { type = "boolean", default = true }
   batch_interval_ms = { type = "integer", minimum = 1000, maximum = 300000, default = 10000 }

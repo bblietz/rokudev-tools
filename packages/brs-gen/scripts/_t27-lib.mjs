@@ -186,11 +186,25 @@ export async function assertPositionAdvanced(host, startPosition, windowMs) {
  * Wraps TelnetClient.tail() from @rokudev/device-client. Returns an empty
  * string if no output arrives within the window.
  *
- * @param {{ host: string, seconds?: number }} opts
+ * Retries up to `retries` times (default 5) with a `retryDelayMs` gap
+ * (default 300ms) on ECONNRESET. On Native 2910X / TCL firmware 15.2.4 the
+ * debug port resets during channel boot; a short retry loop absorbs this.
+ *
+ * @param {{ host: string, seconds?: number, retries?: number, retryDelayMs?: number }} opts
  * @returns {Promise<string>}
  */
-export async function tailLog({ host, seconds = 8 }) {
-  const client = new TelnetClient();
-  const lines = await client.tail(host, 8085, seconds);
-  return lines.join('\n');
+export async function tailLog({ host, seconds = 8, retries = 5, retryDelayMs = 300 }) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const client = new TelnetClient();
+      const lines = await client.tail(host, 8085, seconds);
+      return lines.join('\n');
+    } catch (e) {
+      const code = e && e.code;
+      const isReset = code === 'ECONNRESET' || (e && e.message && e.message.includes('ECONNRESET'));
+      if (!isReset || attempt >= retries) throw e;
+      await sleep(retryDelayMs);
+    }
+  }
+  return '';
 }

@@ -114,7 +114,13 @@ function AnalyticsEventPipe_GetOrInitNode() as object
     if m.global = invalid then
         return invalid
     end if
-    node = m.global.findNode("AnalyticsEventPipe")
+    ' Prefer a direct field reference on m.global over findNode().
+    ' findNode() searches child nodes by id and is unreliable on some Roku
+    ' firmware (e.g. TCL Native 2910X 15.2.4): createChild() adds the node
+    ' to a render-thread list that findNode() cannot see from task/component
+    ' contexts. A global assocarray field is set atomically and is always
+    ' readable from any context that has m.global access.
+    node = m.global.analyticsEventPipeNode
     if node <> invalid then
         return node
     end if
@@ -122,6 +128,13 @@ function AnalyticsEventPipe_GetOrInitNode() as object
 end function
 
 function AnalyticsEventPipe_Init() as object
+    ' Guard against concurrent double-init: another component may have called
+    ' Init() concurrently and already stored the node by the time we run.
+    ' Check the global field again before creating a new node.
+    existing = m.global.analyticsEventPipeNode
+    if existing <> invalid then
+        return existing
+    end if
     node = m.global.createChild("Node")
     node.id = "AnalyticsEventPipe"
     cfg = ModuleConfig_analytics_event_pipe()
@@ -136,7 +149,7 @@ function AnalyticsEventPipe_Init() as object
     node.addField("manifestVersion", "string", false)
     node.addField("previousScreen", "string", false)
     node.addField("coldStartFired", "boolean", false)
-    node.addField("handlerRegistry", "assocarray", false)
+    ' handlerRegistry field removed; dispatch is by name in Flush (see below)
     node.config = cfg
     node.queue = "[]"
     node.retryBuffer = "[]"
@@ -148,12 +161,10 @@ function AnalyticsEventPipe_Init() as object
     node.manifestVersion = AnalyticsEventPipe_ReadManifestVersion()
     node.previousScreen = ""
     node.coldStartFired = false
-    ' Static handler registry (BrightScript has no string-to-function reflection;
-    ' bundled sinks are referenced by bare identifier here).
-    node.handlerRegistry = {
-        ConsoleSink_handler: ConsoleSink_handler
-        HttpSink_handler: HttpSink_handler
-    }
+    ' NOTE: do NOT store function references in node.handlerRegistry.
+    ' SceneGraph node fields do not reliably preserve function references
+    ' across thread boundaries (e.g. timer callbacks). Dispatch is done
+    ' by name matching in AnalyticsEventPipe_Flush instead.
     ' Flush timer.
     timer = node.createChild("Timer")
     timer.id = "AnalyticsEventPipe_FlushTimer"
@@ -161,18 +172,41 @@ function AnalyticsEventPipe_Init() as object
     timer.duration = cfg.batch_interval_ms / 1000.0
     timer.observeField("fire", "AnalyticsEventPipe_OnFlushTimer")
     timer.control = "start"
-    ' Default sinks.
+    ' Default sinks: register directly using the local node reference rather
+    ' than calling Analytics_AddSink(), which would re-enter GetOrInitNode()
+    ' and hit m.global.findNode() before the createChild() above is visible
+    ' to the SceneGraph render thread (causing infinite recursion on Roku OS).
     if cfg.console_sink = true then
-        Analytics_AddSink("ConsoleSink_handler")
+        sinks = node.sinks
+        sinks.push("ConsoleSink_handler")
+        node.sinks = sinks
+        handles = node.sinkHandles
+        handles["ConsoleSink_handler"] = node.nextHandle
+        node.nextHandle = node.nextHandle + 1
+        node.sinkHandles = handles
     end if
     if cfg.http_endpoint <> "" then
-        Analytics_AddSink("HttpSink_handler")
+        sinks = node.sinks
+        sinks.push("HttpSink_handler")
+        node.sinks = sinks
+        handles = node.sinkHandles
+        handles["HttpSink_handler"] = node.nextHandle
+        node.nextHandle = node.nextHandle + 1
+        node.sinkHandles = handles
     end if
+    ' Publish the node reference as a direct field on m.global so that
+    ' GetOrInitNode() can retrieve it without findNode() (which is unreliable
+    ' on some Roku firmware: TCL Native 2910X / firmware 15.2.4 returns Invalid
+    ' from findNode() for nodes created with createChild() in another context).
+    m.global.addField("analyticsEventPipeNode", "node", false)
+    m.global.analyticsEventPipeNode = node
     return node
 end function
 
 sub AnalyticsEventPipe_OnFlushTimer(event as object)
-    node = m.global.findNode("AnalyticsEventPipe")
+    ' Use the direct global field reference rather than findNode() — see
+    ' AnalyticsEventPipe_GetOrInitNode() for the rationale.
+    node = m.global.analyticsEventPipeNode
     if node = invalid then
         return
     end if
@@ -241,9 +275,13 @@ sub AnalyticsEventPipe_Flush(node as object)
     allOk = true
     for each sinkName in node.sinks
         ok = false
-        fn = node.handlerRegistry[sinkName]
-        if fn <> invalid then
-            ok = fn(batch)
+        ' Name-based dispatch: SceneGraph node fields do not reliably preserve
+        ' function references across thread boundaries. Dispatch by name instead.
+        if sinkName = "ConsoleSink_handler" then
+            ok = ConsoleSink_handler(batch)
+        end if
+        if sinkName = "HttpSink_handler" then
+            ok = HttpSink_handler(batch)
         end if
         if ok <> true then
             allOk = false
