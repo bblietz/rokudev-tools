@@ -127,3 +127,30 @@ Sixth and final v1 catalog template: `game_shell`. A regular Roku channel demons
 - **T27 driver `t27-game-shell.mjs`** (Phase A: bundled defaults). Verified on Roku Native 2910X firmware (10.128.160.39): sideload + launch + title render + Select-to-play + D-pad input + ball/paddle animation (SHA-256 differ proof) + Back-to-title (binding foreground gate). 11/11 steps PASS. Phase B (operator content override) deferred per spec §9.2.
 
 Out of v0.5.6: audio (SFX bundle + `content.sfx_enabled`); gamepad input; multiplayer; additional bundled games (Snake, Memory, etc.); background music; difficulty-scaling AI during play; game-pause overlay; network leaderboard; Roku Pay integration in shell.
+
+## v0.6.0 — Plan 5: analytics.event_pipe (first feature module)
+
+First v1 feature module + foundational engine extension.
+
+**New: analytics.event_pipe module**
+
+- `Analytics_Track(name, props)` / `Analytics_AddSink(handlerName)` / `Analytics_RemoveSink(handle)` / `Analytics_Flush()` / `Analytics_SetIdentity(props)` BrightScript API
+- Auto-emits Roku-conventional standard events from template hooks: `channel_start`, `screen_view`, `content_start`, plus `game_start`/`game_over` for game_shell
+- 2 bundled sinks: `ConsoleSink_handler` (always) and `HttpSink_handler` (when http_endpoint configured)
+- Batched flush (default 10s timer + 50-event threshold; T27 fixtures override to 1.5s/5 events)
+- Honors `roDeviceInfo.IsRIDADisabled()`; always sends `GetChannelClientId()`
+- Composes with all 6 v1 templates via new `optional_init_calls` wiring
+
+**Engine: `module_wiring.optional_init_calls`**
+
+- Additive schema field; existing modules unchanged
+- Validator allows missing template hook (silently skipped); rejects malformed `scope.phase` strings
+- Emitter places matched optional calls after strict `init_calls` within each hook
+
+**Dotted-namespace module IDs** supported (e.g., `analytics.event_pipe`); normalized to underscores for BrightScript identifiers and filesystem paths.
+
+**T27 evidence:** 4/4 navigable templates PASS on TCL Roku TV (model A105X, firmware 15.2.4).
+
+**Known v1 limitation:** sink dispatch is hardcoded in `AnalyticsEventPipe_Flush` (firmware workaround for TCL 15.2.4 — function references in SG node fields are not preserved across thread boundaries). Custom sinks added via `Analytics_AddSink` are registered but not dispatched until a corresponding if-branch is added in Flush.
+
+**v1 status:** templates 6/6 (catalog COMPLETE since v0.5.6); feature modules 1/10.
