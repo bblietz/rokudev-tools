@@ -16,6 +16,18 @@ export function normalizeEventName(input: string): { name: string; warning?: str
   return { name: stripped };
 }
 
+export function mergeIdentity(
+  existing: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+): Record<string, unknown> {
+  const out = { ...existing };
+  for (const [k, v] of Object.entries(incoming)) {
+    if (v === null) delete out[k];
+    else out[k] = v;
+  }
+  return out;
+}
+
 export class SinkRegistry {
   private byHandle = new Map<number, string>();
   private byName = new Map<string, number>();
