@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "test": "TZ=UTC vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc --noEmit -p tsconfig.json",
     "format:check": "prettier --check src tests",

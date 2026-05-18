@@ -8,7 +8,7 @@
 // Convention: every exported function throws on failure. Drivers catch and
 // print a summary before exiting non-zero.
 
-import { DevPortal, DevPortalInspect, EcpClient, EcpControl } from '@rokudev/device-client';
+import { DevPortal, DevPortalInspect, EcpClient, EcpControl, TelnetClient } from '@rokudev/device-client';
 import { writeFile } from 'node:fs/promises';
 
 /** Error-overlay heuristic: crash overlays serialize smaller than this. */
@@ -177,4 +177,20 @@ export async function assertPositionAdvanced(host, startPosition, windowMs) {
     );
   }
   return { finalPosition: position };
+}
+
+/**
+ * Connect to port 8085 (BrightScript debug log) on the Roku, capture output
+ * for `seconds` seconds, and return the full captured text as a single string.
+ *
+ * Wraps TelnetClient.tail() from @rokudev/device-client. Returns an empty
+ * string if no output arrives within the window.
+ *
+ * @param {{ host: string, seconds?: number }} opts
+ * @returns {Promise<string>}
+ */
+export async function tailLog({ host, seconds = 8 }) {
+  const client = new TelnetClient();
+  const lines = await client.tail(host, 8085, seconds);
+  return lines.join('\n');
 }
