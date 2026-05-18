@@ -1,14 +1,13 @@
 sub init()
     m.paddleRect = m.top.findNode("paddleRect")
-    ' side is set by GameScene before any paddleY writes; read once.
-    if m.top.side = "left" then
-        m.sideX = 40
-    else
-        m.sideX = 1860
-    end if
     m.top.observeField("paddleY", "onPaddleY")
 end sub
 
 sub onPaddleY()
-    m.paddleRect.translation = [m.sideX, m.top.paddleY]
+    if m.top.side = "left" then
+        sideX = 40
+    else
+        sideX = 1860
+    end if
+    m.paddleRect.translation = [sideX, m.top.paddleY]
 end sub
