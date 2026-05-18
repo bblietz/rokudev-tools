@@ -51,3 +51,33 @@ export class SinkRegistry {
     return Array.from(this.byHandle.values());
   }
 }
+
+export interface DeviceInfoLike {
+  GetChannelClientId(): string;
+  GetRIDA(): string;
+  IsRIDADisabled(): boolean;
+  GetModel(): string;
+  GetVersion(): string;
+}
+
+export function buildAutoProps(args: {
+  di: DeviceInfoLike;
+  sessionId: string;
+  manifestVersion: string;
+  defaultProps: Record<string, string>;
+  identity: Record<string, unknown>;
+  nowMs: number;
+}): Record<string, unknown> {
+  const props: Record<string, unknown> = {
+    channel_client_id: args.di.GetChannelClientId(),
+    session_id:        args.sessionId,
+    channel_version:   args.manifestVersion,
+    roku_model:        args.di.GetModel(),
+    roku_fw:           args.di.GetVersion(),
+    ts_epoch_ms:       args.nowMs,
+  };
+  if (!args.di.IsRIDADisabled()) props.rida = args.di.GetRIDA();
+  for (const [k, v] of Object.entries(args.defaultProps)) props[k] = v;
+  for (const [k, v] of Object.entries(args.identity)) props[k] = v;
+  return props;
+}
