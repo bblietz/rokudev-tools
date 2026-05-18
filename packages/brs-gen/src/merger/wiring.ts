@@ -79,6 +79,7 @@ export function validateWiring(template: TemplateToml, modules: ModuleToml[]): R
   const matchedOptional: MatchedOptional[] = [];
   for (const m of modules) {
     const moduleId = m.module.id;
+    const strictHooks = new Set(m.module_wiring.init_calls.map((c) => c.hook));
     for (const oc of m.module_wiring.optional_init_calls ?? []) {
       if (!oc.hook.includes('.')) {
         return {
@@ -86,6 +87,16 @@ export function validateWiring(template: TemplateToml, modules: ModuleToml[]): R
           failure: fail(
             'WIRING_OPTIONAL_HOOK_MALFORMED',
             `Module "${moduleId}" optional hook "${oc.hook}" missing "scope.phase" separator`,
+            { stage: 'wiring', moduleId, hook: oc.hook },
+          ),
+        };
+      }
+      if (strictHooks.has(oc.hook)) {
+        return {
+          ok: false,
+          failure: fail(
+            'WIRING_OPTIONAL_DUPLICATES_STRICT',
+            `Module "${moduleId}" hook "${oc.hook}" appears in both init_calls and optional_init_calls`,
             { stage: 'wiring', moduleId, hook: oc.hook },
           ),
         };

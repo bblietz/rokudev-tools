@@ -63,6 +63,22 @@ describe('validateWiring optional_init_calls', () => {
       expect(result.failure.code).toBe('WIRING_OPTIONAL_HOOK_MALFORMED');
     }
   });
+
+  it('returns ok=false with WIRING_OPTIONAL_DUPLICATES_STRICT when same hook in both lists', () => {
+    const dup = {
+      ...baseModule,
+      module_wiring: {
+        ...baseModule.module_wiring,
+        init_calls: [{ hook: 'MainScene.after_scene_show', statement: 'StrictFn(m)' }],
+        optional_init_calls: [{ hook: 'MainScene.after_scene_show', statement: 'OptFn(m)' }],
+      },
+    };
+    const result = validateWiring(template as any, [dup as any]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.code).toBe('WIRING_OPTIONAL_DUPLICATES_STRICT');
+    }
+  });
 });
 
 describe('emitInitHooks with matched optional calls', () => {
@@ -91,5 +107,21 @@ describe('emitInitHooks with matched optional calls', () => {
     const matchedOptional = [{ moduleId: 'm', hook: 'X.y', statement: 'OnlyOpt()' }];
     const out = emitInitHooks(hooks, ['m'], new Map(), matchedOptional);
     expect(out).toContain('OnlyOpt()');
+  });
+
+  it('emits matched optional calls in initOrder when multiple modules match the same hook', () => {
+    const hooks = [{ scope: 'S', phase: 'h', file: 'f', signature: '() as void' }];
+    const initOrder = ['opt_a', 'opt_b'];
+    // matchedOptional intentionally out of initOrder sequence
+    const matchedOptional = [
+      { moduleId: 'opt_b', hook: 'S.h', statement: 'BFn()' },
+      { moduleId: 'opt_a', hook: 'S.h', statement: 'AFn()' },
+    ];
+    const out = emitInitHooks(hooks, initOrder, new Map(), matchedOptional);
+    const lines = out.split('\n');
+    const aIdx = lines.findIndex((l) => l.includes('AFn()'));
+    const bIdx = lines.findIndex((l) => l.includes('BFn()'));
+    expect(aIdx).toBeGreaterThan(-1);
+    expect(bIdx).toBeGreaterThan(aIdx);
   });
 });
