@@ -1,0 +1,329 @@
+' ---------------------------------------------------------------------
+' Dispatcher.bs - analytics.event_pipe singleton + public API.
+' Pure-logic functions mirrored verbatim in packages/brs-gen/tests/
+' analytics-helpers.ts; keep the constants below in sync (covered by
+' analytics-const-parity.test.ts).
+' ---------------------------------------------------------------------
+
+
+
+
+
+' --- Public API ------------------------------------------------------
+function Analytics_Track(name as string, props as object) as void
+    node = AnalyticsEventPipe_GetOrInitNode()
+    if node = invalid then
+        return
+    end if ' pre-SG context; spec section 11
+    normalized = AnalyticsEventPipe_NormalizeName(name)
+    if normalized.name = "" then
+        print "[Analytics] reject name=" + name
+        return
+    end if
+    if normalized.warning <> "" then
+        print "[Analytics] warn " + normalized.warning
+    end if
+    ' channel_start synthesis (spec section 8.3): on first emission per session
+    if node.coldStartFired <> true then
+        node.coldStartFired = true
+        AnalyticsEventPipe_Enqueue(node, "channel_start", {
+            cold_start: true
+        })
+    end if
+    AnalyticsEventPipe_Enqueue(node, normalized.name, props)
+    ' threshold flush
+    qlen = AnalyticsEventPipe_QueueLength(node)
+    if qlen >= node.config.batch_max_events then
+        AnalyticsEventPipe_Flush(node)
+    end if
+end function
+
+function Analytics_AddSink(handlerName as string) as integer
+    node = AnalyticsEventPipe_GetOrInitNode()
+    if node = invalid then
+        return 0
+    end if
+    existing = node.sinkHandles[handlerName]
+    if existing <> invalid then
+        return existing
+    end if
+    handle = node.nextHandle
+    node.nextHandle = handle + 1
+    sinks = node.sinks
+    sinks.push(handlerName)
+    node.sinks = sinks
+    handles = node.sinkHandles
+    handles[handlerName] = handle
+    node.sinkHandles = handles
+    return handle
+end function
+
+function Analytics_RemoveSink(handle as integer) as boolean
+    node = AnalyticsEventPipe_GetOrInitNode()
+    if node = invalid then
+        return false
+    end if
+    handles = node.sinkHandles
+    foundName = ""
+    for each k in handles.Keys()
+        if handles[k] = handle then
+            foundName = k
+        end if
+    end for
+    if foundName = "" then
+        return false
+    end if
+    handles.Delete(foundName)
+    node.sinkHandles = handles
+    newSinks = []
+    for each s in node.sinks
+        if s <> foundName then
+            newSinks.push(s)
+        end if
+    end for
+    node.sinks = newSinks
+    return true
+end function
+
+sub Analytics_Flush()
+    node = AnalyticsEventPipe_GetOrInitNode()
+    if node = invalid then
+        return
+    end if
+    AnalyticsEventPipe_Flush(node)
+end sub
+
+sub Analytics_SetIdentity(props as object)
+    node = AnalyticsEventPipe_GetOrInitNode()
+    if node = invalid then
+        return
+    end if
+    id = node.identity
+    for each k in props.Keys()
+        if props[k] = invalid then
+            id.Delete(k)
+        else
+            id[k] = props[k]
+        end if
+    end for
+    node.identity = id
+end sub
+
+' --- Internal --------------------------------------------------------
+function AnalyticsEventPipe_GetOrInitNode() as object
+    if m.global = invalid then
+        return invalid
+    end if
+    node = m.global.findNode("AnalyticsEventPipe")
+    if node <> invalid then
+        return node
+    end if
+    return AnalyticsEventPipe_Init()
+end function
+
+function AnalyticsEventPipe_Init() as object
+    node = m.global.createChild("Node")
+    node.id = "AnalyticsEventPipe"
+    cfg = ModuleConfig_analytics_event_pipe()
+    node.addField("config", "assocarray", false)
+    node.addField("queue", "string", false)
+    node.addField("retryBuffer", "string", false)
+    node.addField("sinks", "array", false)
+    node.addField("sinkHandles", "assocarray", false)
+    node.addField("nextHandle", "integer", false)
+    node.addField("identity", "assocarray", false)
+    node.addField("sessionId", "string", false)
+    node.addField("manifestVersion", "string", false)
+    node.addField("previousScreen", "string", false)
+    node.addField("coldStartFired", "boolean", false)
+    node.addField("handlerRegistry", "assocarray", false)
+    node.config = cfg
+    node.queue = "[]"
+    node.retryBuffer = "[]"
+    node.sinks = []
+    node.sinkHandles = {}
+    node.nextHandle = 1
+    node.identity = {}
+    node.sessionId = AnalyticsEventPipe_NewSessionId()
+    node.manifestVersion = AnalyticsEventPipe_ReadManifestVersion()
+    node.previousScreen = ""
+    node.coldStartFired = false
+    ' Static handler registry (BrightScript has no string-to-function reflection;
+    ' bundled sinks are referenced by bare identifier here).
+    node.handlerRegistry = {
+        ConsoleSink_handler: ConsoleSink_handler
+        HttpSink_handler: HttpSink_handler
+    }
+    ' Flush timer.
+    timer = node.createChild("Timer")
+    timer.id = "AnalyticsEventPipe_FlushTimer"
+    timer.repeat = true
+    timer.duration = cfg.batch_interval_ms / 1000.0
+    timer.observeField("fire", "AnalyticsEventPipe_OnFlushTimer")
+    timer.control = "start"
+    ' Default sinks.
+    if cfg.console_sink = true then
+        Analytics_AddSink("ConsoleSink_handler")
+    end if
+    if cfg.http_endpoint <> "" then
+        Analytics_AddSink("HttpSink_handler")
+    end if
+    return node
+end function
+
+sub AnalyticsEventPipe_OnFlushTimer(event as object)
+    node = m.global.findNode("AnalyticsEventPipe")
+    if node = invalid then
+        return
+    end if
+    AnalyticsEventPipe_Flush(node)
+end sub
+
+sub AnalyticsEventPipe_Enqueue(node as object, name as string, eventProps as object)
+    ts = AnalyticsEventPipe_NowIso()
+    auto = AnalyticsEventPipe_BuildAutoProps(node)
+    merged = {}
+    for each k in auto.Keys()
+        merged[k] = auto[k]
+    end for
+    for each k in eventProps.Keys()
+        merged[k] = eventProps[k]
+    end for
+    if name = "screen_view" then
+        if node.previousScreen <> "" and merged["previous_screen"] = invalid then
+            merged.previous_screen = node.previousScreen
+        end if
+        if merged.screen_name <> invalid then
+            node.previousScreen = merged.screen_name
+        end if
+    end if
+    ev = {
+        name: name
+        ts: ts
+        props: merged
+    }
+    q = ParseJson(node.queue)
+    if q = invalid then
+        q = []
+    end if
+    q.push(ev)
+    ' overflow protection
+    if q.Count() > node.config.batch_max_events * 2 then
+        node.queue = FormatJson(q)
+        AnalyticsEventPipe_Flush(node)
+        return
+    end if
+    node.queue = FormatJson(q)
+end sub
+
+sub AnalyticsEventPipe_Flush(node as object)
+    q = ParseJson(node.queue)
+    if q = invalid then
+        q = []
+    end if
+    rb = ParseJson(node.retryBuffer)
+    if rb = invalid then
+        rb = []
+    end if
+    if q.Count() = 0 and rb.Count() = 0 then
+        return
+    end if
+    batch = []
+    for each e in rb
+        batch.push(e)
+    end for
+    for each e in q
+        batch.push(e)
+    end for
+    wasRetry = (rb.Count() > 0)
+    node.queue = "[]"
+    node.retryBuffer = "[]"
+    allOk = true
+    for each sinkName in node.sinks
+        ok = false
+        fn = node.handlerRegistry[sinkName]
+        if fn <> invalid then
+            ok = fn(batch)
+        end if
+        if ok <> true then
+            allOk = false
+        end if
+    end for
+    if allOk then
+        return
+    end if
+    if wasRetry then
+        print "[Analytics] DROP batch=" + batch.Count().toStr() + " reason=sink_failure_twice"
+        return
+    end if
+    node.retryBuffer = FormatJson(batch)
+end sub
+
+function AnalyticsEventPipe_QueueLength(node as object) as integer
+    q = ParseJson(node.queue)
+    if q = invalid then
+        return 0
+    end if
+    return q.Count()
+end function
+
+function AnalyticsEventPipe_NormalizeName(input as string) as object
+    lowered = LCase(input)
+    re = CreateObject("roRegex", "[\s\-]+", "")
+    replaced = re.ReplaceAll(lowered, "_")
+    re2 = CreateObject("roRegex", "[^a-z0-9_]", "")
+    stripped = re2.ReplaceAll(replaced, "")
+    if stripped = "" then
+        return {
+            name: ""
+            warning: "name " + chr(34) + input + chr(34) + " empty after normalization"
+        }
+    end if
+    if stripped <> input then
+        return {
+            name: stripped
+            warning: "name " + chr(34) + input + chr(34) + " normalized to " + chr(34) + stripped + chr(34)
+        }
+    end if
+    return {
+        name: stripped
+        warning: ""
+    }
+end function
+
+function AnalyticsEventPipe_BuildAutoProps(node as object) as object
+    di = CreateObject("roDeviceInfo")
+    props = {
+        channel_client_id: di.GetChannelClientId()
+        session_id: node.sessionId
+        channel_version: node.manifestVersion
+        roku_model: di.GetModel()
+        roku_fw: di.GetVersion()
+        ts_epoch_ms: CreateObject("roDateTime").AsSeconds() * 1000
+    }
+    if NOT di.IsRIDADisabled() then
+        props.rida = di.GetRIDA()
+    end if
+    for each k in node.config.default_props.Keys()
+        props[k] = node.config.default_props[k]
+    end for
+    for each k in node.identity.Keys()
+        props[k] = node.identity[k]
+    end for
+    return props
+end function
+
+function AnalyticsEventPipe_NewSessionId() as string
+    return CreateObject("roDeviceInfo").GetRandomUUID()
+end function
+
+function AnalyticsEventPipe_NowIso() as string
+    dt = CreateObject("roDateTime")
+    return dt.ToISOString()
+end function
+
+function AnalyticsEventPipe_ReadManifestVersion() as string
+    mf = CreateObject("roAppInfo")
+    return mf.GetVersion()
+end function
+'//# sourceMappingURL=./Dispatcher.brs.map

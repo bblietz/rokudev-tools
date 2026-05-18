@@ -1,0 +1,10 @@
+' ConsoleSink.bs - prints each event to BrightScript debug output.
+' T27 driver greps for "[Analytics] " lines (spec section 12.4).
+function ConsoleSink_handler(events as object) as boolean
+    for each ev in events
+        line = "[Analytics] name=" + ev.name + " props=" + FormatJson(ev.props)
+        print line
+    end for
+    return true
+end function
+'//# sourceMappingURL=./ConsoleSink.brs.map
