@@ -54,6 +54,16 @@ export const ModuleTomlSchema = z
             })
             .strict(),
         ),
+        optional_init_calls: z
+          .array(
+            z
+              .object({
+                hook: z.string().min(1),
+                statement: z.string().min(1),
+              })
+              .strict(),
+          )
+          .default([]),
       })
       .strict(),
     module_ordering: z.object({ before: z.array(z.string()), after: z.array(z.string()) }).strict(),
