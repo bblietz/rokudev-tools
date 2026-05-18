@@ -39,7 +39,7 @@ describe('ModuleTomlSchema', () => {
       }).success,
     ).toBe(true);
   });
-  it('rejects module.id with non-identifier characters', () => {
+  it('rejects module.id with hyphens', () => {
     const bad = {
       ...minimal,
       module: { id: 'my-module', version: '0.1.0', spec_compat: '>=2', description: 'test' },
@@ -47,7 +47,14 @@ describe('ModuleTomlSchema', () => {
     const r = ModuleTomlSchema.safeParse(bad);
     expect(r.success).toBe(false);
     if (r.success) throw new Error('narrowing');
-    expect(r.error.issues[0]?.message).toMatch(/valid BrightScript identifier/);
+    expect(r.error.issues[0]?.message).toMatch(/start with a letter or underscore/);
+  });
+  it('accepts dotted-namespace module.id (e.g. analytics.event_pipe)', () => {
+    const ok = {
+      ...minimal,
+      module: { id: 'analytics.event_pipe', version: '0.1.0', spec_compat: '>=2', description: 'd' },
+    };
+    expect(ModuleTomlSchema.safeParse(ok).success).toBe(true);
   });
   it('rejects init_hook.scope with non-identifier characters', () => {
     const bad = {

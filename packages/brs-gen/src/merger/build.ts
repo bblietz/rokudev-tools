@@ -79,11 +79,14 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
   if (!manifestRes.ok) throw manifestRes.failure;
 
   // config.bs per module
+  // Dots in dotted-namespace module ids (e.g. analytics.event_pipe) are normalized
+  // to underscores for filesystem paths and BrightScript identifiers.
   const configFiles: Array<{ path: string; content: string }> = [];
   for (const m of input.modules) {
     const conf = specModuleConfigs.get(m.module.id) ?? {};
+    const bsId = m.module.id.replaceAll('.', '_');
     configFiles.push({
-      path: `source/_modules/${m.module.id}/config.bs`,
+      path: `source/_modules/${bsId}/config.bs`,
       content: emitModuleConfigBs(m.module.id, conf),
     });
   }
@@ -145,7 +148,7 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
     modules: input.modules.map((m) => ({
       id: m.module.id,
       version: m.module.version,
-      files: [...m.module_files.add, `source/_modules/${m.module.id}/config.bs`],
+      files: [...m.module_files.add, `source/_modules/${m.module.id.replaceAll('.', '_')}/config.bs`],
     })),
     init_order: topo.order,
     manifest_keys: [...manifestRes.manifest.keys()],

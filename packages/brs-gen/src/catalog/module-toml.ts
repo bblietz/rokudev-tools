@@ -31,8 +31,8 @@ export const ModuleTomlSchema = z
           .string()
           .min(1)
           .regex(
-            /^[A-Za-z_][A-Za-z0-9_]*$/,
-            'module.id must be a valid BrightScript identifier (letters, digits, underscores; must not start with a digit)',
+            /^[A-Za-z_][A-Za-z0-9_.]*$/,
+            'module.id must start with a letter or underscore and contain only letters, digits, underscores, or dots (dotted namespace notation, e.g. analytics.event_pipe)',
           ),
         version: z.string().refine((s) => semver.valid(s) !== null, 'invalid semver'),
         spec_compat: SemverRange,

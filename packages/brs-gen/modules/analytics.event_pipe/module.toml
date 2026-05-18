@@ -1,0 +1,44 @@
+[module]
+id = "analytics.event_pipe"
+version = "0.1.0"
+spec_compat = ">=2"
+description = "Pluggable event-dispatch layer with batched HTTP sink + console sink. Auto-emits Roku-conventional standard events from template hooks. Honors RIDA opt-out."
+
+[module.config_schema]
+type = "object"
+additionalProperties = false
+
+  [module.config_schema.properties]
+  http_endpoint     = { type = "string", format = "uri", default = "" }
+  http_app_key      = { type = "string", default = "" }
+  console_sink      = { type = "boolean", default = true }
+  batch_interval_ms = { type = "integer", minimum = 1000, maximum = 300000, default = 10000 }
+  batch_max_events  = { type = "integer", minimum = 1, maximum = 1000, default = 50 }
+  default_props     = { type = "object", additionalProperties = { type = "string" }, default = {} }
+
+[module.files]
+add = []
+
+[module.wiring]
+exports = []
+requires = []
+init_calls = []
+
+optional_init_calls = [
+  { hook = "MainScene.after_scene_show",         statement = "AnalyticsEventPipe_OnScreenView(m, \"MainScene\")" },
+  { hook = "MainScene.after_content_load",       statement = "AnalyticsEventPipe_OnScreenView(m, \"MainScene\")" },
+  { hook = "CategoryGridScene.after_scene_show", statement = "AnalyticsEventPipe_OnScreenView(m, \"CategoryGridScene\")" },
+  { hook = "NowPlayingScene.after_scene_show",   statement = "AnalyticsEventPipe_OnScreenView(m, \"NowPlayingScene\")" },
+  { hook = "GameScene.after_scene_show",         statement = "AnalyticsEventPipe_OnScreenView(m, \"GameScene\")" },
+  { hook = "Screensaver.after_scene_show",       statement = "AnalyticsEventPipe_OnScreenView(m, \"Screensaver\")" },
+  { hook = "PlayerScene.before_play",            statement = "AnalyticsEventPipe_OnContentStart(m)" },
+  { hook = "GameScene.after_game_start",         statement = "AnalyticsEventPipe_OnGameStart(m)" },
+  { hook = "GameScene.after_game_over",          statement = "AnalyticsEventPipe_OnGameOver(m)" },
+]
+
+[module.ordering]
+before = []
+after  = ["auth.device_link_code", "auth.oauth_device_grant", "auth.roku_os_signin"]
+
+[module.conflicts]
+exclusive_with = []
