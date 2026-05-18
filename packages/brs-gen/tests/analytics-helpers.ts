@@ -52,6 +52,34 @@ export class SinkRegistry {
   }
 }
 
+type Event = { name: string; ts: string; props: Record<string, unknown> };
+type SinkFn = (events: Event[]) => boolean;
+
+export function drainQueue(args: {
+  queue: Event[];
+  retryBuffer: Event[];
+  sinks: SinkFn[];
+}): { nextQueue: Event[]; nextRetryBuffer: Event[]; droppedCount: number } {
+  const batch = [...args.retryBuffer, ...args.queue];
+  const wasRetry = args.retryBuffer.length > 0;
+  let allOk = true;
+  for (const sink of args.sinks) {
+    try {
+      if (!sink(batch)) allOk = false;
+    } catch {
+      allOk = false;
+    }
+  }
+  if (allOk) {
+    return { nextQueue: [], nextRetryBuffer: [], droppedCount: 0 };
+  }
+  if (wasRetry) {
+    // already retried once; drop
+    return { nextQueue: [], nextRetryBuffer: [], droppedCount: batch.length };
+  }
+  return { nextQueue: [], nextRetryBuffer: batch, droppedCount: 0 };
+}
+
 export interface DeviceInfoLike {
   GetChannelClientId(): string;
   GetRIDA(): string;
