@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateWiring } from '../../src/merger/wiring.js';
+import { emitInitHooks } from '../../src/merger/emit-init-hooks.js';
 
 // Minimal valid TemplateToml. Only the init_hooks list matters for these tests.
 const template = {
@@ -61,5 +62,34 @@ describe('validateWiring optional_init_calls', () => {
     if (!result.ok) {
       expect(result.failure.code).toBe('WIRING_OPTIONAL_HOOK_MALFORMED');
     }
+  });
+});
+
+describe('emitInitHooks with matched optional calls', () => {
+  it('emits matched optional calls after strict init_calls within the same hook', () => {
+    const hooks = [
+      { scope: 'MainScene', phase: 'after_scene_show', file: 'c/M.bs', signature: '(m as object) as void' },
+    ];
+    const initOrder = ['strict_mod', 'opt_mod'];
+    const callsByModule = new Map([
+      ['strict_mod', [{ hook: 'MainScene.after_scene_show', statement: 'StrictFn(m)' }]],
+    ]);
+    const matchedOptional = [
+      { moduleId: 'opt_mod', hook: 'MainScene.after_scene_show', statement: 'OptFn(m)' },
+    ];
+    const out = emitInitHooks(hooks, initOrder, callsByModule, matchedOptional);
+    expect(out).toContain('sub Modules_OnMainSceneAfterSceneShow(m as object) as void');
+    const lines = out.split('\n');
+    const strictIdx = lines.findIndex((l) => l.includes('StrictFn(m)'));
+    const optIdx = lines.findIndex((l) => l.includes('OptFn(m)'));
+    expect(strictIdx).toBeGreaterThan(-1);
+    expect(optIdx).toBeGreaterThan(strictIdx);
+  });
+
+  it('emits hook function even when only optional calls match', () => {
+    const hooks = [{ scope: 'X', phase: 'y', file: 'f', signature: '() as void' }];
+    const matchedOptional = [{ moduleId: 'm', hook: 'X.y', statement: 'OnlyOpt()' }];
+    const out = emitInitHooks(hooks, ['m'], new Map(), matchedOptional);
+    expect(out).toContain('OnlyOpt()');
   });
 });

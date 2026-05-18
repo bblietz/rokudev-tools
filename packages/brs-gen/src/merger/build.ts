@@ -96,6 +96,7 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
     input.template.template_exports.init_hooks,
     topo.order,
     callsByModule,
+    wiring.matchedOptional,
   );
 
   // Module static files copied verbatim
