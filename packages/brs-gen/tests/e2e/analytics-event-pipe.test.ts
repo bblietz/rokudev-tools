@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SNAP_DIR = join(__dirname, '../__snapshots__/analytics_event_pipe');
@@ -101,5 +102,30 @@ describe('analytics.event_pipe BS file snapshots', () => {
   it('snapshots HttpSink.brs', async () => {
     const src = await composeAndRead('blank_scenegraph', 'source/_modules/analytics_event_pipe/sinks/HttpSink.brs');
     await expect(src).toMatchFileSnapshot(join(SNAP_DIR, 'HttpSink.brs.snap.txt'));
+  });
+});
+
+describe('analytics.event_pipe canonical golden', () => {
+  const goldenPath = join(__dirname, '../__golden__/analytics-event-pipe-news.zip');
+  it('news_channel + analytics.event_pipe byte-equal to golden zip', async () => {
+    const outDir = mkdtempSync(join(tmpdir(), 'golden-'));
+    const zipPath = join(outDir, 'out.zip');
+    await generateAppForRegen({
+      outputDir: join(outDir, 'project'),
+      spec: {
+        spec_version: 2,
+        template: 'news_channel',
+        modules: [{ id: 'analytics.event_pipe', config: {
+          http_endpoint: 'https://analytics.example.com/v1/events',
+          http_app_key: 'test_key',
+          default_props: { environment: 'test', channel_name: 'news_demo' },
+        }}],
+        app: { name: 'AnalyticsGolden', major_version: 0, minor_version: 1, build_version: 0 },
+      },
+      outputZip: zipPath,
+    });
+    const actual = createHash('sha256').update(readFileSync(zipPath)).digest('hex');
+    const expected = createHash('sha256').update(readFileSync(goldenPath)).digest('hex');
+    expect(actual).toBe(expected);
   });
 });
