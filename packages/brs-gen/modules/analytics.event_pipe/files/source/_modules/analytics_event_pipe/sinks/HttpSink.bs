@@ -1,4 +1,29 @@
-' STUB: Real implementation in Task 15.
+' HttpSink.bs - batched HTTPS POST via roUrlTransfer.AsyncPostFromString.
+
 function HttpSink_handler(events as object) as boolean
-    return true
+    node = m.global.findNode("AnalyticsEventPipe")
+    if node = invalid then return false
+    cfg = node.config
+    if cfg.http_endpoint = "" then return false
+    body = FormatJson({ events: events })
+    port = CreateObject("roMessagePort")
+    xfer = CreateObject("roUrlTransfer")
+    xfer.SetUrl(cfg.http_endpoint)
+    xfer.AddHeader("Content-Type", "application/json")
+    if cfg.http_app_key <> "" then xfer.AddHeader("X-App-Key", cfg.http_app_key)
+    xfer.SetMessagePort(port)
+    if NOT xfer.AsyncPostFromString(body) then
+        print "[HttpSink] async_post_returned_false"
+        return false
+    end if
+    msg = port.WaitMessage(ANALYTICS_SINK_HTTP_TIMEOUT_S% * 1000)
+    if msg = invalid then
+        xfer.AsyncCancel()
+        print "[HttpSink] timeout url=" + cfg.http_endpoint
+        return false
+    end if
+    code = msg.GetResponseCode()
+    print "[HttpSink] POST " + cfg.http_endpoint + " -> " + code.toStr()
+    if code >= 200 and code < 300 then return true
+    return false
 end function
