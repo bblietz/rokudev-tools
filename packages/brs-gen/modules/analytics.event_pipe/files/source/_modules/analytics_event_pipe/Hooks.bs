@@ -1,0 +1,13 @@
+' STUB: Real implementation in Task 14.
+
+sub AnalyticsEventPipe_OnScreenView(m as object, screenName as string)
+end sub
+
+sub AnalyticsEventPipe_OnContentStart(m as object)
+end sub
+
+sub AnalyticsEventPipe_OnGameStart(m as object)
+end sub
+
+sub AnalyticsEventPipe_OnGameOver(m as object)
+end sub

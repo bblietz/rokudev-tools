@@ -1,0 +1,19 @@
+' STUB: Real implementation in Task 13. Functions present so engine
+' can compose this module with any template without bsc errors.
+
+function Analytics_Track(name as string, props as object) as void
+end function
+
+function Analytics_AddSink(handlerName as string) as integer
+    return 0
+end function
+
+function Analytics_RemoveSink(handle as integer) as boolean
+    return false
+end function
+
+sub Analytics_Flush()
+end sub
+
+sub Analytics_SetIdentity(props as object)
+end sub

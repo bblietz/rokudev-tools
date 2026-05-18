@@ -17,7 +17,12 @@ additionalProperties = false
   default_props     = { type = "object", additionalProperties = { type = "string" }, default = {} }
 
 [module.files]
-add = []
+add = [
+  "source/_modules/analytics_event_pipe/Dispatcher.bs",
+  "source/_modules/analytics_event_pipe/Hooks.bs",
+  "source/_modules/analytics_event_pipe/sinks/ConsoleSink.bs",
+  "source/_modules/analytics_event_pipe/sinks/HttpSink.bs",
+]
 
 [module.wiring]
 exports = []

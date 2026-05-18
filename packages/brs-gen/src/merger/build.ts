@@ -157,8 +157,48 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
   });
   const provenanceFile = { path: '.rokudev-tools/provenance.json', content: provenance };
 
+  // Collect all .bs source paths contributed by modules so that XML components
+  // which include __init_hooks.bs can also list them as <script> tags. This is
+  // necessary because bsc validates each <script>-included .bs file in the
+  // component scope, where only explicitly-listed scripts are visible. Without
+  // this injection, any call from __init_hooks.bs to a module-provided function
+  // (e.g. from optional_init_calls) produces bsc error 1140.
+  const moduleSourceBsPaths: string[] = [];
+  for (const m of input.modules) {
+    for (const p of m.module_files.add) {
+      if (p.startsWith('source/') && (p.endsWith('.bs') || p.endsWith('.brs'))) {
+        moduleSourceBsPaths.push(p);
+      }
+    }
+    // Also include the auto-generated config.bs for this module.
+    const bsId = moduleIdToBsId(m.module.id);
+    moduleSourceBsPaths.push(`source/_modules/${bsId}/config.bs`);
+  }
+
+  // Patch XML template files: inject <script> tags for module source files and
+  // the auto-generated config.bs files into any component that already lists
+  // __init_hooks.bs as a script. Use a stable insertion point: the line that
+  // references __init_hooks.bs. Skip when there are no module source paths so
+  // no-module compositions produce byte-identical XML to the pre-engine-fix
+  // baseline (preserving existing snapshot and golden tests).
+  const INIT_HOOKS_URI_PATTERN = /(<script[^>]*uri=["'][^"']*__init_hooks\.b[rs]s?["'][^>]*\/>)/;
+  const patchedTemplateFiles = input.renderedTemplateFiles.map((f) => {
+    if (!f.path.endsWith('.xml')) return f;
+    if (moduleSourceBsPaths.length === 0) return f;
+    const src = typeof f.content === 'string' ? f.content : f.content.toString('utf8');
+    if (!INIT_HOOKS_URI_PATTERN.test(src)) return f;
+    const newScriptTags = moduleSourceBsPaths
+      .map((p) => `  <script type="text/brightscript" uri="pkg:/${p}" />`)
+      .join('\n');
+    const patched = src.replace(
+      INIT_HOOKS_URI_PATTERN,
+      `$1\n${newScriptTags}`,
+    );
+    return { path: f.path, content: patched };
+  });
+
   const all = [
-    ...input.renderedTemplateFiles,
+    ...patchedTemplateFiles,
     ...moduleFiles,
     ...assetFiles,
     ...configFiles,

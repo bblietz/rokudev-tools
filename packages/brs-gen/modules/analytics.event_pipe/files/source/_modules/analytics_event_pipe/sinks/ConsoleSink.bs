@@ -1,0 +1,4 @@
+' STUB: Real implementation in Task 15.
+function ConsoleSink_handler(events as object) as boolean
+    return true
+end function
