@@ -389,7 +389,7 @@ describe('buildEmittedProject XML script injection integration', () => {
       modules: [moduleWithSource as never],
       renderedTemplateFiles: renderedXmlFiles,
       moduleFileBytes: bytesWithMod,
-      brsGenVersion: '0.5.6',
+      brsGenVersion: '0.6.0',
     });
 
     const xmlFile = project.files.find((f) => f.path === 'components/MainScene.xml');
@@ -419,7 +419,7 @@ describe('buildEmittedProject XML script injection integration', () => {
       modules: [],
       renderedTemplateFiles: renderedXmlFiles,
       moduleFileBytes: new Map(),
-      brsGenVersion: '0.5.6',
+      brsGenVersion: '0.6.0',
     });
     const xmlFile = project.files.find((f) => f.path === 'components/MainScene.xml');
     expect(xmlFile).toBeTruthy();
