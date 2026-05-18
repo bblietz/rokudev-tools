@@ -38,6 +38,18 @@ Before starting Task 1, the implementer should:
 - MCP handler wrapping: tool handlers return plain payload objects; bootstrap wraps to `{content:[{type:'text', text: ...}]}` once. Do NOT wrap inside handlers.
 - `BRS_GEN_VERSION` change requires ALL goldens regenerated. Task 21 handles this.
 
+**Latent traps specific to this plan (found during plan review):**
+
+- **Validator error shape:** `wiring.ts` does NOT use `throw new BrsGenError(...)`. The convention is `return { ok: false, failure: fail('CODE', message, { stage: 'wiring', ... }) }` (search `WIRING_CONTRACT_VIOLATION` in `wiring.ts` to find the sibling pattern). Tasks 2's sketch must use `fail()` or return-Failure. There is no `BrsGenError` class in this codebase.
+- **Validator signature:** `validateWiring(template: TemplateToml, modules: ModuleToml[])` (full TemplateToml, NOT just template_exports block). Returns a discriminated union, not a plain object. Plan's Task 2 test fixture and Step-4 return-shape sketch must align to this; extending the `{ok:true}` branch with `matchedOptional` is the correct shape change.
+- **`_t27-lib.mjs` has no `tailLog`.** Available exports: `sleep`, `sideload`, `sideloadAndLaunch`, `keypress`, `keypressRepeat`, `screenshot`, `screenshotNoError`, `assertPlaybackStarts`, `assertPositionAdvanced`. Task 19 must EITHER add a `tailLog` helper (precedent: telnet 8085 reader in `@rokudev/device-client`) OR use an existing path. Plan has been updated with an explicit Task 19a for the helper authoring.
+- **`sideloadAndLaunch` signature is positional:** `sideloadAndLaunch(zipPath, host, password, launchParams = {})`. NOT object-arg. Task 19 must call it positionally.
+- **BrightScript `try/catch` available on Roku OS 11+.** Target device (firmware 15.2.4) supports it. Verify bsc + BrighterScript accept it during Task 13; if not, fall back to a `Function(name) <> invalid` validity check guarding the call rather than catching exceptions.
+- **SG `assocarray` field mutation:** Reading `node.config.default_props` returns a copy in some firmware paths; mutating it in-place won't persist. For read-only access (Tasks 13-14 `BuildAutoProps`) this is fine. For writes (Task 13 `Analytics_SetIdentity`), follow the plan's existing pattern: `id = node.identity; id[k] = v; node.identity = id`.
+- **`Int()` defensive cast for AA reads:** `node.config.batch_max_events` round-trips as dynamic on some firmware. Cast to `Int(...)` in numeric comparisons to be safe.
+- **ContentNode field name `streamformat`:** Lowercase in ContentNode XML schema, but case-insensitive in BS reads. Plan's Task 14 uses `content.streamformat`. Verify the news_channel feed parser writes to the right field before locking the snapshot. (BS reads are case-insensitive but tests may be case-sensitive.)
+- **ESM-only regen-helper.mjs:** `node -e 'require(...)'` won't work; the helper uses ESM top-level import. Plan now sequences Task 17 (extend regen-golden.mjs) BEFORE Task 18 (canonical golden zip uses the extended script) — see corrected ordering below.
+
 ---
 
 ## File structure (locked from spec §13)
@@ -230,25 +242,39 @@ and emitter branches in subsequent tasks."
 - Modify: `packages/brs-gen/src/merger/wiring.ts`
 - Test: `packages/brs-gen/tests/merger/optional-init-calls.test.ts` (new)
 
-**Context:** The existing validator at `wiring.ts:11-78` throws `WIRING_CONTRACT_VIOLATION` when a module's `init_calls` hook isn't exported by the template. The new `optional_init_calls` field must use a parallel path: validate hook shape (scope+phase string format) and statement (non-empty), but DO NOT throw if the template lacks the hook. The validator returns the *matched subset* for the emitter to consume.
+**Context:** The existing validator at `wiring.ts` is `validateWiring(template: TemplateToml, modules: ModuleToml[])` returning a discriminated union `{ok:true; ...} | {ok:false; failure}`. Errors are constructed via the `fail('CODE', message, {stage:'wiring', ...})` factory and returned (or thrown). The new `optional_init_calls` field uses a parallel path: validate hook shape (`scope.phase` format) and statement (non-empty); DO NOT fail-return if the template lacks the hook. Extend the `{ok:true}` branch with a new `matchedOptional` field.
+
+**Before authoring:** Read `wiring.ts` end-to-end to confirm the exact return-type shape and locate the existing `WIRING_CONTRACT_VIOLATION` site. Mirror that pattern.
 
 - [ ] **Step 1: Write the failing validator test**
 
-Create `packages/brs-gen/tests/merger/optional-init-calls.test.ts`:
+Create `packages/brs-gen/tests/merger/optional-init-calls.test.ts`. Build a minimal **real** `TemplateToml` and `ModuleToml` per the project's schemas (read `src/catalog/template-toml.ts` and `src/catalog/module-toml.ts` for the exact field set):
 
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { validateWiring } from '../../src/merger/wiring.js';
 
-const templateExports = {
-  init_hooks: [
-    { scope: 'MainScene', phase: 'after_scene_show', file: 'c/M.bs', signature: '(m) as void' },
-  ],
-  scene_nodes: [],
-};
+// Minimal valid TemplateToml. Fill in the few required fields the schema enforces;
+// only the init_hooks list matters for these tests.
+const template = {
+  template: { id: 'tmpl_test', version: '0.1.0', spec_compat: '>=2', description: 'd' },
+  template_manifest_defaults: {},
+  template_branding_defaults: {},
+  template_files: { add: [] },
+  template_exports: {
+    init_hooks: [
+      { scope: 'MainScene', phase: 'after_scene_show', file: 'c/M.bs', signature: '(m as object) as void' },
+    ],
+    scene_nodes: [],
+  },
+  template_content_schema: {},
+} as const;
 
+// Minimal valid ModuleToml. Real schema has more required fields; copy from stub_label.
 const baseModule = {
-  id: 'mod_a',
+  module: { id: 'mod_a', version: '0.1.0', spec_compat: '>=2', description: 'd' },
+  module_config_schema: {},
+  module_files: { add: [] },
   module_wiring: {
     exports: [],
     requires: [],
@@ -258,21 +284,27 @@ const baseModule = {
       { hook: 'PlayerScene.before_play', statement: 'UnmatchedFn(m)' },
     ],
   },
-};
+  module_ordering: { before: [], after: [] },
+  module_conflicts: { exclusive_with: [] },
+} as const;
 
 describe('validateWiring optional_init_calls', () => {
-  it('returns only the matched optional calls in matchedOptional', () => {
-    const result = validateWiring([baseModule], templateExports);
-    expect(result.matchedOptional).toEqual([
-      { moduleId: 'mod_a', hook: 'MainScene.after_scene_show', statement: 'MatchedFn(m)' },
-    ]);
+  it('returns ok=true with matchedOptional containing only the matched call', () => {
+    const result = validateWiring(template as any, [baseModule as any]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.matchedOptional).toEqual([
+        { moduleId: 'mod_a', hook: 'MainScene.after_scene_show', statement: 'MatchedFn(m)' },
+      ]);
+    }
   });
 
-  it('does not throw when optional hooks reference missing template exports', () => {
-    expect(() => validateWiring([baseModule], templateExports)).not.toThrow();
+  it('does not fail when optional hooks reference missing template exports', () => {
+    const result = validateWiring(template as any, [baseModule as any]);
+    expect(result.ok).toBe(true);
   });
 
-  it('rejects malformed optional hook strings (no dot separator)', () => {
+  it('returns ok=false with WIRING_OPTIONAL_HOOK_MALFORMED for malformed hook strings', () => {
     const bad = {
       ...baseModule,
       module_wiring: {
@@ -280,7 +312,11 @@ describe('validateWiring optional_init_calls', () => {
         optional_init_calls: [{ hook: 'NoDot', statement: 'X()' }],
       },
     };
-    expect(() => validateWiring([bad], templateExports)).toThrow(/WIRING_OPTIONAL_HOOK_MALFORMED/);
+    const result = validateWiring(template as any, [bad as any]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.code).toBe('WIRING_OPTIONAL_HOOK_MALFORMED');
+    }
   });
 });
 ```
@@ -296,29 +332,40 @@ Read the full file. Note the return type of `validateWiring`. Decide whether to 
 
 - [ ] **Step 4: Extend wiring.ts**
 
-Add `matchedOptional` to the return shape. Implementation sketch:
+Add `matchedOptional` to the `{ok:true}` branch of the return type. Use the existing `fail()` factory for the new error code (DO NOT introduce `BrsGenError` — it doesn't exist in this codebase). Implementation sketch (read `wiring.ts` first to confirm names; existing site of `WIRING_CONTRACT_VIOLATION` is the model):
 
 ```typescript
-// after existing strict-init_calls validation loop, add:
+// In the return-type definition:
+type Ok = { ok: true; /* existing fields */; matchedOptional: Array<{ moduleId: string; hook: string; statement: string }> };
+
+// In the function body, AFTER strict init_calls validation passes:
 const matchedOptional: Array<{ moduleId: string; hook: string; statement: string }> = [];
 const exportedHookKeys = new Set(
-  templateExports.init_hooks.map((h) => `${h.scope}.${h.phase}`),
+  template.template_exports.init_hooks.map((h) => `${h.scope}.${h.phase}`),
 );
 for (const mod of modules) {
+  const moduleId = mod.module.id;
   for (const oc of mod.module_wiring.optional_init_calls ?? []) {
     if (!oc.hook.includes('.')) {
-      throw new BrsGenError('WIRING_OPTIONAL_HOOK_MALFORMED', `Module ${mod.id} optional hook "${oc.hook}" missing scope.phase separator`);
+      return {
+        ok: false,
+        failure: fail(
+          'WIRING_OPTIONAL_HOOK_MALFORMED',
+          `Module "${moduleId}" optional hook "${oc.hook}" missing "scope.phase" separator`,
+          { stage: 'wiring', moduleId, hook: oc.hook },
+        ),
+      };
     }
     if (exportedHookKeys.has(oc.hook)) {
-      matchedOptional.push({ moduleId: mod.id, hook: oc.hook, statement: oc.statement });
+      matchedOptional.push({ moduleId, hook: oc.hook, statement: oc.statement });
     }
-    // unmatched: silently skipped
+    // unmatched: silently skipped (the entire point of optional_init_calls)
   }
 }
-return { ...existingReturn, matchedOptional };
+return { ok: true, /* spread existing ok-fields */, matchedOptional };
 ```
 
-Add the new error code `WIRING_OPTIONAL_HOOK_MALFORMED` to whichever error-code enum file the project uses (search for `WIRING_CONTRACT_VIOLATION` to find its sibling).
+Add the new error code `WIRING_OPTIONAL_HOOK_MALFORMED` to whichever error-code enum/union file the project uses (search for `WIRING_CONTRACT_VIOLATION` to find its declaration site). If `fail()` is a typed factory with a fixed code union, extend that union.
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -1821,15 +1868,80 @@ lock the post-compile shape of Dispatcher/Hooks/ConsoleSink/HttpSink."
 
 ---
 
-### Task 17: Canonical golden zip — news_channel + analytics.event_pipe
+### Task 17: Extend regen-golden.mjs to regenerate analytics golden (FIRST, then Task 18 consumes it)
+
+**Files:**
+- Modify: `packages/brs-gen/scripts/regen-golden.mjs`
+
+**Context:** The script regenerates all golden artifacts in one TZ=UTC run. Existing pattern: each template has a `regenXxx` async function called from `main()`. Add `regenAnalyticsEventPipe` that writes the canonical golden zip. Order swap rationale (vs. an earlier draft): the script is ESM and can be invoked from the next task via `node scripts/regen-golden.mjs`, avoiding ESM/CommonJS friction from inline `node -e` patterns.
+
+- [ ] **Step 1: Read the existing regen-golden.mjs**
+
+Read the file end-to-end to understand the existing pattern. `regenGameShell` from Plan 4f is the most recent precedent. Note the `generateAppForRegen` import path and any helper utilities (`REPO_ROOT` constant, etc).
+
+- [ ] **Step 2: Add `regenAnalyticsEventPipe`**
+
+In `regen-golden.mjs`, add an async function modeled on `regenGameShell`:
+
+```javascript
+async function regenAnalyticsEventPipe() {
+  const outDir = path.join(os.tmpdir(), 'regen-analytics-' + Date.now());
+  fs.mkdirSync(outDir, { recursive: true });
+  const specPath = path.join(outDir, 'spec.json');
+  fs.writeFileSync(specPath, JSON.stringify({
+    spec_version: 2,
+    template: 'news_channel',
+    modules: [{ id: 'analytics.event_pipe', config: {
+      http_endpoint: 'https://analytics.example.com/v1/events',
+      http_app_key: 'test_key',
+      default_props: { environment: 'test', channel_name: 'news_demo' },
+    }}],
+    app: { name: 'AnalyticsGolden', major_version: 0, minor_version: 1, build_version: 0 },
+  }));
+  const zipPath = path.join(outDir, 'out.zip');
+  await generateAppForRegen({ outputDir: outDir, spec: specPath, outputZip: zipPath });
+  const goldenPath = path.join(REPO_ROOT, 'packages/brs-gen/tests/__golden__/analytics-event-pipe-news.zip');
+  fs.copyFileSync(zipPath, goldenPath);
+  console.log('  - analytics-event-pipe-news.zip');
+}
+```
+
+Call it from `main()` after the last existing `regenXxx`. Bump the stdout count message (e.g. "fourteen" → "fifteen", whatever the current count is).
+
+- [ ] **Step 3: Run the script end-to-end (creates the golden file on disk)**
+
+Run: `TZ=UTC pnpm --filter @rokudev/brs-gen exec node scripts/regen-golden.mjs`
+Expected: script prints `- analytics-event-pipe-news.zip` and all other goldens regenerate. `git status` shows a new untracked file at `packages/brs-gen/tests/__golden__/analytics-event-pipe-news.zip` (plus churn on existing goldens if anything else regenerated).
+
+- [ ] **Step 4: Run full brs-gen test suite + build**
+
+Run: `pnpm --filter @rokudev/brs-gen test -- --run && pnpm --filter @rokudev/brs-gen build`
+Expected: green (no test references the new golden yet — that's Task 18).
+
+- [ ] **Step 5: Verify .prettierignore covers the golden**
+
+`grep '__golden__' .prettierignore` should show the directory. If not, add `packages/brs-gen/tests/__golden__/` to `.prettierignore`.
+
+- [ ] **Step 6: Commit (script + the golden artifact it produces)**
+
+```bash
+git add packages/brs-gen/scripts/regen-golden.mjs packages/brs-gen/tests/__golden__/analytics-event-pipe-news.zip
+git commit -m "chore(brs-gen): extend regen-golden.mjs with analytics.event_pipe
+
+regenAnalyticsEventPipe writes the canonical news+analytics golden zip.
+Idempotent under TZ=UTC. Byte-equality test added in Task 18."
+```
+
+---
+
+### Task 18: Canonical golden zip byte-equality test
 
 **Files:**
 - Test: extend `packages/brs-gen/tests/e2e/analytics-event-pipe.test.ts`
-- Golden: `packages/brs-gen/tests/__golden__/analytics-event-pipe-news.zip` (binary; produced by regen script)
 
-**Context:** Pattern precedent: existing template goldens under `tests/__golden__/*.zip`. The golden zip locks byte-equality of the composed channel. yazl 2.5.x requires `TZ=UTC` for determinism.
+**Context:** Now that Task 17 has produced the golden artifact on disk, write the byte-equality test that locks it. yazl 2.5.x requires `TZ=UTC` for determinism, so the test invocation must be under TZ=UTC.
 
-- [ ] **Step 1: Write the failing byte-equality test**
+- [ ] **Step 1: Write the byte-equality test**
 
 Append to `tests/e2e/analytics-event-pipe.test.ts`:
 
@@ -1860,143 +1972,90 @@ describe('analytics.event_pipe canonical golden', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails (no golden yet)**
+The AppSpec MUST be byte-identical to the one in `regenAnalyticsEventPipe` (Task 17) — otherwise the test will fail with a hash mismatch caused by the input, not by output drift.
 
-Run: `TZ=UTC pnpm --filter @rokudev/brs-gen test tests/e2e/analytics-event-pipe.test.ts -- --run`
-Expected: FAIL — golden file doesn't exist.
-
-- [ ] **Step 3: Generate the golden zip via the regen script (extension comes in Task 18)**
-
-For now, produce the golden manually so this task is self-contained:
-
-```bash
-TZ=UTC node -e "
-const { generateAppForRegen } = require('./packages/brs-gen/scripts/regen-helper.mjs');
-const { mkdirSync, writeFileSync, copyFileSync } = require('node:fs');
-const { join } = require('node:path');
-const outDir = '/tmp/analytics-golden-news';
-mkdirSync(outDir, { recursive: true });
-const specPath = join(outDir, 'spec.json');
-writeFileSync(specPath, JSON.stringify({
-  spec_version: 2,
-  template: 'news_channel',
-  modules: [{ id: 'analytics.event_pipe', config: {
-    http_endpoint: 'https://analytics.example.com/v1/events',
-    http_app_key: 'test_key',
-    default_props: { environment: 'test', channel_name: 'news_demo' },
-  }}],
-  app: { name: 'AnalyticsGolden', major_version: 0, minor_version: 1, build_version: 0 },
-}));
-(async () => {
-  await generateAppForRegen({ outputDir: outDir, spec: specPath, outputZip: join(outDir, 'out.zip') });
-  copyFileSync(join(outDir, 'out.zip'), 'packages/brs-gen/tests/__golden__/analytics-event-pipe-news.zip');
-  console.log('golden written');
-})();
-"
-```
-
-NB: this assumes the regen-helper exports the right function; if not, mirror the existing template golden-regen pattern in `packages/brs-gen/scripts/regen-golden.mjs`.
-
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 2: Run test under TZ=UTC**
 
 Run: `TZ=UTC pnpm --filter @rokudev/brs-gen test tests/e2e/analytics-event-pipe.test.ts -- --run`
 Expected: PASS.
 
-- [ ] **Step 5: Verify .prettierignore covers the golden**
+- [ ] **Step 3: Without TZ=UTC, confirm test fails (documenting the trap)**
 
-`grep '__golden__' .prettierignore` should show the directory. If not, add `packages/brs-gen/tests/__golden__/` to `.prettierignore`.
+Run: `pnpm --filter @rokudev/brs-gen test tests/e2e/analytics-event-pipe.test.ts -- --run`
+(no TZ env)
+Expected: depending on the host timezone, either PASS (if host already UTC) or FAIL (if host TZ shifts the yazl mtime encoding). This is a known limitation; CI sets TZ=UTC; do not commit the result of this step — it's documentation.
 
-- [ ] **Step 6: Commit golden + extended test**
-
-```bash
-git add packages/brs-gen/tests/__golden__/analytics-event-pipe-news.zip packages/brs-gen/tests/e2e/analytics-event-pipe.test.ts
-git commit -m "test(brs-gen): canonical golden zip news_channel + analytics.event_pipe
-
-Byte-equality test under TZ=UTC. Golden produced via regen-helper
-with deterministic AppSpec (config http_endpoint, app_key,
-default_props). Locks composed-channel output shape."
-```
-
----
-
-### Task 18: Extend regen-golden.mjs to regenerate analytics goldens
-
-**Files:**
-- Modify: `packages/brs-gen/scripts/regen-golden.mjs`
-
-**Context:** The script regenerates all golden artifacts in one TZ=UTC run. Existing pattern: each template has a `regenXxx` async function called from `main()`. Add `regenAnalyticsEventPipe` that writes the canonical golden zip. The stdout summary count should bump.
-
-- [ ] **Step 1: Read the existing regen-golden.mjs**
-
-Read the file end-to-end to understand the existing pattern. Note: `regenGameShell` from Plan 4f is the most recent precedent.
-
-- [ ] **Step 2: Add `regenAnalyticsEventPipe`**
-
-In `regen-golden.mjs`, add a new async function modeled on `regenGameShell`:
-
-```javascript
-async function regenAnalyticsEventPipe() {
-  const outDir = path.join(os.tmpdir(), 'regen-analytics-' + Date.now());
-  fs.mkdirSync(outDir, { recursive: true });
-  const specPath = path.join(outDir, 'spec.json');
-  fs.writeFileSync(specPath, JSON.stringify({
-    spec_version: 2,
-    template: 'news_channel',
-    modules: [{ id: 'analytics.event_pipe', config: {
-      http_endpoint: 'https://analytics.example.com/v1/events',
-      http_app_key: 'test_key',
-      default_props: { environment: 'test', channel_name: 'news_demo' },
-    }}],
-    app: { name: 'AnalyticsGolden', major_version: 0, minor_version: 1, build_version: 0 },
-  }));
-  const zipPath = path.join(outDir, 'out.zip');
-  await generateAppForRegen({ outputDir: outDir, spec: specPath, outputZip: zipPath });
-  const goldenPath = path.join(REPO_ROOT, 'packages/brs-gen/tests/__golden__/analytics-event-pipe-news.zip');
-  fs.copyFileSync(zipPath, goldenPath);
-  console.log('  - analytics-event-pipe-news.zip');
-}
-```
-
-Call it from `main()` after the last existing `regenXxx`. Bump the stdout count message (e.g. "fourteen" → "fifteen", or whatever the current count is).
-
-- [ ] **Step 3: Run the script end-to-end**
-
-Run: `TZ=UTC pnpm --filter @rokudev/brs-gen exec node scripts/regen-golden.mjs`
-Expected: all goldens regenerate; the analytics one matches the file written in Task 17 byte-for-byte (since both run TZ=UTC and use the same AppSpec). No git diff on `tests/__golden__/`.
-
-- [ ] **Step 4: Run full brs-gen test suite + build**
-
-Run: `pnpm --filter @rokudev/brs-gen test -- --run && pnpm --filter @rokudev/brs-gen build`
-Expected: green. Golden byte-equality still holds.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add packages/brs-gen/scripts/regen-golden.mjs
-git commit -m "chore(brs-gen): extend regen-golden.mjs with analytics.event_pipe
+git add packages/brs-gen/tests/e2e/analytics-event-pipe.test.ts
+git commit -m "test(brs-gen): canonical golden zip byte-equality (analytics.event_pipe)
 
-regenAnalyticsEventPipe writes the canonical news+analytics golden zip.
-Idempotent under TZ=UTC; produces byte-identical artifact to Task 17."
+Locks news_channel + analytics.event_pipe output under TZ=UTC. AppSpec
+mirrors the one in regenAnalyticsEventPipe (Task 17) for deterministic
+input."
 ```
 
 ---
 
 ## Phase 6: T27 driver + on-device verification (Tasks 19-20)
 
-### Task 19: Author `t27-analytics-event-pipe.mjs`
+### Task 19: Author `tailLog` helper + T27 driver
 
 **Files:**
+- Modify: `packages/brs-gen/scripts/_t27-lib.mjs` (add `tailLog` export)
 - Create: `packages/brs-gen/scripts/t27-analytics-event-pipe.mjs`
 
-**Context:** Pattern precedent: `packages/brs-gen/scripts/t27-game-shell.mjs` from Plan 4f. Reuse helpers from `packages/brs-gen/scripts/_t27-lib.mjs` (specifically `sideloadAndLaunch`, `keypress`, `keypressRepeat`, `tailLog`, `screenshot`). The driver implements the procedure from spec §12.4 with T27-specific config (`batch_interval_ms: 1500`, `batch_max_events: 5`).
+**Context:** Two-part task with two commits.
 
-Important: the IPs in this driver are PLACEHOLDERS. Before Task 20 the implementer asks the user for the live IP if 10.128.160.39 is unreachable.
+19A authors a new `tailLog` helper in `_t27-lib.mjs`. The shared helpers library currently exposes `sleep, sideload, sideloadAndLaunch, keypress, keypressRepeat, screenshot, screenshotNoError, assertPlaybackStarts, assertPositionAdvanced` — but NO log-tail. The analytics T27 driver needs to capture BrightScript debug output (port 8085); add a thin wrapper. Use the `@rokudev/device-client` telnet capture path (it already exists; the brs-debug MCP server uses it). Confirm the right import surface by reading `packages/roku-device-client/src/`.
 
-- [ ] **Step 1: Skim existing T27 helpers**
+19B authors the T27 driver per spec §12.4 with T27-specific config (`batch_interval_ms: 1500`, `batch_max_events: 5`). Call `sideloadAndLaunch` with its real **positional** signature `(zipPath, host, password, launchParams = {})` — NOT object args.
 
-Read `packages/brs-gen/scripts/_t27-lib.mjs` end-to-end. Note the exact export names (e.g. `keypress` vs `ecpKeypress`). Trap: in Plan 4f the import names were `keypress` and `keypressRepeat`, NOT `ecp*` — verify before authoring imports.
+Important: the IPs are PLACEHOLDERS. Before Task 20 the implementer asks the user for the live IP if 10.128.160.39 is unreachable.
 
-- [ ] **Step 2: Author the driver**
+#### Part 19A — `tailLog` helper
+
+- [ ] **Step 1: Verify available telnet/log surface in @rokudev/device-client**
+
+Run: `grep -r "telnet\|8085\|debug.*tail\|capture" packages/roku-device-client/src/ | head -30`
+Decide which existing export to wrap (likely a class like `DebugTail` or a free function that opens a telnet socket on port 8085, reads for N seconds, closes, and returns the captured text).
+
+- [ ] **Step 2: Add `tailLog` to `_t27-lib.mjs`**
+
+Append to `_t27-lib.mjs`:
+
+```javascript
+// Wraps @rokudev/device-client's telnet log reader.
+// Opens port 8085, reads for `seconds` seconds (default 8), closes, returns the captured text.
+import { tailDebugLog } from '@rokudev/device-client';  // adjust import name to whatever actually exists
+
+export async function tailLog({ host, seconds = 8 }) {
+  return await tailDebugLog({ host, port: 8085, seconds });
+}
+```
+
+If `@rokudev/device-client` does NOT yet export a telnet tail surface, add a thin one there (the package is already part of the workspace; precedent for adding helpers exists from Plans 1-2). The helper should be a few dozen lines using `net.Socket`.
+
+- [ ] **Step 3: Run brs-gen + device-client tests + build**
+
+Run: `pnpm -r test -- --run && pnpm -r build`
+Expected: green. No existing tests affected; new helper has no tests yet (covered indirectly by the T27 driver).
+
+- [ ] **Step 4: Commit Part 19A**
+
+```bash
+git add packages/brs-gen/scripts/_t27-lib.mjs packages/roku-device-client/src/  # if device-client touched
+git commit -m "feat(brs-gen): add tailLog helper to _t27-lib.mjs
+
+Wraps device-client telnet capture (port 8085). Reads BrightScript
+debug output for N seconds and returns the captured text. Used by
+the analytics.event_pipe T27 driver."
+```
+
+#### Part 19B — T27 driver
+
+- [ ] **Step 5: Author the driver**
 
 Create `packages/brs-gen/scripts/t27-analytics-event-pipe.mjs`:
 
@@ -2004,8 +2063,8 @@ Create `packages/brs-gen/scripts/t27-analytics-event-pipe.mjs`:
 #!/usr/bin/env node
 // T27 driver for analytics.event_pipe. Spec section 12.4.
 import { generateAppForRegen } from './regen-helper.mjs';
-import { sideloadAndLaunch, keypress, keypressRepeat, tailLog } from './_t27-lib.mjs';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { sideloadAndLaunch, keypress, keypressRepeat, tailLog, sleep } from './_t27-lib.mjs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -2031,7 +2090,6 @@ const TEMPLATES = [
       await keypress(ip, 'Select'); // play
     },
     expectedEvents: ['channel_start', 'screen_view', 'content_start'],
-    expectedScreens: ['MainScene'],
   },
   {
     id: 'news_channel',
@@ -2041,7 +2099,6 @@ const TEMPLATES = [
       await keypress(ip, 'Select'); // play
     },
     expectedEvents: ['channel_start', 'screen_view', 'screen_view', 'content_start'],
-    expectedScreens: ['MainScene', 'CategoryGridScene'],
   },
   {
     id: 'music_player',
@@ -2050,7 +2107,6 @@ const TEMPLATES = [
       await keypress(ip, 'Select');
     },
     expectedEvents: ['channel_start', 'screen_view', 'screen_view'],
-    expectedScreens: ['MainScene', 'NowPlayingScene'],
   },
   {
     id: 'game_shell',
@@ -2058,22 +2114,19 @@ const TEMPLATES = [
       await keypress(ip, 'Select');
     },
     expectedEvents: ['channel_start', 'screen_view', 'game_start'],
-    expectedScreens: ['GameScene'],
   },
 ];
 
 function parseAnalyticsLines(logText) {
-  const lines = logText.split('\n').filter((l) => l.includes('[Analytics] name='));
-  return lines.map((l) => {
-    const nameMatch = l.match(/name=([a-z0-9_]+)/);
-    const propsMatch = l.match(/props=(\{.*\})$/);
-    const name = nameMatch ? nameMatch[1] : '';
-    let props = {};
-    if (propsMatch) {
-      try { props = JSON.parse(propsMatch[1]); } catch { /* ignore */ }
-    }
-    return { name, props };
-  });
+  return logText.split('\n')
+    .filter((l) => l.includes('[Analytics] name='))
+    .map((l) => {
+      const nameMatch = l.match(/name=([a-z0-9_]+)/);
+      const propsMatch = l.match(/props=(\{.*\})$/);
+      let props = {};
+      if (propsMatch) { try { props = JSON.parse(propsMatch[1]); } catch { /* ignore */ } }
+      return { name: nameMatch ? nameMatch[1] : '', props };
+    });
 }
 
 async function runOne(template) {
@@ -2088,34 +2141,33 @@ async function runOne(template) {
   await generateAppForRegen({ outputDir: outDir, spec: specPath, outputZip: join(outDir, 'out.zip') });
 
   console.log(`\n=== ${template.id} ===`);
-  await sideloadAndLaunch({ deviceIp: DEVICE_IP, devPassword: DEV_PASSWORD, zipPath: join(outDir, 'out.zip') });
-  // Wait for initial mount + first flush tick
-  await new Promise((r) => setTimeout(r, 2500));
-  // Capture mount events
-  let mountLog = await tailLog({ deviceIp: DEVICE_IP, seconds: 0.1 }); // peek
-  // Send keypress sequence
+  // sideloadAndLaunch is POSITIONAL: (zipPath, host, password, launchParams)
+  await sideloadAndLaunch(join(outDir, 'out.zip'), DEVICE_IP, DEV_PASSWORD);
+
+  // Capture for the duration of mount + keypress sequence + final flush. tailLog blocks for `seconds`.
+  // Start tailing BEFORE keypresses so we don't miss mount events.
+  const tailPromise = tailLog({ host: DEVICE_IP, seconds: 10 });
+  // Give the channel time to mount and flush the first batch
+  await sleep(2500);
   await template.sequence(DEVICE_IP);
-  await new Promise((r) => setTimeout(r, 2000));
-  // Capture all events
-  const fullLog = await tailLog({ deviceIp: DEVICE_IP, seconds: 0.1 });
+  // Wait for final flush tick
+  await sleep(2000);
+  const fullLog = await tailPromise;
+
   const events = parseAnalyticsLines(fullLog);
   console.log(`[${template.id}] captured ${events.length} events:`, events.map((e) => e.name));
 
   // Assertions
   const failures = [];
-  // 1. channel_start first
   if (events.length === 0 || events[0].name !== 'channel_start' || events[0].props.cold_start !== true) {
     failures.push(`expected first event channel_start cold_start=true; got ${events[0]?.name}`);
   }
-  // 2. exactly one channel_start
   const csCount = events.filter((e) => e.name === 'channel_start').length;
   if (csCount !== 1) failures.push(`expected exactly 1 channel_start; got ${csCount}`);
-  // 3. event sequence matches expected (multiset + order)
   const actualNames = events.map((e) => e.name);
   if (JSON.stringify(actualNames) !== JSON.stringify(template.expectedEvents)) {
     failures.push(`expected events [${template.expectedEvents.join(',')}]; got [${actualNames.join(',')}]`);
   }
-  // 4. auto-props present
   for (const ev of events) {
     for (const k of ['channel_client_id', 'session_id', 'channel_version', 'roku_model', 'roku_fw', 'ts_epoch_ms']) {
       if (ev.props[k] === undefined) {
@@ -2129,11 +2181,8 @@ async function runOne(template) {
 async function main() {
   const results = [];
   for (const t of TEMPLATES) {
-    try {
-      results.push(await runOne(t));
-    } catch (e) {
-      results.push({ template: t.id, pass: false, failures: [String(e)], events: [] });
-    }
+    try { results.push(await runOne(t)); }
+    catch (e) { results.push({ template: t.id, pass: false, failures: [String(e)], events: [] }); }
   }
   console.log('\n=== SUMMARY ===');
   for (const r of results) {
@@ -2144,26 +2193,26 @@ async function main() {
 main();
 ```
 
-- [ ] **Step 3: Make executable**
+- [ ] **Step 6: Make executable**
 
 Run: `chmod +x packages/brs-gen/scripts/t27-analytics-event-pipe.mjs`
 
-- [ ] **Step 4: Dry-run locally without device (syntax check)**
+- [ ] **Step 7: Dry-run syntax check**
 
 Run: `node --check packages/brs-gen/scripts/t27-analytics-event-pipe.mjs`
 Expected: no syntax errors.
 
-- [ ] **Step 5: Commit (driver only; no T27 run yet)**
+- [ ] **Step 8: Commit Part 19B**
 
 ```bash
 git add packages/brs-gen/scripts/t27-analytics-event-pipe.mjs
 git commit -m "feat(brs-gen): T27 driver for analytics.event_pipe
 
-11-template-step driver per spec section 12.4. Composes each of 4
-target templates with batch_interval_ms=1500 + batch_max_events=5;
-sideloads; navigates per-template keypress sequence; tails BrightScript
-log; greps [Analytics] lines; asserts channel_start first + auto-props
-present + event sequence matches spec section 12.4.2."
+Composes each of 4 target templates with batch_interval_ms=1500 +
+batch_max_events=5; sideloads (positional sideloadAndLaunch);
+tails BrightScript log via tailLog; navigates per-template keypress
+sequence; greps [Analytics] lines; asserts channel_start first +
+auto-props present + event sequence matches spec section 12.4.2."
 ```
 
 ---
