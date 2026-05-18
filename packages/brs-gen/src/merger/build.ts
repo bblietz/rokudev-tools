@@ -7,6 +7,7 @@ import { emitModuleConfigBs } from './emit-config-bs.js';
 import { emitInitHooks } from './emit-init-hooks.js';
 import { buildProvenance } from './provenance.js';
 import { sortByPath } from '../util/deterministic.js';
+import { moduleIdToBsId } from '../util/module-id.js';
 import { fail } from '@rokudev/device-client';
 import type { TemplateToml } from '../catalog/template-toml.js';
 import type { ModuleToml } from '../catalog/module-toml.js';
@@ -79,12 +80,12 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
   if (!manifestRes.ok) throw manifestRes.failure;
 
   // config.bs per module
-  // Dots in dotted-namespace module ids (e.g. analytics.event_pipe) are normalized
-  // to underscores for filesystem paths and BrightScript identifiers.
+  // Dotted-namespace module ids (e.g. analytics.event_pipe) normalize to
+  // BrightScript-safe identifiers via moduleIdToBsId for filesystem paths.
   const configFiles: Array<{ path: string; content: string }> = [];
   for (const m of input.modules) {
     const conf = specModuleConfigs.get(m.module.id) ?? {};
-    const bsId = m.module.id.replaceAll('.', '_');
+    const bsId = moduleIdToBsId(m.module.id);
     configFiles.push({
       path: `source/_modules/${bsId}/config.bs`,
       content: emitModuleConfigBs(m.module.id, conf),
@@ -148,7 +149,7 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
     modules: input.modules.map((m) => ({
       id: m.module.id,
       version: m.module.version,
-      files: [...m.module_files.add, `source/_modules/${m.module.id.replaceAll('.', '_')}/config.bs`],
+      files: [...m.module_files.add, `source/_modules/${moduleIdToBsId(m.module.id)}/config.bs`],
     })),
     init_order: topo.order,
     manifest_keys: [...manifestRes.manifest.keys()],

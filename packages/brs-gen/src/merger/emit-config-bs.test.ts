@@ -17,4 +17,10 @@ describe('emitModuleConfigBs', () => {
     const out = emitModuleConfigBs('m', {});
     expect(out).toContain('return {  }');
   });
+  it('normalizes dotted module id to underscores in BrightScript function name', () => {
+    const out = emitModuleConfigBs('analytics.event_pipe', { console_sink: true });
+    expect(out).toContain('function ModuleConfig_analytics_event_pipe() as object');
+    // No dots may leak into the BrightScript identifier.
+    expect(out).not.toContain('ModuleConfig_analytics.event_pipe');
+  });
 });
