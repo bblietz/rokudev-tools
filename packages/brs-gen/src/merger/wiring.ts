@@ -2,7 +2,8 @@ import { fail, type Failure } from '@rokudev/device-client';
 import type { TemplateToml } from '../catalog/template-toml.js';
 import type { ModuleToml } from '../catalog/module-toml.js';
 
-type R = { ok: true } | { ok: false; failure: Failure };
+type MatchedOptional = { moduleId: string; hook: string; statement: string };
+type R = { ok: true; matchedOptional: MatchedOptional[] } | { ok: false; failure: Failure };
 
 function hookKey(scope: string, phase: string): string {
   return `${scope}.${phase}`;
@@ -74,5 +75,27 @@ export function validateWiring(template: TemplateToml, modules: ModuleToml[]): R
       }
     }
   }
-  return { ok: true };
+
+  const matchedOptional: MatchedOptional[] = [];
+  for (const m of modules) {
+    const moduleId = m.module.id;
+    for (const oc of m.module_wiring.optional_init_calls ?? []) {
+      if (!oc.hook.includes('.')) {
+        return {
+          ok: false,
+          failure: fail(
+            'WIRING_OPTIONAL_HOOK_MALFORMED',
+            `Module "${moduleId}" optional hook "${oc.hook}" missing "scope.phase" separator`,
+            { stage: 'wiring', moduleId, hook: oc.hook },
+          ),
+        };
+      }
+      if (exportedHooks.has(oc.hook)) {
+        matchedOptional.push({ moduleId, hook: oc.hook, statement: oc.statement });
+      }
+      // unmatched: silently skipped (the entire point of optional_init_calls)
+    }
+  }
+
+  return { ok: true, matchedOptional };
 }
