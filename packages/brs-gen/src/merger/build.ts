@@ -37,6 +37,38 @@ type BuildInput = {
   templateConfigBrs?: string;
 };
 
+/**
+ * Pattern matching a `<script>` tag whose `uri` references `__init_hooks.bs`
+ * or `__init_hooks.brs` (case-sensitive). The strict `(bs|brs)` alternation
+ * prevents false-positive matches on similarly-named files such as
+ * `__init_hooks.br` or `__init_hooks.bss`.
+ *
+ * Exported for direct testing.
+ */
+export const INIT_HOOKS_SCRIPT_PATTERN =
+  /(<script[^>]*uri=["'][^"']*__init_hooks\.(?:bs|brs)["'][^>]*\/>)/;
+
+/**
+ * If the given XML body contains a `<script>` tag referencing `__init_hooks`,
+ * append `<script>` tags for each path in `modulePaths` immediately after it.
+ * The paths are emitted as `pkg:/<path>` URIs. When the XML does not include
+ * `__init_hooks` or `modulePaths` is empty, the input string is returned
+ * unchanged.
+ *
+ * Exported for direct testing.
+ */
+export function injectModuleScriptsIntoXml(
+  xmlBody: string,
+  modulePaths: ReadonlyArray<string>,
+): string {
+  if (modulePaths.length === 0) return xmlBody;
+  if (!INIT_HOOKS_SCRIPT_PATTERN.test(xmlBody)) return xmlBody;
+  const tags = modulePaths
+    .map((p) => `  <script type="text/brightscript" uri="pkg:/${p}" />`)
+    .join('\n');
+  return xmlBody.replace(INIT_HOOKS_SCRIPT_PATTERN, `$1\n${tags}`);
+}
+
 export async function buildEmittedProject(input: BuildInput): Promise<EmittedProject> {
   const templatePaths = input.renderedTemplateFiles.map((f) => f.path);
   const conf = detectConflicts(input.modules, templatePaths);
@@ -177,23 +209,15 @@ export async function buildEmittedProject(input: BuildInput): Promise<EmittedPro
 
   // Patch XML template files: inject <script> tags for module source files and
   // the auto-generated config.bs files into any component that already lists
-  // __init_hooks.bs as a script. Use a stable insertion point: the line that
-  // references __init_hooks.bs. Skip when there are no module source paths so
+  // __init_hooks.bs as a script. Skip when there are no module source paths so
   // no-module compositions produce byte-identical XML to the pre-engine-fix
   // baseline (preserving existing snapshot and golden tests).
-  const INIT_HOOKS_URI_PATTERN = /(<script[^>]*uri=["'][^"']*__init_hooks\.b[rs]s?["'][^>]*\/>)/;
   const patchedTemplateFiles = input.renderedTemplateFiles.map((f) => {
     if (!f.path.endsWith('.xml')) return f;
     if (moduleSourceBsPaths.length === 0) return f;
     const src = typeof f.content === 'string' ? f.content : f.content.toString('utf8');
-    if (!INIT_HOOKS_URI_PATTERN.test(src)) return f;
-    const newScriptTags = moduleSourceBsPaths
-      .map((p) => `  <script type="text/brightscript" uri="pkg:/${p}" />`)
-      .join('\n');
-    const patched = src.replace(
-      INIT_HOOKS_URI_PATTERN,
-      `$1\n${newScriptTags}`,
-    );
+    const patched = injectModuleScriptsIntoXml(src, moduleSourceBsPaths);
+    if (patched === src) return f;
     return { path: f.path, content: patched };
   });
 
