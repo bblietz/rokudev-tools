@@ -1,13 +1,40 @@
-' STUB: Real implementation in Task 14.
+' Hooks.bs - analytics.event_pipe hook handlers wired from optional_init_calls.
 
 sub AnalyticsEventPipe_OnScreenView(m as object, screenName as string)
+    Analytics_Track("screen_view", { screen_name: screenName })
 end sub
 
 sub AnalyticsEventPipe_OnContentStart(m as object)
+    ' PlayerScene convention: m.top.content is a ContentNode with title/url/streamformat.
+    content = invalid
+    if m.top <> invalid and m.top.content <> invalid then content = m.top.content
+    props = {
+        content_id: "",
+        content_title: "",
+        content_kind: "video",
+        is_live: false
+    }
+    if content <> invalid then
+        if content.id <> invalid then props.content_id = content.id
+        if content.title <> invalid then props.content_title = content.title
+        if content.streamformat = "hls" then props.is_live = true  ' coarse heuristic; channels can override
+    end if
+    Analytics_Track("content_start", props)
 end sub
 
 sub AnalyticsEventPipe_OnGameStart(m as object)
+    props = {}
+    if m.top <> invalid then
+        if m.top.cpuDifficulty <> invalid then props.cpu_difficulty = m.top.cpuDifficulty
+        if m.top.scoreToWin <> invalid then props.score_to_win = m.top.scoreToWin
+    end if
+    Analytics_Track("game_start", props)
 end sub
 
 sub AnalyticsEventPipe_OnGameOver(m as object)
+    props = {}
+    if m.playerScore <> invalid then props.player_score = m.playerScore
+    if m.cpuScore <> invalid then props.cpu_score = m.cpuScore
+    if m.highScore <> invalid then props.high_score = m.highScore
+    Analytics_Track("game_over", props)
 end sub
