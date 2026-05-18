@@ -15,3 +15,27 @@ export function normalizeEventName(input: string): { name: string; warning?: str
   if (stripped !== input) return { name: stripped, warning: `name "${input}" normalized to "${stripped}"` };
   return { name: stripped };
 }
+
+export class SinkRegistry {
+  private byHandle = new Map<number, string>();
+  private byName = new Map<string, number>();
+  private nextHandle = 1;
+  add(name: string): number {
+    const existing = this.byName.get(name);
+    if (existing !== undefined) return existing;
+    const h = this.nextHandle++;
+    this.byHandle.set(h, name);
+    this.byName.set(name, h);
+    return h;
+  }
+  remove(handle: number): boolean {
+    const name = this.byHandle.get(handle);
+    if (name === undefined) return false;
+    this.byHandle.delete(handle);
+    this.byName.delete(name);
+    return true;
+  }
+  list(): string[] {
+    return Array.from(this.byHandle.values());
+  }
+}
