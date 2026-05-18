@@ -92,6 +92,9 @@ async function main() {
   // Regen game_shell goldens.
   await regenGameShell();
 
+  // Regen analytics.event_pipe + news_channel composition golden.
+  await regenAnalyticsEventPipe();
+
   process.stdout.write(
     '\n========================================================================\n' +
       'Golden files regenerated:\n' +
@@ -109,8 +112,9 @@ async function main() {
       `  ${join(GOLDEN_DIR, 'screensaver.provenance.json')}\n` +
       `  ${join(GOLDEN_DIR, 'game-shell.zip')}\n` +
       `  ${join(GOLDEN_DIR, 'game-shell.provenance.json')}\n` +
-      'Please commit all fourteen files with a clear cause in the commit message\n' +
-      '(e.g. "regen goldens: add game_shell goldens").\n' +
+      `  ${join(GOLDEN_DIR, 'analytics-event-pipe-news.zip')}\n` +
+      'Please commit all fifteen files with a clear cause in the commit message\n' +
+      '(e.g. "regen goldens: add analytics.event_pipe golden").\n' +
       '========================================================================\n',
   );
 }
@@ -293,6 +297,35 @@ async function regenGameShell() {
     await copyFile(zip_path, join(GOLDEN_DIR, 'game-shell.zip'));
     const provenance = await readFile(join(output_dir, '.rokudev-tools', 'provenance.json'));
     await writeFile(join(GOLDEN_DIR, 'game-shell.provenance.json'), provenance);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+async function regenAnalyticsEventPipe() {
+  const CANONICAL_ANALYTICS_SPEC = {
+    spec_version: 2,
+    template: 'news_channel',
+    modules: [{ id: 'analytics.event_pipe', config: {
+      http_endpoint: 'https://analytics.example.com/v1/events',
+      http_app_key: 'test_key',
+      default_props: { environment: 'test', channel_name: 'news_demo' },
+    }}],
+    app: { name: 'AnalyticsGolden', major_version: 0, minor_version: 1, build_version: 0 },
+  };
+
+  const work = join(tmpdir(), `brs-gen-regen-analytics-${randomUUID()}`);
+  const outputDir = join(work, 'project');
+  const outputZip = join(work, 'project.zip');
+  await mkdir(work, { recursive: true });
+
+  try {
+    const { zip_path } = await generateAppForRegen({
+      outputDir,
+      spec: CANONICAL_ANALYTICS_SPEC,
+      outputZip,
+    });
+    await copyFile(zip_path, join(GOLDEN_DIR, 'analytics-event-pipe-news.zip'));
   } finally {
     await rm(work, { recursive: true, force: true });
   }
