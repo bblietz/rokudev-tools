@@ -76,6 +76,16 @@ references in a node field. On timer callbacks (different thread context) the fu
 lookup returned `invalid`. Fixed by replacing registry-based dispatch with hardcoded
 name-based dispatch in `AnalyticsEventPipe_Flush`.
 
+## Known v1 limitations
+
+**Sink dispatch is hardcoded** (a consequence of Bug 3 firmware workaround). `Analytics_AddSink("CustomSink_handler")` will register the name in `node.sinks` but `AnalyticsEventPipe_Flush` will silently skip any name other than `ConsoleSink_handler` or `HttpSink_handler`. To enable a new sink in v2 (e.g., AdobeSink, ConvivaSink), add one branch to the if-chain in `AnalyticsEventPipe_Flush`:
+
+```brightscript
+if sinkName = "AdobeSink_handler" then ok = AdobeSink_handler(batch)
+```
+
+This is consistent with Plan 5 spec G2 (pluggable event pipe) but defers the runtime extensibility goal to a future engine improvement that survives across TCL 15.2.4-style firmware constraints.
+
 ### Bug 4: AJV format validation rejects empty string for http_endpoint
 
 `module.toml` had `format = "uri"` on `http_endpoint`. AJV validates `""` as an invalid
