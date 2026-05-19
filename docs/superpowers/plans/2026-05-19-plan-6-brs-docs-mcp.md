@@ -66,6 +66,7 @@ authors = [{ name = "rokudev-tools" }]
 dependencies = [
     "pydantic>=2.5",
     "mcp>=0.9",
+    "pyyaml>=6.0",
     "tomli>=2.0;python_version<'3.11'",
 ]
 
@@ -1902,7 +1903,7 @@ def _parse_md(raw: str, member_name: str) -> CanonicalDoc | None:
     )
 ```
 
-Add `pyyaml` to dev/runtime deps in `pyproject.toml`: append `"pyyaml>=6.0"` to the `dependencies = [...]` array. Re-run `uv sync` after.
+(`pyyaml` is already in `pyproject.toml` dependencies from T01; no edit needed.)
 
 - [ ] **Step 5: Run; verify pass**
 
@@ -2686,7 +2687,88 @@ git commit -m "test(brs-docs): T23 integration tests (MCP server, first-run, ref
 - Create: `packages/brs-docs/tests/test_recommend/intents.toml`
 - Create: `packages/brs-docs/tests/integration/test_recommend_fixtures.py`
 
-- [ ] **Step 1: Write `intents.toml`** with the 15 cases (use spec §"Fixture-pinned regression tests" excerpt). Include `xfail_reason` on all cases referencing paused modules (auth.*, monetization.*, ads.*, deep_link.*, accessibility.*).
+- [ ] **Step 1: Write `intents.toml`** with the 15 cases below. `xfail_reason` is set on cases referencing paused modules (auth.*, monetization.*, ads.*, deep_link.*, accessibility.*) per the 2026-05-19 pivot.
+
+```toml
+[[cases]]
+intent = "how do I show a paywall"
+expected_top_ids = [
+  "feature_module:monetization.roku_pay.subscription",
+  "feature_module:monetization.roku_pay.transactional",
+  "guide:monetization-overview",
+]
+xfail_reason = "monetization.* modules paused per 2026-05-19 pivot"
+
+[[cases]]
+intent = "rotating focus on a RowList"
+expected_top_ids = ["node:RowList", "guide:scenegraph-focus", "sample:rowlist-focus-demo"]
+
+[[cases]]
+intent = "play HLS video"
+expected_top_ids = ["node:Video", "guide:video-playback", "sample:video-hls-basic"]
+
+[[cases]]
+intent = "send a deep link"
+expected_top_ids = ["feature_module:deep_link.global", "guide:ecp-deep-linking", "sample:deep-link-handler"]
+xfail_reason = "deep_link.global module paused per 2026-05-19 pivot"
+
+[[cases]]
+intent = "track user events"
+expected_top_ids = ["feature_module:analytics.event_pipe", "guide:analytics-overview"]
+
+[[cases]]
+intent = "sign in with OAuth"
+expected_top_ids = [
+  "feature_module:auth.oauth_device_grant",
+  "feature_module:auth.device_link_code",
+  "guide:auth-overview",
+]
+xfail_reason = "auth.* modules paused per 2026-05-19 pivot"
+
+[[cases]]
+intent = "show closed captions"
+expected_top_ids = ["feature_module:accessibility.captions", "node:Video", "guide:captions-overview"]
+xfail_reason = "accessibility.captions module paused per 2026-05-19 pivot"
+
+[[cases]]
+intent = "build a screensaver"
+expected_top_ids = ["template:screensaver", "guide:screensaver-overview"]
+
+[[cases]]
+intent = "build a game"
+expected_top_ids = ["template:game_shell", "sample:simple-game"]
+
+[[cases]]
+intent = "create a streaming video app"
+expected_top_ids = ["template:video_grid_channel", "node:Video", "node:RowList"]
+
+[[cases]]
+intent = "build a music app"
+expected_top_ids = ["template:music_player", "node:Audio", "guide:audio-playback"]
+
+[[cases]]
+intent = "the channel crashed on startup"
+expected_top_ids = ["guide:debugging-overview", "guide:crash-analysis"]
+
+[[cases]]
+intent = "channel is dropping frames"
+expected_top_ids = ["guide:performance-overview", "guide:profiler", "guide:rendering-tips"]
+
+[[cases]]
+intent = "what time is it"
+forbidden_top_ids = ["feature_module:*", "template:*"]
+expected_top_ids = ["component:roDateTime"]
+
+[[cases]]
+intent = "monetize my channel with ads and a subscription option"
+expected_top_ids_in_order = [
+  "feature_module:monetization.roku_pay.subscription",
+  "feature_module:ads.raf_csai",
+]
+xfail_reason = "monetization.*/ads.* modules paused per 2026-05-19 pivot"
+```
+
+The implementer may need to add `expected_top_ids` entries to match docs that the corpus actually contains at the time of execution. Mark a case `xfail_reason = "expected doc not in corpus yet"` if a referenced guide/sample doesn't exist; do not delete the case (future corpus refreshes should resolve it).
 
 - [ ] **Step 2: Write `test_recommend_fixtures.py`** that:
   - Loads `intents.toml`.
