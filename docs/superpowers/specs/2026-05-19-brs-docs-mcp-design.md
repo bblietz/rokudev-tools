@@ -122,7 +122,7 @@ packages/brs-docs/
 - Included in wheel via `pyproject.toml` `[tool.hatch.build.targets.wheel] include = ["src/brs_docs/data/corpus.sqlite"]`.
 - NOT committed to git. Devs running locally either `make build-corpus` or download a release artifact.
 - On first MCP server startup, `data/corpus.sqlite` is copied from `importlib.resources` to `~/.cache/rokudev/docs/corpus.sqlite` (full copy, not symlink, because pip installs may be read-only).
-- Wheel size budget: target ~18 MB, cap 30 MB.
+- Wheel size budget: target ~18 MB, cap 30 MB. If a release would exceed the cap, the release is blocked and the team chooses between (a) reducing corpus scope (e.g. drop `guide` long-tail pages), (b) zstd-compressing the bundled SQLite + decompressing on first-run install, or (c) moving to CDN-fetch-on-first-run (significant scope change; v1.x territory).
 
 ## Data model
 
@@ -134,7 +134,7 @@ packages/brs-docs/
 | `interface` | dev-doc | 91 |
 | `event` | dev-doc | 19 |
 | `node` | dev-doc | 99 |
-| `global_function` | dev-doc | (new; ~50) |
+| `global_function` | dev-doc (same scraper as components/interfaces/etc.; new parser branch for `global_function` markdown frontmatter) | (new; ~50) |
 | `guide` | dev-doc | 341 |
 | `sample` | samples + scenegraph-master-sample | 154 |
 | `feature_module` | rokudev-tools modules | 1 today (analytics.event_pipe) |
@@ -216,6 +216,8 @@ CREATE VIRTUAL TABLE docs_fts USING fts5(
 - `source` = `rokudev-tools-templates`
 
 ### corpus.lock shape
+
+**Commit policy:** `corpus.lock` IS committed to git (it's the source-of-truth for what corpus will be built). `corpus.sqlite` is NOT committed (binary artifact; built in CI at release time; included in wheel only).
 
 ```toml
 brs_docs_version = "0.7.0"
@@ -545,15 +547,45 @@ Sort by score DESC; take top `limit`.
 
 ### Fixture-pinned regression tests
 
-`tests/test_recommend/intents.toml` ships with ~15 canonical cases at v1, mixing:
+`tests/test_recommend/intents.toml` ships with ~15 canonical cases at v1, mixing module-matching, template-matching, negative, order-sensitive, and wildcard-blocklist cases. Excerpt showing all five fixture-format variants:
 
-- Module-matching intents (paywall, OAuth, analytics, etc.).
-- Template-matching intents (streaming app, music app, screensaver, game, etc.).
-- Negative cases (`"what time is it"` should NOT recommend a feature_module).
-- Order-sensitive cases (`expected_top_ids_in_order` vs. order-agnostic `expected_top_ids`).
-- Wildcard blocklist (`forbidden_top_ids = ["feature_module:*"]`).
+```toml
+# 1. Positive module match (set containment)
+[[cases]]
+intent = "how do I show a paywall"
+expected_top_ids = [
+  "feature_module:monetization.roku_pay.subscription",
+  "feature_module:monetization.roku_pay.transactional",
+  "guide:monetization-overview",
+]
 
-Cases referencing not-yet-shipped modules are marked `xfail` until the module ships.
+# 2. Positive template match
+[[cases]]
+intent = "build a screensaver"
+expected_top_ids = ["template:screensaver", "guide:screensaver-overview"]
+
+# 3. Negative (forbidden top results)
+[[cases]]
+intent = "what time is it"
+forbidden_top_ids = ["feature_module:*", "template:*"]  # wildcard pattern
+expected_top_ids = ["component:roDateTime"]
+
+# 4. Order-sensitive (intent priority must be respected)
+[[cases]]
+intent = "monetize my channel with ads and a subscription option"
+expected_top_ids_in_order = [
+  "feature_module:monetization.roku_pay.subscription",  # subscription appears first in intent
+  "feature_module:ads.raf_csai",
+]
+
+# 5. xfail (module not yet shipped, per pivot)
+[[cases]]
+intent = "sign in with OAuth"
+expected_top_ids = ["feature_module:auth.oauth_device_grant", "feature_module:auth.device_link_code", "guide:auth-overview"]
+xfail_reason = "auth.* modules paused per 2026-05-19 pivot"
+```
+
+Cases marked `xfail_reason` are converted to pytest `xfail` markers; they document expected behavior for future modules without blocking v1 CI.
 
 ### Ranker observability
 
