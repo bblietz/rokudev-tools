@@ -1,0 +1,11 @@
+# brs-docs local artifacts
+src/brs_docs/data/corpus.sqlite
+src/brs_docs/data/corpus.sqlite-shm
+src/brs_docs/data/corpus.sqlite-wal
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
