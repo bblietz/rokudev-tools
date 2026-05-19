@@ -1,0 +1,102 @@
+version = "1.0"
+
+[keyword_to_tags]
+"paywall"          = [{ tag = "subscription", weight = 3.0 }, { tag = "paywall", weight = 2.0 }, { tag = "pay", weight = 2.0 }]
+"subscription"     = [{ tag = "subscription", weight = 3.0 }, { tag = "pay", weight = 2.0 }]
+"billing"          = [{ tag = "pay", weight = 2.5 }, { tag = "subscription", weight = 1.5 }]
+"ad"               = [{ tag = "ads", weight = 3.0 }, { tag = "raf", weight = 2.0 }]
+"ads"              = [{ tag = "ads", weight = 3.0 }, { tag = "raf", weight = 2.0 }]
+"sso"              = [{ tag = "auth", weight = 3.0 }, { tag = "device_link", weight = 2.0 }, { tag = "oauth", weight = 2.0 }]
+"sign in"          = [{ tag = "auth", weight = 3.0 }]
+"login"            = [{ tag = "auth", weight = 3.0 }]
+"oauth"            = [{ tag = "auth", weight = 3.0 }, { tag = "oauth", weight = 3.0 }]
+"focus"            = [{ tag = "focus", weight = 2.0 }]
+"rotating focus"   = [{ tag = "focus", weight = 3.0 }, { tag = "rowlist", weight = 2.0 }]
+"row"              = [{ tag = "rowlist", weight = 2.0 }, { tag = "row", weight = 2.0 }]
+"grid"             = [{ tag = "grid", weight = 2.0 }, { tag = "rowlist", weight = 1.5 }]
+"poster"           = [{ tag = "poster", weight = 2.5 }]
+"video"            = [{ tag = "video", weight = 3.0 }, { tag = "playback", weight = 2.0 }]
+"playback"         = [{ tag = "video", weight = 2.0 }, { tag = "playback", weight = 3.0 }]
+"hls"              = [{ tag = "video", weight = 2.0 }, { tag = "hls", weight = 3.0 }]
+"dash"             = [{ tag = "video", weight = 2.0 }, { tag = "dash", weight = 3.0 }]
+"audio"            = [{ tag = "audio", weight = 3.0 }]
+"music"            = [{ tag = "audio", weight = 2.0 }, { tag = "music", weight = 3.0 }]
+"captions"         = [{ tag = "captions", weight = 3.0 }, { tag = "accessibility", weight = 2.0 }]
+"deep link"        = [{ tag = "deep_link", weight = 3.0 }, { tag = "ecp", weight = 2.0 }]
+"deep-link"        = [{ tag = "deep_link", weight = 3.0 }, { tag = "ecp", weight = 2.0 }]
+"analytics"        = [{ tag = "analytics", weight = 3.0 }, { tag = "tracking", weight = 2.0 }]
+"event"            = [{ tag = "analytics", weight = 1.5 }, { tag = "events", weight = 2.0 }]
+"screensaver"      = [{ tag = "screensaver", weight = 3.0 }]
+"game"             = [{ tag = "game", weight = 3.0 }]
+"news"             = [{ tag = "news", weight = 3.0 }]
+"scene"            = [{ tag = "scenegraph", weight = 2.0 }, { tag = "scene", weight = 2.0 }]
+"scenegraph"       = [{ tag = "scenegraph", weight = 3.0 }]
+"manifest"         = [{ tag = "manifest", weight = 3.0 }]
+"sideload"         = [{ tag = "sideload", weight = 3.0 }, { tag = "dev_portal", weight = 2.0 }]
+"ecp"              = [{ tag = "ecp", weight = 3.0 }]
+"channel store"    = [{ tag = "channel_store", weight = 3.0 }, { tag = "submission", weight = 2.0 }]
+"crash"            = [{ tag = "debug", weight = 2.0 }, { tag = "crash", weight = 3.0 }]
+"performance"      = [{ tag = "performance", weight = 3.0 }]
+"fps"              = [{ tag = "performance", weight = 3.0 }]
+"profiler"         = [{ tag = "performance", weight = 2.0 }, { tag = "profiler", weight = 3.0 }]
+
+[[module_categories]]
+intent_keywords = ["paywall", "subscription", "billing", "transactional"]
+id_substring    = "monetization.roku_pay"
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["ad", "ads", "advertising"]
+id_substring    = "ads.raf"
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["sign in", "login", "auth", "sso", "device link", "oauth"]
+id_substring    = "auth."
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["analytics", "tracking", "telemetry", "event pipe"]
+id_substring    = "analytics."
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["deep link", "deep-link", "ecp launch", "content launch"]
+id_substring    = "deep_link."
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["captions", "accessibility", "subtitle", "a11y"]
+id_substring    = "accessibility."
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["streaming", "video app", "ott", "watch app"]
+id_substring    = "template:video_grid"
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["news"]
+id_substring    = "template:news"
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["music", "audio app", "podcast"]
+id_substring    = "template:music"
+boost           = 4.0
+
+[[module_categories]]
+intent_keywords = ["screensaver"]
+id_substring    = "template:screensaver"
+boost           = 5.0
+
+[[module_categories]]
+intent_keywords = ["game"]
+id_substring    = "template:game"
+boost           = 4.0
+
+[bm25_weights]
+title   = 4.0
+summary = 2.0
+body    = 1.0
+tags    = 3.0
