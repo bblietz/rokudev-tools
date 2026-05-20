@@ -26,8 +26,12 @@ def test_build_corpus_from_fixtures(tmp_path: Path) -> None:
     assert result.total_docs > 0
     assert result.output_path == out
     assert out.exists()
-    # Companion lock written alongside out_path.
-    assert (out.with_suffix(".sqlite.lock")).exists() or (out.parent / "corpus.lock").exists()
+    # Companion lock written alongside out_path as `corpus.lock` (the exact
+    # filename `first_run.py` and `cli.py` look for).
+    assert (out.parent / "corpus.lock").exists(), (
+        "build_corpus must write companion lock as 'corpus.lock' beside "
+        "corpus.sqlite; first_run.py and cli.py both look for that name."
+    )
     # The .new sibling must be cleaned up (renamed to out).
     assert not out.with_suffix(".sqlite.new").exists()
 

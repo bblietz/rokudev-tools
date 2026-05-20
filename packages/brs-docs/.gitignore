@@ -2,7 +2,7 @@
 src/brs_docs/data/corpus.sqlite
 src/brs_docs/data/corpus.sqlite-shm
 src/brs_docs/data/corpus.sqlite-wal
-src/brs_docs/data/corpus.sqlite.lock
+src/brs_docs/data/corpus.lock
 .venv/
 __pycache__/
 *.egg-info/

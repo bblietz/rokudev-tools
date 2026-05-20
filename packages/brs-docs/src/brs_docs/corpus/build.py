@@ -150,8 +150,9 @@ def build_corpus(
             staging.unlink()
         raise
 
-    # Companion lock written alongside the output corpus.
-    companion_lock = out_path.with_suffix(".sqlite.lock")
+    # Companion lock written alongside the output corpus as `corpus.lock`
+    # (the exact filename `first_run.py` and `cli.py` look for).
+    companion_lock = out_path.parent / "corpus.lock"
     shutil.copyfile(lock_path, companion_lock)
 
     return BuildResult(

@@ -38,6 +38,10 @@ def test_version_subcommand(
     assert rc == 0
     out = capsys.readouterr().out
     assert __version__ in out
+    # The corpus summary line must reflect the installed lock; "no corpus
+    # installed" indicates build_corpus did not place corpus.lock alongside.
+    assert "no corpus installed" not in out
+    assert "dev_doc=" in out
 
 
 def test_search_subcommand(
