@@ -10,14 +10,21 @@ import { join } from 'node:path';
 const mocks = vi.hoisted(() => ({
   attach: vi.fn(),
   checkReachable: vi.fn(),
+  deviceInfo: vi.fn(),
 }));
 
-// Swap BdpSession.attach; keep all other exports real (fail, RegistryReader, etc.).
+// Swap BdpSession.attach and EcpClient; keep all other exports real (fail, RegistryReader, etc.).
 vi.mock('@rokudev/device-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@rokudev/device-client')>();
+  class EcpClientStub {
+    deviceInfo() {
+      return mocks.deviceInfo();
+    }
+  }
   return {
     ...actual,
     BdpSession: { attach: mocks.attach },
+    EcpClient: EcpClientStub,
   };
 });
 
@@ -53,6 +60,9 @@ beforeEach(async () => {
   registerAllTools(tools);
   for (const m of Object.values(mocks)) m.mockReset();
   mocks.checkReachable.mockResolvedValue(undefined);
+  // Default: device-info probe rejects so we exercise the "probe failed, fall
+  // through to original error" path unless a test opts into a specific shape.
+  mocks.deviceInfo.mockRejectedValue(new Error('probe not configured for this test'));
   _resetSessions();
 });
 
@@ -256,6 +266,94 @@ describe('debug_attach failure-then-retry', () => {
 
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('192.168.1.50');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6b. debug_attach error sharpening on Roku TV hardware
+// ---------------------------------------------------------------------------
+
+describe('debug_attach TV-aware error sharpening', () => {
+  it('enhances BDP_ATTACH_FAILED with TV-specific hint when is-tv=true', async () => {
+    const original = fail('BDP_ATTACH_FAILED', 'BDP handshake to 10.0.0.5:8086 timed out after 5000ms', {
+      host: '10.0.0.5',
+      port: 8086,
+      reason: 'handshake_timeout',
+    });
+    mocks.attach.mockRejectedValue(original);
+    mocks.deviceInfo.mockResolvedValue({
+      'is-tv': 'true',
+      'model-name': '55S527-RF',
+      'model-number': 'A105X',
+    });
+
+    await expect(call('debug_attach', { host: '10.0.0.5' })).rejects.toMatchObject({
+      code: 'BDP_ATTACH_FAILED',
+      message: expect.stringContaining('not supported on Roku TV'),
+      details: {
+        is_tv: true,
+        model_name: '55S527-RF',
+        // Original details preserved alongside the new fields.
+        host: '10.0.0.5',
+        reason: 'handshake_timeout',
+        hint: expect.stringContaining('docs/refs/bdp-wire-format.md'),
+      },
+    });
+  });
+
+  it('passes BDP_ATTACH_FAILED through unchanged when is-tv=false', async () => {
+    const original = fail('BDP_ATTACH_FAILED', 'BDP handshake timed out', {
+      host: '10.0.0.6',
+      port: 8081,
+      reason: 'handshake_timeout',
+    });
+    mocks.attach.mockRejectedValue(original);
+    mocks.deviceInfo.mockResolvedValue({
+      'is-tv': 'false',
+      'model-name': 'Roku Ultra',
+      'model-number': '4850X',
+    });
+
+    await expect(call('debug_attach', { host: '10.0.0.6' })).rejects.toMatchObject({
+      code: 'BDP_ATTACH_FAILED',
+      message: 'BDP handshake timed out',
+      details: { host: '10.0.0.6', reason: 'handshake_timeout' },
+    });
+    // No TV-only fields added.
+    await expect(call('debug_attach', { host: '10.0.0.6' })).rejects.toMatchObject({
+      details: expect.not.objectContaining({ is_tv: true }),
+    });
+  });
+
+  it('passes BDP_ATTACH_FAILED through unchanged when device-info probe itself fails', async () => {
+    const original = fail('BDP_ATTACH_FAILED', 'BDP handshake timed out', {
+      host: '10.0.0.7',
+      reason: 'handshake_timeout',
+    });
+    mocks.attach.mockRejectedValue(original);
+    mocks.deviceInfo.mockRejectedValue(fail('DEVICE_UNREACHABLE', 'ECP probe failed'));
+
+    await expect(call('debug_attach', { host: '10.0.0.7' })).rejects.toMatchObject({
+      code: 'BDP_ATTACH_FAILED',
+      message: 'BDP handshake timed out',
+    });
+  });
+
+  it('does NOT probe device-info for non-attach failures (e.g. BDP_VERSION_UNSUPPORTED)', async () => {
+    const original = fail('BDP_VERSION_UNSUPPORTED', 'old device', {
+      device_version: { major: 1, minor: 0, patch: 0 },
+      supported_range: {
+        min: { major: 3, minor: 0, patch: 0 },
+        max: { major: 3, minor: 99, patch: 99 },
+      },
+    });
+    mocks.attach.mockRejectedValue(original);
+
+    await expect(call('debug_attach', { host: '10.0.0.8' })).rejects.toMatchObject({
+      code: 'BDP_VERSION_UNSUPPORTED',
+    });
+    // Critical: the device-info probe must not have been called.
+    expect(mocks.deviceInfo).not.toHaveBeenCalled();
   });
 });
 

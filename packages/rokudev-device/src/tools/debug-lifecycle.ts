@@ -1,5 +1,5 @@
 import { registerToolsModule, type ToolDef } from './_register.js';
-import { BdpSession } from '@rokudev/device-client';
+import { BdpSession, EcpClient, fail } from '@rokudev/device-client';
 import { resolveTarget } from '../util/resolve-target.js';
 import { checkReachable } from '../util/network-guard.js';
 import {
@@ -58,6 +58,34 @@ registerToolsModule((tools) => {
           return out;
         } catch (e) {
           releaseHost(t.host);
+          // Best-effort: BDP listener is gated off on Roku TV firmware regardless
+          // of bs_debug_protocol=1 launch param or ECP mobile-control mode.
+          // (See docs/refs/bdp-wire-format.md §6 Run 2.) If attach failed AND the
+          // device is a TV, surface a clear hint instead of the generic timeout.
+          // Any failure of the probe itself is swallowed so we never mask the
+          // original error with a probe-side network issue.
+          const failure = e as { code?: string; message?: string; details?: Record<string, unknown> };
+          if (failure?.code === 'BDP_ATTACH_FAILED') {
+            let info: Record<string, string> | null = null;
+            try {
+              info = await new EcpClient(t.host).deviceInfo();
+            } catch {
+              // Probe failed; fall through and re-throw the original error.
+            }
+            if (info?.['is-tv'] === 'true') {
+              const model = info['model-name'] ?? info['model-number'] ?? 'unknown';
+              throw fail(
+                'BDP_ATTACH_FAILED',
+                `BDP not supported on Roku TV hardware (${model}); attach to a non-TV Roku (Express / Stick / Ultra). Original: ${failure.message ?? ''}`,
+                {
+                  ...(failure.details ?? {}),
+                  is_tv: true,
+                  model_name: model,
+                  hint: 'See docs/refs/bdp-wire-format.md §6 Run 2: the BDP listener is gated off in TV-class firmware regardless of bs_debug_protocol=1 launch param or ECP mobile-control mode.',
+                },
+              );
+            }
+          }
           throw e;
         }
       },
