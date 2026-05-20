@@ -12,7 +12,7 @@
     {
       "name": "rokudev-tools",
       "description": "Roku BrightScript developer toolkit: 3 MCP servers (rokudev-device + brs-gen + brs-docs) and 6 workflow skills covering the daily core loop (build / deploy / verify / debug).",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Brian Blietz",
         "url": "https://github.com/bblietz/rokudev-tools"

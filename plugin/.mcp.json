@@ -1,17 +1,18 @@
 {
+  "_comment": "v0.1 dev install: paths are absolute to the local rokudev-tools workspace. Once packages publish to npm + PyPI, swap to npx -y / uvx as documented in plugin/README.md.",
   "mcpServers": {
     "rokudev-device": {
       "type": "stdio",
       "command": "node",
       "args": [
-        "${CLAUDE_PLUGIN_ROOT}/../packages/rokudev-device/dist/index.js"
+        "/Users/bblietz/Work/ClaudeProjects/rokudev-tools/packages/rokudev-device/dist/index.js"
       ]
     },
     "brs-gen": {
       "type": "stdio",
       "command": "node",
       "args": [
-        "${CLAUDE_PLUGIN_ROOT}/../packages/brs-gen/dist/index.js"
+        "/Users/bblietz/Work/ClaudeProjects/rokudev-tools/packages/brs-gen/dist/index.js"
       ]
     },
     "brs-docs": {
@@ -19,7 +20,7 @@
       "command": "uv",
       "args": [
         "--project",
-        "${CLAUDE_PLUGIN_ROOT}/../packages/brs-docs",
+        "/Users/bblietz/Work/ClaudeProjects/rokudev-tools/packages/brs-docs",
         "run",
         "brs-docs",
         "serve"

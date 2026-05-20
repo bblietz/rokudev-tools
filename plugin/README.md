@@ -27,7 +27,9 @@ The remaining 8 skills (assets, branding, slides, web, copy, deep-link-test, per
 
 ## Install (local dev)
 
-The plugin runs the MCP servers from `${CLAUDE_PLUGIN_ROOT}/../packages/`, so build the workspace once before installing:
+**v0.1 is a local-dev plugin pinned to the path `/Users/bblietz/Work/ClaudeProjects/rokudev-tools/packages/`.** Claude Code's marketplace install copies the plugin tree to `~/.claude/plugins/cache/`, which severs any `${CLAUDE_PLUGIN_ROOT}/../packages/` relative path. Until the packages publish to npm + PyPI (next iteration), the plugin needs an absolute path. If you fork this for your own use, edit `plugin/.mcp.json` to match your workspace location.
+
+Build the workspace once before installing:
 
 ```bash
 cd <path-to-rokudev-tools-repo>
