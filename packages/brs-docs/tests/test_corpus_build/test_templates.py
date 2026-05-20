@@ -21,7 +21,8 @@ supported_modules = ["analytics.event_pipe", "auth.device_link_code"]
 scenes = ["MainScene", "DetailsScene", "PlayerScene"]
 content_kinds = ["video"]
 """, encoding="utf-8")
-    (t_dir / "README.md").write_text("# Video Grid\n\nHero unit + rows of posters.\n", encoding="utf-8")
+    readme = "# Video Grid\n\nHero unit + rows of posters.\n"
+    (t_dir / "README.md").write_text(readme, encoding="utf-8")
 
     docs = list(parse_templates(templates_dir))
     assert len(docs) == 1
