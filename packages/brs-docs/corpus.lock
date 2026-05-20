@@ -1,0 +1,22 @@
+brs_docs_version = "0.7.0"
+generated_at = "2026-05-19T00:00:00Z"
+
+[sources.dev_doc]
+url = "https://github.com/rokudev/dev-doc"
+sha = "PLACEHOLDER_UPDATE_BEFORE_RELEASE"
+
+[sources.samples]
+url = "https://github.com/rokudev/samples"
+sha = "PLACEHOLDER_UPDATE_BEFORE_RELEASE"
+
+[sources.scenegraph_master_sample]
+url = "https://github.com/rokudev/scenegraph-master-sample"
+sha = "PLACEHOLDER_UPDATE_BEFORE_RELEASE"
+
+[sources.rokudev_tools_modules]
+package_version = "0.7.0"
+module_count = 1
+
+[sources.rokudev_tools_templates]
+package_version = "0.7.0"
+template_count = 6
