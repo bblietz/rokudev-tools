@@ -50,7 +50,7 @@ def _cmd_version(_args: argparse.Namespace) -> int:
 def _cmd_serve(_args: argparse.Namespace) -> int:
     # Deferred import so the rest of the CLI works even if `mcp` isn't usable,
     # and so T19 can land before T20 ships brs_docs.server.
-    from brs_docs.server import main as server_main  # type: ignore[import-untyped]
+    from brs_docs.server import main as server_main
     return int(server_main())
 
 
