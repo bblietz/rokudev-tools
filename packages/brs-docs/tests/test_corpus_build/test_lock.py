@@ -19,7 +19,7 @@ PACKAGE_LOCK = Path(__file__).parent.parent.parent / "corpus.lock"
 def test_parse_real_lock_succeeds() -> None:
     lock = parse_corpus_lock(PACKAGE_LOCK)
     assert isinstance(lock, CorpusLock)
-    assert lock.brs_docs_version == "0.7.0"
+    assert lock.brs_docs_version == "0.7.1"
     assert lock.sources.dev_doc.url == "https://github.com/rokudev/dev-doc"
     assert lock.sources.rokudev_tools_modules.module_count == 1
     assert lock.sources.rokudev_tools_templates.template_count == 6

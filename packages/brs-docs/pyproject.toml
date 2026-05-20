@@ -1,6 +1,6 @@
 [project]
 name = "brs-docs"
-version = "0.7.0"
+version = "0.7.1"
 description = "MCP server for Roku BrightScript reference, samples, and rokudev-tools modules/templates."
 readme = "README.md"
 requires-python = ">=3.11"

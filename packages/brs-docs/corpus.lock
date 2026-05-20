@@ -1,4 +1,4 @@
-brs_docs_version = "0.7.0"
+brs_docs_version = "0.7.1"
 generated_at = "2026-05-19T00:00:00Z"
 
 [sources.dev_doc]
