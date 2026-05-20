@@ -12,6 +12,7 @@ from pathlib import Path
 from brs_docs import __version__
 from brs_docs.corpus.first_run import CorpusNotInitialized, ensure_cache_corpus
 from brs_docs.corpus.lock import parse_corpus_lock
+from brs_docs.corpus.refresh import RefreshStatus, refresh_corpus
 from brs_docs.db import connect
 
 
@@ -101,8 +102,43 @@ def _cmd_recommend(args: argparse.Namespace) -> int:
 
 
 def _cmd_refresh(_args: argparse.Namespace) -> int:
-    # T21 fills this in; T19 just stubs.
-    print("refresh not yet wired (T21)", file=sys.stderr)
+    cache = _default_cache_dir()
+    # Locate bundled lock via importlib.resources; fall back to packaged copy.
+    from importlib.resources import files
+    try:
+        bundled_lock = Path(str(files("brs_docs").joinpath("data/corpus.lock")))
+    except Exception:
+        bundled_lock = Path(__file__).parent.parent.parent / "corpus.lock"
+    if not bundled_lock.exists():
+        # Dev fallback when neither wheel-bundled nor sdist resource is present.
+        dev_lock = Path(__file__).parent.parent.parent / "corpus.lock"
+        if dev_lock.exists():
+            bundled_lock = dev_lock
+        else:
+            print(
+                f"error: bundled corpus.lock not found at {bundled_lock}",
+                file=sys.stderr,
+            )
+            return 1
+    monorepo_root = Path(__file__).parent.parent.parent.parent.parent
+    fixtures = Path(__file__).parent.parent.parent / "tests" / "fixtures"
+    sources_fixture_dir = fixtures if fixtures.exists() else None
+    result = refresh_corpus(
+        bundled_lock=bundled_lock,
+        cache_dir=cache,
+        monorepo_root=monorepo_root,
+        sources_fixture_dir=sources_fixture_dir,
+    )
+    if result.status == RefreshStatus.UP_TO_DATE:
+        print(result.message)
+        return 0
+    if result.status == RefreshStatus.REFRESHED:
+        print(result.message)
+        return 0
+    # FAILED
+    print(f"error: {result.message}", file=sys.stderr)
+    if result.error:
+        print(f"  cause: {result.error}", file=sys.stderr)
     return 2
 
 
