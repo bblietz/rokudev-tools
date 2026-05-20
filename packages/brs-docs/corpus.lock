@@ -3,20 +3,20 @@ generated_at = "2026-05-19T00:00:00Z"
 
 [sources.dev_doc]
 url = "https://github.com/rokudev/dev-doc"
-sha = "PLACEHOLDER_UPDATE_BEFORE_RELEASE"
+sha = "2fd52273e2c7a40cb358ee760f8070d55b44c948"
 
 [sources.samples]
 url = "https://github.com/rokudev/samples"
-sha = "PLACEHOLDER_UPDATE_BEFORE_RELEASE"
+sha = "0e7b37423132cddb1407489da7e05ceb23c35c56"
 
 [sources.scenegraph_master_sample]
 url = "https://github.com/rokudev/scenegraph-master-sample"
-sha = "PLACEHOLDER_UPDATE_BEFORE_RELEASE"
+sha = "c15f09f92aa723abf8fa18ff238a045853cadc50"
 
 [sources.rokudev_tools_modules]
-package_version = "0.7.0"
+package_version = "0.6.1"
 module_count = 1
 
 [sources.rokudev_tools_templates]
-package_version = "0.7.0"
+package_version = "0.6.1"
 template_count = 6

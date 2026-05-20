@@ -47,7 +47,10 @@ def test_refresh_full_cycle(tmp_path: Path) -> None:
 
     # 2. Mutate cache lock so SHAs differ; expect REFRESHED
     text = (cache / "corpus.lock").read_text("utf-8")
-    text = text.replace("PLACEHOLDER_UPDATE_BEFORE_RELEASE", "DIFFERENT_SHA_TO_FORCE_REFRESH")
+    text = text.replace(
+        "2fd52273e2c7a40cb358ee760f8070d55b44c948",
+        "1111111111111111111111111111111111111111",
+    )
     (cache / "corpus.lock").write_text(text, encoding="utf-8")
     result = refresh_corpus(
         bundled_lock=BUNDLED_LOCK,
@@ -59,12 +62,14 @@ def test_refresh_full_cycle(tmp_path: Path) -> None:
     assert (cache / "corpus.sqlite").exists()
 
     # 3. Mock build_corpus to raise, mutate lock, ensure original preserved.
-    # After step 2, the cache lock was overwritten with the bundled lock
-    # (which still contains PLACEHOLDER_UPDATE_BEFORE_RELEASE), so mutate
-    # the placeholder again to force a SHA mismatch.
+    # After step 2, the cache lock was overwritten with the bundled lock,
+    # so mutate the dev_doc SHA again to force a fresh mismatch.
     sqlite_mtime = (cache / "corpus.sqlite").stat().st_mtime_ns
     text = (cache / "corpus.lock").read_text("utf-8")
-    text = text.replace("PLACEHOLDER_UPDATE_BEFORE_RELEASE", "YET_ANOTHER_SHA")
+    text = text.replace(
+        "2fd52273e2c7a40cb358ee760f8070d55b44c948",
+        "2222222222222222222222222222222222222222",
+    )
     (cache / "corpus.lock").write_text(text, encoding="utf-8")
     with patch("brs_docs.corpus.refresh.build_corpus", side_effect=BuildError("simulated")):
         result = refresh_corpus(

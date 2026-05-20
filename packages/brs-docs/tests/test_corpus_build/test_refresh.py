@@ -56,7 +56,10 @@ def test_refresh_when_locks_differ(tmp_path: Path) -> None:
     # Mutate cache lock to a different SHA so refresh detects the diff.
     cache_lock = cache / "corpus.lock"
     text = cache_lock.read_text("utf-8")
-    text = text.replace("PLACEHOLDER_UPDATE_BEFORE_RELEASE", "DIFFERENT_SHA_FOR_TEST")
+    text = text.replace(
+        "2fd52273e2c7a40cb358ee760f8070d55b44c948",
+        "0000000000000000000000000000000000000000",
+    )
     cache_lock.write_text(text, encoding="utf-8")
 
     result = refresh_corpus(
@@ -99,7 +102,10 @@ def test_refresh_failure_preserves_original(
     # Mutate cache lock so refresh tries to rebuild.
     cache_lock = cache / "corpus.lock"
     text = cache_lock.read_text("utf-8")
-    text = text.replace("PLACEHOLDER_UPDATE_BEFORE_RELEASE", "DIFFERENT_SHA_FOR_TEST")
+    text = text.replace(
+        "2fd52273e2c7a40cb358ee760f8070d55b44c948",
+        "0000000000000000000000000000000000000000",
+    )
     cache_lock.write_text(text, encoding="utf-8")
 
     # Force build_corpus to fail. build_corpus tolerates missing fixtures /

@@ -7,7 +7,6 @@ import subprocess
 import sys
 import tomllib
 
-
 TAGS_TOML_PATH = "packages/brs-docs/src/brs_docs/recommend/tags.toml"
 
 

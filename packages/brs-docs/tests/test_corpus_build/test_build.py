@@ -68,16 +68,22 @@ def test_build_fails_when_min_counts_unmet(tmp_path: Path) -> None:
     assert not out.with_suffix(".sqlite.new").exists()
 
 
-def test_build_raises_not_implemented_without_fixture_dir(tmp_path: Path) -> None:
-    """T16 only supports fixture mode; production mode is T28."""
-    out = tmp_path / "corpus.sqlite"
-    with pytest.raises(NotImplementedError):
-        build_corpus(
-            lock_path=PACKAGE_ROOT / "corpus.lock",
-            out_path=out,
-            monorepo_root=MONOREPO_ROOT,
-            sources_fixture_dir=None,
-        )
+@pytest.mark.integration
+def test_build_corpus_fetches_real_tarballs(tmp_path: Path) -> None:
+    """Network-required test: builds from real GitHub tarballs at pinned SHAs."""
+    out = tmp_path / "real_corpus.sqlite"
+    result = build_corpus(
+        lock_path=PACKAGE_ROOT / "corpus.lock",
+        out_path=out,
+        monorepo_root=MONOREPO_ROOT,
+        sources_fixture_dir=None,
+        min_counts={},
+    )
+    assert result.total_docs >= 100, f"expected >= 100 docs, got {result.total_docs}"
+    # Monorepo contributions are always present (brs-gen has 1 module + 6 templates).
+    assert result.per_kind_counts.get("feature_module", 0) >= 1
+    assert result.per_kind_counts.get("template", 0) >= 6
+    assert out.exists()
 
 
 def test_build_atomic_install(tmp_path: Path) -> None:

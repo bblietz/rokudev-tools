@@ -4,8 +4,11 @@ Wires the four Phase 3 scrapers (dev_doc, samples x2, feature_modules,
 templates) into a single SQLite + FTS5 corpus file with an atomic install
 pattern.
 
-v1 only implements FIXTURE mode (test path); production GitHub fetch is
-deferred to T28.
+Two modes:
+
+- FIXTURE mode: pass ``sources_fixture_dir`` pointing at the test fixtures.
+- PRODUCTION mode: pass ``sources_fixture_dir=None``; tarballs are fetched
+  from GitHub at the SHAs pinned in ``corpus.lock``.
 """
 
 from __future__ import annotations
@@ -14,7 +17,10 @@ import json
 import logging
 import shutil
 import sqlite3
+import tempfile
+import urllib.request
 from collections import defaultdict
+from contextlib import ExitStack
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -68,40 +74,51 @@ def build_corpus(
     lock = parse_corpus_lock(lock_path)
     validate_lock(lock)
 
-    if sources_fixture_dir is None:
-        raise NotImplementedError(
-            "Production GitHub-fetch mode is not implemented in T16; "
-            "pass sources_fixture_dir for the v1 fixture path. T28 wires "
-            "the real fetch."
-        )
-
     min_counts_resolved: dict[str, int] = dict(min_counts or {})
     errors: list[str] = []
 
-    dev_doc_tarball = sources_fixture_dir / "dev_doc_tiny.tar.gz"
-    samples_tarball = sources_fixture_dir / "samples_tiny.tar.gz"
-    sg_master_tarball = sources_fixture_dir / "scenegraph_master_sample_tiny.tar.gz"
+    with ExitStack() as stack:
+        if sources_fixture_dir is None:
+            # Production mode: download tarballs at pinned SHAs into a temp dir.
+            tmp = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+            dev_doc_tarball = _download_github_tarball(
+                "rokudev/dev-doc", lock.sources.dev_doc.sha, tmp / "dev_doc.tar.gz",
+            )
+            samples_tarball = _download_github_tarball(
+                "rokudev/samples", lock.sources.samples.sha, tmp / "samples.tar.gz",
+            )
+            sg_master_tarball: Path | None = _download_github_tarball(
+                "rokudev/scenegraph-master-sample",
+                lock.sources.scenegraph_master_sample.sha,
+                tmp / "scenegraph.tar.gz",
+            )
+        else:
+            dev_doc_tarball = sources_fixture_dir / "dev_doc_tiny.tar.gz"
+            samples_tarball = sources_fixture_dir / "samples_tiny.tar.gz"
+            sg_master_candidate = sources_fixture_dir / "scenegraph_master_sample_tiny.tar.gz"
+            # scenegraph_master_sample: only included when a dedicated fixture
+            # exists. The shared samples_tiny tarball would produce duplicate
+            # sample:<path> ids (id is derived from path, not source).
+            sg_master_tarball = sg_master_candidate if sg_master_candidate.exists() else None
 
-    docs: list[CanonicalDoc] = []
-    if dev_doc_tarball.exists():
-        docs.extend(parse_dev_doc_tarball(dev_doc_tarball))
-    else:
-        errors.append(f"dev_doc tarball missing: {dev_doc_tarball}")
+        docs: list[CanonicalDoc] = []
+        if dev_doc_tarball.exists():
+            docs.extend(parse_dev_doc_tarball(dev_doc_tarball))
+        else:
+            errors.append(f"dev_doc tarball missing: {dev_doc_tarball}")
 
-    if samples_tarball.exists():
-        docs.extend(parse_samples_tarball(samples_tarball, source="samples"))
-    else:
-        errors.append(f"samples tarball missing: {samples_tarball}")
+        if samples_tarball.exists():
+            docs.extend(parse_samples_tarball(samples_tarball, source="samples"))
+        else:
+            errors.append(f"samples tarball missing: {samples_tarball}")
 
-    # scenegraph_master_sample: only included when a dedicated fixture exists.
-    # The shared samples_tiny tarball would produce duplicate sample:<path> ids
-    # (id is derived from path, not source), so we skip the second pass in v1.
-    # T28 wires the real GitHub fetch and will have a distinct tarball.
-    if sg_master_tarball.exists():
-        docs.extend(parse_samples_tarball(sg_master_tarball, source="scenegraph_master_sample"))
+        if sg_master_tarball is not None and sg_master_tarball.exists():
+            docs.extend(
+                parse_samples_tarball(sg_master_tarball, source="scenegraph_master_sample")
+            )
 
-    docs.extend(parse_feature_modules(monorepo_root / "packages/brs-gen/modules"))
-    docs.extend(parse_templates(monorepo_root / "packages/brs-gen/templates"))
+        docs.extend(parse_feature_modules(monorepo_root / "packages/brs-gen/modules"))
+        docs.extend(parse_templates(monorepo_root / "packages/brs-gen/templates"))
 
     staging = out_path.with_suffix(".sqlite.new")
     if staging.exists():
@@ -144,6 +161,18 @@ def build_corpus(
         output_path=out_path,
         lock_path=companion_lock,
     )
+
+
+def _download_github_tarball(repo: str, sha: str, out_path: Path) -> Path:
+    """Download https://github.com/{repo}/archive/{sha}.tar.gz to out_path.
+
+    v1 limitation: no retries, no progress bar, no auth (public repos only).
+    """
+    url = f"https://github.com/{repo}/archive/{sha}.tar.gz"
+    req = urllib.request.Request(url, headers={"User-Agent": "brs-docs-corpus-builder"})
+    with urllib.request.urlopen(req) as resp, open(out_path, "wb") as f:
+        shutil.copyfileobj(resp, f)
+    return out_path
 
 
 def _doc_row(doc: CanonicalDoc) -> tuple[object, ...]:
@@ -193,3 +222,65 @@ def _validate_corpus(
         ).fetchone()
         if hit and hit[0] == 0:
             logger.warning("FTS canary query %r returned 0 hits", query)
+
+
+def _main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint for ``python -m brs_docs.corpus.build``."""
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Build a brs-docs corpus.sqlite")
+    parser.add_argument("--lock", type=Path, required=True, help="Path to corpus.lock")
+    parser.add_argument("--out", type=Path, required=True, help="Output corpus.sqlite path")
+    parser.add_argument(
+        "--monorepo-root",
+        type=Path,
+        required=True,
+        help="rokudev-tools monorepo root (for brs-gen modules/templates).",
+    )
+    parser.add_argument(
+        "--sources-fixture-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Fixture directory containing dev_doc_tiny.tar.gz and samples_tiny.tar.gz. "
+            "Omit for production GitHub-fetch mode."
+        ),
+    )
+    parser.add_argument(
+        "--min-count",
+        action="append",
+        default=[],
+        metavar="KIND=N",
+        help="Minimum count per kind (e.g. --min-count component=5). Repeatable.",
+    )
+    args = parser.parse_args(argv)
+
+    min_counts: dict[str, int] = {}
+    for entry in args.min_count:
+        if "=" not in entry:
+            parser.error(f"--min-count expects KIND=N, got {entry!r}")
+        key, _, value = entry.partition("=")
+        try:
+            min_counts[key.strip()] = int(value)
+        except ValueError:
+            parser.error(f"--min-count value must be int, got {value!r}")
+
+    try:
+        result = build_corpus(
+            lock_path=args.lock,
+            out_path=args.out,
+            monorepo_root=args.monorepo_root,
+            sources_fixture_dir=args.sources_fixture_dir,
+            min_counts=min_counts,
+        )
+    except BuildError as exc:
+        print(f"build failed: {exc}", file=sys.stderr)
+        return 1
+
+    print(json.dumps(result.model_dump(mode="json"), indent=2, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
