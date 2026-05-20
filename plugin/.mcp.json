@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "rokudev-device": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/../packages/rokudev-device/dist/index.js"
+      ]
+    },
+    "brs-gen": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/../packages/brs-gen/dist/index.js"
+      ]
+    },
+    "brs-docs": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}/../packages/brs-docs",
+        "run",
+        "brs-docs",
+        "serve"
+      ]
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "rokudev-tools",
+  "metadata": {
+    "description": "Local development marketplace for the rokudev-tools Claude Code plugin (v0.1)."
+  },
+  "owner": {
+    "name": "Brian Blietz",
+    "url": "https://github.com/bblietz"
+  },
+  "plugins": [
+    {
+      "name": "rokudev-tools",
+      "description": "Roku BrightScript developer toolkit: 3 MCP servers (rokudev-device + brs-gen + brs-docs) and 6 workflow skills covering the daily core loop (build / deploy / verify / debug).",
+      "version": "0.1.0",
+      "author": {
+        "name": "Brian Blietz",
+        "url": "https://github.com/bblietz/rokudev-tools"
+      },
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/bblietz/rokudev-tools",
+      "tags": ["roku", "brightscript", "scenegraph", "mcp", "channel-development"]
+    }
+  ]
+}

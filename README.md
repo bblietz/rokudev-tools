@@ -154,3 +154,21 @@ First v1 feature module + foundational engine extension.
 **Known v1 limitation:** sink dispatch is hardcoded in `AnalyticsEventPipe_Flush` (firmware workaround for TCL 15.2.4 — function references in SG node fields are not preserved across thread boundaries). Custom sinks added via `Analytics_AddSink` are registered but not dispatched until a corresponding if-branch is added in Flush.
 
 **v1 status:** templates 6/6 (catalog COMPLETE since v0.5.6); feature modules 1/10.
+
+## Claude Code plugin (v0.1.0)
+
+Single Claude Code plugin that wires the three MCP servers and ships the workflow skills covering the daily core loop. Lives at top-level `plugin/`. See [`plugin/README.md`](./plugin/README.md) for full detail.
+
+**Bundled MCP servers:** `rokudev-device`, `brs-gen`, `brs-docs` (workspace-path absolute install, swappable to `npx -y` / `uvx` once packages are published).
+
+**Bundled skills (6):** `roku-dev-loop`, `roku-smoke-test`, `roku-triage`, `roku-ecp-recipes`, `roku-manifest-validator`, `roku-bsc-lint`. Remaining 8 user-local roku-* skills (assets, branding, slides, web, copy, deep-link-test, perf-trace, rooibos-test) land in v0.2+.
+
+**Install (local dev):**
+
+```bash
+pnpm install && pnpm -r build
+claude plugin marketplace add ./plugin
+claude plugin install rokudev-tools@rokudev-tools
+```
+
+**Verify:** `bash plugin/tests/test-install.sh && bash plugin/tests/test-skill-load.sh`. End-to-end stub_hello smoke against a real Roku is in [`plugin/tests/MANUAL-SMOKE.md`](./plugin/tests/MANUAL-SMOKE.md).
