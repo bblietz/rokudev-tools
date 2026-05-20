@@ -1,0 +1,86 @@
+[[cases]]
+intent = "how do I show a paywall"
+expected_top_ids = [
+  "feature_module:monetization.roku_pay.subscription",
+  "feature_module:monetization.roku_pay.transactional",
+  "guide:monetization-overview",
+]
+xfail_reason = "monetization.* modules paused per 2026-05-19 pivot"
+
+[[cases]]
+intent = "rotating focus on a RowList"
+expected_top_ids = ["node:RowList", "guide:scenegraph-focus", "sample:rowlist-focus-demo"]
+xfail_reason = "fixture corpus lacks these specific guides/samples"
+
+[[cases]]
+intent = "play HLS video"
+expected_top_ids = ["node:Video", "guide:video-playback", "sample:video-hls-basic"]
+xfail_reason = "fixture corpus lacks these specific guides/samples"
+
+[[cases]]
+intent = "send a deep link"
+expected_top_ids = ["feature_module:deep_link.global", "guide:ecp-deep-linking", "sample:deep-link-handler"]
+xfail_reason = "deep_link.global module paused per 2026-05-19 pivot"
+
+[[cases]]
+intent = "track user events"
+expected_top_ids = ["feature_module:analytics.event_pipe", "guide:analytics-overview"]
+xfail_reason = "fixture corpus lacks analytics-overview guide"
+
+[[cases]]
+intent = "sign in with OAuth"
+expected_top_ids = [
+  "feature_module:auth.oauth_device_grant",
+  "feature_module:auth.device_link_code",
+  "guide:auth-overview",
+]
+xfail_reason = "auth.* modules paused per 2026-05-19 pivot"
+
+[[cases]]
+intent = "show closed captions"
+expected_top_ids = ["feature_module:accessibility.captions", "node:Video", "guide:captions-overview"]
+xfail_reason = "accessibility.captions module paused per 2026-05-19 pivot"
+
+[[cases]]
+intent = "build a screensaver"
+expected_top_ids = ["template:screensaver", "guide:screensaver-overview"]
+xfail_reason = "fixture corpus lacks screensaver guide; template assertion may not be in top-K"
+
+[[cases]]
+intent = "build a game"
+expected_top_ids = ["template:game_shell", "sample:simple-game"]
+xfail_reason = "fixture corpus lacks simple-game sample"
+
+[[cases]]
+intent = "create a streaming video app"
+expected_top_ids = ["template:video_grid_channel", "node:Video", "node:RowList"]
+xfail_reason = "fixture corpus may rank differently; will pass with full corpus T28"
+
+[[cases]]
+intent = "build a music app"
+expected_top_ids = ["template:music_player", "node:Audio", "guide:audio-playback"]
+xfail_reason = "fixture corpus lacks Audio node + audio-playback guide"
+
+[[cases]]
+intent = "the channel crashed on startup"
+expected_top_ids = ["guide:debugging-overview", "guide:crash-analysis"]
+xfail_reason = "fixture corpus lacks these guides"
+
+[[cases]]
+intent = "channel is dropping frames"
+expected_top_ids = ["guide:performance-overview", "guide:profiler", "guide:rendering-tips"]
+xfail_reason = "fixture corpus lacks these guides"
+
+[[cases]]
+intent = "what time is it"
+forbidden_top_ids = ["feature_module:*", "template:*"]
+expected_top_ids = ["component:roDateTime"]
+xfail_reason = "fixture corpus: template:game_shell leaks into top-K (low score, 1.27 vs roDateTime 3.62); ranker is correct that roDateTime is #1, but template:* blocklist is strict. T28 full corpus + ranker tuning resolves."
+
+[[cases]]
+intent = "monetize my channel with ads and a subscription option"
+expected_top_ids_in_order = [
+  "feature_module:monetization.roku_pay.subscription",
+  "feature_module:ads.raf_csai",
+]
+xfail_reason = "monetization.*/ads.* modules paused per 2026-05-19 pivot"
