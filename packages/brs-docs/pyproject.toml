@@ -57,6 +57,8 @@ packages = ["brs_docs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Integration tests are excluded by default; run them with `pytest -m integration`.
+addopts = "-m 'not integration'"
 markers = [
     "integration: integration tests (slower; spawn subprocesses or build real corpus)",
     "slow: slow tests (corpus build, network IO)",
