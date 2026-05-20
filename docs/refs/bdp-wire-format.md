@@ -752,6 +752,51 @@ The BDP server pauses execution at the first BrightScript line (`main.brs:6`) on
 - Determine the spectrum of firmwares that serve BDP on port 8086. The fallback exists in code (`connectWithFallback`) but was not exercised during this run.
 - The 4 trailing bytes inside `remaining_packet_length` after the 8-byte timestamp are not yet decoded. They may be reserved/zero on this firmware. Spec §1.2 only documents the timestamp.
 
+### Run 2 (2026-05-20, outcome=NEGATIVE — TV-class hardware does not serve BDP)
+
+**Hardware:** TCL Roku TV 55S527-RF (model `A105X`, region US, panel-id 1), software **15.2.4 build 3442** (ui-build `88G.24E03442A`), `developer-enabled=true`, `brightscript-debugger-version=3.5.0` advertised in `/query/device-info`.
+**Test channel:** `FlappyBat` v2.4.0 (FlappyBat-game-Roku, prebuilt `FlappyBat.zip`, 1.89 MB). Also tried with a brs-gen-generated `stub_hello` channel; same negative result.
+**Tester:** ad-hoc via rokudev-tools plugin v0.1.1 + @rokudev/device-client v0.3.1, driven from a Claude Code session.
+
+**Procedure**
+
+1. Sideload `FlappyBat.zip` via `mcp__rokudev-device__sideload` (multipart `mysubmit=Install`). 200 OK, channel installs.
+2. Launch via `mcp__rokudev-device__ecp_launch(app_id="dev", params={"bs_debug_protocol": "1"})`. 200 OK; channel boots and renders.
+3. `mcp__rokudev-device__debug_attach`. Times out after 5000 ms.
+4. Manual TCP probe `nc -z -v -w 2 <host> 8081` immediately before/after launch.
+5. Repeated the sequence with three independent gating variables flipped (see table below). Each variable ruled out in isolation.
+
+**Variables tested and ruled out**
+
+| Gate hypothesis | State during test | BDP listener on 8081? |
+|---|---|---|
+| Firmware out of date | Latest available; "All software is up to date" dialog at 5/20/26 3:34pm. Last updated 5/8/26 2:31am. No newer build offered for model `A105X`. | refused |
+| `bs_debug_protocol=1` launch param missing | Param now in `ECP_LAUNCH_KEYS` allowlist (device-client v0.3.1); confirmed sent (no `ECP_PARAM_DISALLOWED`) | refused |
+| ECP mobile-control mode too strict | Flipped Settings → System → Advanced system settings → Control by mobile apps → Network access from `Enabled` to `Permissive`; verified via `ecp_device_info` (`ecp-setting-mode` field changed `enabled` -> `permissive`) | refused |
+| All three above, applied together | Latest firmware + `bs_debug_protocol=1` + Permissive | refused |
+
+**Observations**
+
+- TCP **8081**: `ECONNREFUSED` at every probe (immediately post-launch and several seconds later). The BDP control port never opens on this hardware regardless of launch params or ECP mode.
+- TCP **8086**: open at the TCP layer, but the BDP handshake (`bsdebug\0`) times out with no response. Same behaviour Run 1 saw on the Ultra. So 8086 on this device is *not* a hidden alternate BDP port either.
+- TCP **8085** (telnet log): works fine. Channel boots, compiles cleanly, runs. So `developer-enabled=true` is fully effective for the non-BDP dev surface (sideload, logs, ECP, screenshot, dev-portal endpoints).
+- `brightscript-debugger-version=3.5.0` is advertised in `/query/device-info` on this device, but advertisement is **decoupled from the listener actually being available**. This field reports what the system-image debugger library version *would* be if BDP were active; it does not imply the listener is reachable.
+
+**Conclusion**
+
+The BDP control port is **gated off at the firmware/hardware layer on TCL Roku TV (model `A105X`, software 15.2.4 build 3442)** independent of any client-side configuration. Three confirmed-orthogonal gates have been ruled out. Most likely explanation: BDP is not part of the TV-class product surface; the listener-init code path is either compiled out or wrapped in an `is_tv` / `model_family` check on this firmware. Run 1's PASS was on a Roku Ultra (4850X) -- a stick/box product line -- and is currently the only verified-working hardware class.
+
+**Implications for rokudev-tools**
+
+- The 13 active BDP tools (`debug_set_breakpoint`, `debug_threads`, `debug_stack_trace`, `debug_variables`, `debug_eval`, `debug_continue`, `debug_step`/`_over`/`_out`, `debug_pause`, `debug_list_breakpoints`, `debug_clear_breakpoint`, `debug_attach`) are unreachable against any Roku TV. They work against Ultra-class hardware per Run 1.
+- `debug_attach` could be sharpened: on `BDP_ATTACH_FAILED` with `cause_code: "ECONNREFUSED"` after a fresh `bs_debug_protocol=1` launch, **and** when `ecp_device_info` reports `is-tv=true`, surface a clear hint that BDP is not supported on Roku TV hardware rather than the generic 5-second timeout. This would save the same investigation in future.
+
+**Open follow-ups**
+
+- Test at least one more TV model (Hisense, Onn, other TCL revisions) to confirm the gate is TV-class-wide and not TCL-specific.
+- Test a Roku Express or Streaming Stick to confirm BDP works across the entire non-TV product line, not just Ultra.
+- If a newer firmware ships for TVs, retest -- it's possible (though unlikely) that a future TV firmware exposes BDP.
+
 ---
 
 ## 7. Open questions
