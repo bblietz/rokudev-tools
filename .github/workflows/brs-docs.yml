@@ -1,0 +1,51 @@
+name: brs-docs
+
+on:
+  push:
+    paths:
+      - "packages/brs-docs/**"
+      - ".github/workflows/brs-docs.yml"
+      - "Makefile"
+  pull_request:
+    paths:
+      - "packages/brs-docs/**"
+      - ".github/workflows/brs-docs.yml"
+      - "Makefile"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/brs-docs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # discipline scripts need full history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync
+      - run: uv run python -m brs_docs.corpus.build --lock corpus.lock --out src/brs_docs/data/corpus.sqlite --monorepo-root ${{ github.workspace }}
+      - run: uv run ruff check
+      - run: uv run mypy src/
+      - run: uv run pytest --maxfail=1
+      - run: uv run pytest -m integration
+
+  discipline:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/brs-docs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync
+      - run: uv run python scripts/corpus_lock_discipline.py
+      - run: uv run python scripts/tags_toml_discipline.py
