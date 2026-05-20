@@ -16,6 +16,7 @@ let mode:
   | 'pack-ok'
   | 'registry-ok'
   | 'profiler-ok'
+  | 'profiler-empty'
   | 'crashlog-ok'
   | 'devzip-ok' = 'genkey-ok';
 
@@ -79,6 +80,14 @@ beforeAll(async () => {
             '<h2>Memory</h2><p>Used: 10 MB</p>' +
             '<h2>FPS</h2><p>60 fps</p>' +
             '</body></html>',
+        );
+        return;
+      }
+
+      // profiler snapshot — no profile data (default plugin_inspect form only)
+      if (url === '/plugin_inspect' && mode === 'profiler-empty') {
+        res.end(
+          '<html><body><form><input name="passwd"/></form><div>Please enter a password</div></body></html>',
         );
         return;
       }
@@ -184,6 +193,13 @@ describe('DevPortalInspect extras', () => {
     expect(r.sections).toHaveProperty('Memory');
     expect(r.sections).toHaveProperty('FPS');
     expect(r.truncated).toBe(false);
+  });
+
+  it('profilerSnapshot throws PROFILER_NOT_ACTIVE when no sections parse', async () => {
+    mode = 'profiler-empty';
+    await expect(
+      new DevPortalInspect('127.0.0.1', 'pw', port).profilerSnapshot(),
+    ).rejects.toMatchObject({ code: 'PROFILER_NOT_ACTIVE' });
   });
 
   it('crashlogPull returns log_text', async () => {

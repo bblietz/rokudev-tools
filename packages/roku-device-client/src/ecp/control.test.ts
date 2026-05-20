@@ -60,6 +60,18 @@ describe('EcpControl', () => {
     });
   });
 
+  it('launch accepts bs_debug_protocol (BDP enablement)', async () => {
+    requests.length = 0;
+    await c().launch('dev', { bs_debug_protocol: '1' });
+    expect(requests[0]!.url).toBe('/launch/dev?bs_debug_protocol=1');
+  });
+
+  it('input accepts action key (deep-link standard)', async () => {
+    requests.length = 0;
+    await c().input({ action: 'play', contentId: 'abc' });
+    expect(requests[0]!.url).toBe('/input?action=play&contentId=abc');
+  });
+
   it('input rejects disallowed keys', async () => {
     await expect(c().input({ random: 'x' })).rejects.toMatchObject({
       code: 'ECP_PARAM_DISALLOWED',

@@ -36,6 +36,7 @@ export const FAILURE_CODES = {
   SIGNING_PASSWORD_REJECTED: 'device',
   PACKAGE_FAILED: 'device',
   DEV_PKG_UNAVAILABLE: 'device',
+  PROFILER_NOT_ACTIVE: 'device',
   // sideload
   SIDELOAD_REJECTED: 'sideload',
   SIDELOAD_TIMEOUT: 'sideload',

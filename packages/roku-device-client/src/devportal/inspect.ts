@@ -263,6 +263,19 @@ export class DevPortalInspect {
     const MAX = 256 * 1024;
     const truncated = r.bodyText.length > MAX;
     const raw_html_excerpt = truncated ? r.bodyText.slice(0, MAX) : r.bodyText;
+    if (Object.keys(sections).length === 0) {
+      // The device returned the bare plugin_inspect form with no profiler data
+      // section. This happens when no profile run is currently active and no
+      // recent inspect data is cached. Surfacing the raw HTML scaffolding is
+      // misleading; throw a clean error and let the caller decide whether to
+      // start a profile run (POST mysubmit=Inspect after enabling profiling
+      // in the channel's manifest, or attach the Roku Performance Monitor).
+      throw fail('PROFILER_NOT_ACTIVE', 'no profiler data available; profiling is not active', {
+        hint: "enable profiling on the channel (e.g. manifest 'bs_const=PROFILER=1' or attach a profiler) then re-run",
+        raw_html_excerpt,
+        truncated,
+      });
+    }
     return { ok: true, sections, raw_html_excerpt, truncated, duration_ms: Date.now() - start };
   }
 

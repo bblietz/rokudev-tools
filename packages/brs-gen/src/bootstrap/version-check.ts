@@ -73,7 +73,7 @@ export async function checkSiblings(myImportMetaUrl: string): Promise<VersionSta
         {
           package: '@rokudev/device-client',
           installed_version: siblingVersion,
-          expected_version: mine,
+          caller: { name: 'brs-gen', version: mine },
         },
       ),
     };

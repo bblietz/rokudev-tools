@@ -5,8 +5,22 @@ const ECP_INPUT_KEYS = new Set([
   'contentLabel',
   'playbackPosition',
   'streamFormat',
+  // Roku Deep Link Test Tool standard keys (channel reads via event.GetData):
+  'action',
+  'source',
+  'state',
 ] as const);
-const ECP_LAUNCH_KEYS = new Set(['contentId', 'mediaType'] as const);
+const ECP_LAUNCH_KEYS = new Set([
+  'contentId',
+  'mediaType',
+  // Brightscript Debug Protocol enable: required to open BDP control port 8081.
+  // Without this query param the device leaves the BDP listener closed even
+  // when a dev channel is running. Verified on firmware 15.2.4 / BDP v3.5.0
+  // (see docs/refs/bdp-wire-format.md §6 Run 1).
+  'bs_debug_protocol',
+  // Debugger console port override (paired with bs_debug_protocol).
+  'RMPDevPort',
+] as const);
 const X_KEY = /^x_[A-Za-z0-9_]+$/;
 
 export function isAllowedInputParamKey(k: string): boolean {
