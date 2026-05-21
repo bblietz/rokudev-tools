@@ -119,7 +119,7 @@ describe('dev_loop happy path', () => {
       zip_path: '/tmp/app.zip',
     })) as Record<string, unknown>;
 
-    expect(sideloadFn).toHaveBeenCalledWith('/tmp/app.zip');
+    expect(sideloadFn).toHaveBeenCalledWith('/tmp/app.zip', { debug: false });
     expect(tailFn).toHaveBeenCalledWith('192.168.1.100', 8085, 10);
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('192.168.1.100');

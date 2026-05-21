@@ -88,10 +88,18 @@ registerToolsModule((tools) => {
     'sideload',
     tool({
       name: 'sideload',
-      description: 'Sideload a Roku channel zip via /plugin_install (Digest auth).',
+      description:
+        'Sideload a Roku channel zip via /plugin_install (Digest auth). ' +
+        'Pass debug=true to also attach remotedebug + remotedebug_connect_early ' +
+        'formdata so BDP listener on TCP 8081 opens at install time -- required ' +
+        'on fw 15.2.4 build 3442 for debug_attach to win the listener race.',
       inputSchema: {
         type: 'object',
-        properties: { ...baseProps, zip_path: { type: 'string' } },
+        properties: {
+          ...baseProps,
+          zip_path: { type: 'string' },
+          debug: { type: 'boolean' },
+        },
         required: ['zip_path'],
         additionalProperties: false,
       },
@@ -99,6 +107,7 @@ registerToolsModule((tools) => {
         const t = await ensurePassword(a);
         const { ok: _ok, ...r } = await new DevPortal(t.host, t.dev_password).sideload(
           a['zip_path'] as string,
+          { debug: a['debug'] === true },
         );
         return { ok: true, host: t.host, ...r };
       },

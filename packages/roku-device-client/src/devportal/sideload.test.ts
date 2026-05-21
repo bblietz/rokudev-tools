@@ -148,4 +148,34 @@ describe('DevPortal sideload/unload', () => {
     const r = await new DevPortal('127.0.0.1', 'pw', port).sideload(big);
     expect(r.status).toBe('installed');
   });
+
+  it('omits remotedebug formdata by default', async () => {
+    // Default sideload (no debug option) must NOT include the BDP-enable
+    // flags, because they alter device behavior (open port 8081 at install
+    // time, single-shot consumed by any TCP connect).
+    mode = 'success';
+    await new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath);
+    const body = lastBody!.toString('utf8');
+    expect(body).not.toContain('name="remotedebug"');
+    expect(body).not.toContain('name="remotedebug_connect_early"');
+  });
+
+  it('attaches remotedebug + remotedebug_connect_early when debug=true', async () => {
+    // BDP listener gate on fw 15.2.4 build 3442: without these flags, port
+    // 8081 only opens for a ~250ms post-launch window that BdpSession.attach
+    // loses the race against. Verified via curl-based test against Ultra +
+    // TCL TV 2026-05-20. See docs/refs/bdp-wire-format.md §6 Run 3.
+    mode = 'success';
+    await new DevPortal('127.0.0.1', 'pw', port).sideload(zipPath, { debug: true });
+    const body = lastBody!.toString('utf8');
+    expect(body).toContain('name="remotedebug"');
+    expect(body).toContain('name="remotedebug_connect_early"');
+    // Sanity: each appears EXACTLY once, value=1. Anchored regex to avoid
+    // matching the longer `remotedebug_connect_early` field as if it were
+    // a `remotedebug=1` occurrence.
+    const remotedebugCount = (body.match(/name="remotedebug"/g) ?? []).length;
+    const earlyCount = (body.match(/name="remotedebug_connect_early"/g) ?? []).length;
+    expect(remotedebugCount).toBe(1);
+    expect(earlyCount).toBe(1);
+  });
 });

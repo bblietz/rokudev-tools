@@ -15,6 +15,19 @@ export type SideloadResult = {
   duration_ms: number;
 };
 
+export type SideloadOptions = {
+  /**
+   * When true, attach BOTH `remotedebug=1` AND `remotedebug_connect_early=1`
+   * formdata fields to the install POST. These flags tell the device to open
+   * the BrightScript Debug Protocol (BDP) listener on TCP 8081 at install time
+   * (not just briefly post-launch) and keep it available until the first
+   * client connects. Required on firmware 15.2.4 build 3442 (and likely
+   * newer) for `BdpSession.attach()` to reliably win the listener race.
+   * See `docs/refs/bdp-wire-format.md §6 Run 3` for the verification log.
+   */
+  debug?: boolean;
+};
+
 export class DevPortal {
   constructor(
     private host: string,
@@ -22,7 +35,7 @@ export class DevPortal {
     private port = 80,
   ) {}
 
-  async sideload(zipPath: string): Promise<SideloadResult> {
+  async sideload(zipPath: string, options: SideloadOptions = {}): Promise<SideloadResult> {
     const start = Date.now();
     let zipBytes: Buffer;
     try {
@@ -31,19 +44,29 @@ export class DevPortal {
       throw fail('ZIP_NOT_FOUND', `zip not found: ${zipPath}`);
     }
     const boundary = buildBoundary();
-    const body = buildMultipart(
-      [
-        { kind: 'field', name: 'mysubmit', value: 'Install' },
-        {
-          kind: 'file',
-          name: 'archive',
-          filename: basename(zipPath),
-          contentType: 'application/zip',
-          body: zipBytes,
-        },
-      ],
-      boundary,
-    );
+    const parts = [
+      { kind: 'field' as const, name: 'mysubmit', value: 'Install' },
+      {
+        kind: 'file' as const,
+        name: 'archive',
+        filename: basename(zipPath),
+        contentType: 'application/zip',
+        body: zipBytes,
+      },
+    ];
+    if (options.debug) {
+      // Upstream reference: rokucommunity/roku-deploy RokuDeploy.ts:485-493.
+      // Both flags must be sent together on current firmware -- only
+      // `remotedebug_connect_early=1` opens the early listener, but Roku's
+      // own tooling sends both, so we match that contract.
+      parts.push({ kind: 'field' as const, name: 'remotedebug', value: '1' });
+      parts.push({
+        kind: 'field' as const,
+        name: 'remotedebug_connect_early',
+        value: '1',
+      });
+    }
+    const body = buildMultipart(parts, boundary);
     const r = await digestRequest({
       method: 'POST',
       url: `http://${this.host}:${this.port}/plugin_install`,

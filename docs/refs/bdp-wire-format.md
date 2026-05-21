@@ -752,7 +752,12 @@ The BDP server pauses execution at the first BrightScript line (`main.brs:6`) on
 - Determine the spectrum of firmwares that serve BDP on port 8086. The fallback exists in code (`connectWithFallback`) but was not exercised during this run.
 - The 4 trailing bytes inside `remaining_packet_length` after the 8-byte timestamp are not yet decoded. They may be reserved/zero on this firmware. Spec §1.2 only documents the timestamp.
 
-### Run 2 (2026-05-20, outcome=NEGATIVE — TV-class hardware does not serve BDP)
+### Run 2 (2026-05-20, outcome=NEGATIVE — superseded by Run 3)
+
+**⚠️ HYPOTHESIS RETRACTED.** This run concluded "TV-class hardware does not serve BDP". Run 3 (later the same day) **invalidated that conclusion**: the same TCL Roku TV used here returned a successful BDP handshake (v3.5.0) once the install-time formdata flags `remotedebug=1` + `remotedebug_connect_early=1` were added to the sideload POST. The Run 2 procedure omitted those flags, so the BDP listener never opened reliably. The negative variables table below (firmware, launch param, ECP mode) was a true rule-out, but it was missing a fourth variable -- the install-time flags -- which turned out to be the actual gate. Read Run 3 for the corrected analysis.
+
+---
+
 
 **Hardware:** TCL Roku TV 55S527-RF (model `A105X`, region US, panel-id 1), software **15.2.4 build 3442** (ui-build `88G.24E03442A`), `developer-enabled=true`, `brightscript-debugger-version=3.5.0` advertised in `/query/device-info`.
 **Test channel:** `FlappyBat` v2.4.0 (FlappyBat-game-Roku, prebuilt `FlappyBat.zip`, 1.89 MB). Also tried with a brs-gen-generated `stub_hello` channel; same negative result.
@@ -796,6 +801,82 @@ The BDP control port is **gated off at the firmware/hardware layer on TCL Roku T
 - Test at least one more TV model (Hisense, Onn, other TCL revisions) to confirm the gate is TV-class-wide and not TCL-specific.
 - Test a Roku Express or Streaming Stick to confirm BDP works across the entire non-TV product line, not just Ultra.
 - If a newer firmware ships for TVs, retest -- it's possible (though unlikely) that a future TV firmware exposes BDP.
+
+### Run 3 (2026-05-20, outcome=PASS — install-time formdata flags are the actual BDP gate)
+
+**Hardware tested (BOTH passed):**
+
+- Roku Ultra 4850X @ `192.168.1.26`, fw 15.2.4 build 3442, ui-build `G6G.24E03442A`, `is-tv=false`
+- TCL Roku TV 55S527-RF (`A105X`) @ `10.3.21.233`, fw 15.2.4 build 3442, ui-build `88G.24E03442A`, `is-tv=true`
+
+Same firmware version on both. The Ultra is the Run 1 hardware re-tested; the TV is the Run 2 hardware re-tested. Both `developer-enabled=true`, both advertise `brightscript-debugger-version=3.5.0`.
+
+**Test channel:** `FlappyBat` v2.4.0 (1.89 MB, prebuilt).
+**Tester:** Brian's interactive Claude Code session with rokudev-tools 0.2.x + roku-device-client 0.3.x; curl used for the install POST so the formdata could be controlled directly (the device-client did not yet support the flags).
+
+**Discovery procedure**
+
+1. Reviewed [`rokucommunity/roku-deploy` `RokuDeploy.ts:485-493`](https://github.com/rokucommunity/roku-deploy/blob/master/src/RokuDeploy.ts) -- found TWO undocumented install-time formdata fields:
+   - `remotedebug=1`
+   - `remotedebug_connect_early=1`
+2. Run 1 doc claimed `remotedebug=1` "had no observable effect" -- but Run 1 already PASSED, so the flag's value was masked. `remotedebug_connect_early=1` had never been tested in either Run 1 or Run 2.
+3. Probed port 8081 immediately post-sideload, before any launch -- with both flags set, the listener was already OPEN at install time (`Connection succeeded`). Without flags, listener stays refused until brief post-launch window.
+4. Repeated the sideload-with-flags + `debug_attach` on both Ultra and TCL TV. Both returned handshake ok with `bdp_version={3,5,0}`.
+
+**Procedure (per device)**
+
+1. `mcp__rokudev-device__unload` (clears any existing dev channel).
+2. `curl --digest -u rokudev:1234 -F "mysubmit=Install" -F "remotedebug=1" -F "remotedebug_connect_early=1" -F "archive=@FlappyBat.zip" http://<host>/plugin_install` -- returns 200 OK with "Install Success" marker. Device auto-launches the channel.
+3. `mcp__rokudev-device__debug_attach` immediately. Returns `ok=true, bdp_version={3,5,0}`.
+4. `mcp__rokudev-device__debug_threads` (Ultra only -- TV got `connection_lost` before second request). Returns `threads=[{id:0, is_primary:true, stop_reason:"break", file:"pkg:/source/main.brs", line:6, function_name:"main"}]`.
+
+**Wire-level observations from a separate timing probe (Ultra only)**
+
+```
+Phase A: post-sideload, BEFORE launch (4 probes 250ms apart)
+  probe 1: 8081 OPEN (succeeded)
+  probe 2-4: refused  (single-shot listener was consumed by probe 1)
+
+Phase B: launch via ECP /launch/dev?bs_debug_protocol=1 (HTTP 200)
+
+Phase C: post-launch (40 probes 250ms apart for 10s)
+  probe 3 (~750ms): 8081 OPEN
+  all other probes: refused (~250ms wide window, single-shot)
+```
+
+So the device has TWO independent paths that open the BDP listener:
+- At sideload time, if `remotedebug_connect_early=1` is in formdata. The listener stays open until first connect.
+- At launch time, if `?bs_debug_protocol=1` is in the launch URL. The listener opens for a ~250ms window post-launch, single-shot.
+
+`debug_attach` was losing the post-launch race because it does TCP connect + handshake encode + write + read all sequentially, which doesn't fit cleanly in the 250ms window. The install-time path bypasses the race entirely.
+
+**Variables ruled out by Run 1 + Run 2 + this run (combined)**
+
+| Gate hypothesis | Confirmed effect on BDP listener? |
+|---|---|
+| Firmware version | NO -- 15.2.4 build 3442 supports BDP fine with the install-time flags |
+| `bs_debug_protocol=1` launch param | PARTIAL -- opens a 250ms post-launch window that `debug_attach` races |
+| ECP mobile-control mode (enabled vs. permissive) | NO -- both modes serve BDP equally |
+| TV-class hardware (is-tv=true) | NO -- TCL Roku TV serves BDP identically to Ultra once flags are set |
+| `remotedebug=1` install formdata | UNCLEAR -- Run 1 doc says no effect when tested alone; upstream `roku-deploy` always sends both together |
+| `remotedebug_connect_early=1` install formdata | **YES -- this is the actual gate.** When present, the BDP listener opens at install time and stays available until first TCP connect. |
+
+**Conclusion**
+
+The "TV-class hardware does not serve BDP" hypothesis from Run 2 is **wrong**. The actual gate is the install-time `remotedebug_connect_early=1` formdata field on the `/plugin_install` POST. With it, BDP works identically across Roku Ultra and Roku TV product lines on fw 15.2.4 build 3442.
+
+**Implications for rokudev-tools**
+
+- `DevPortal.sideload()` (`packages/roku-device-client/src/devportal/sideload.ts`) gained a `SideloadOptions.debug?: boolean` parameter as of `@rokudev/device-client@0.3.2`. When true, attaches both `remotedebug=1` and `remotedebug_connect_early=1` to the install formdata. Always-off was chosen as the default because the flags alter device behavior (open port 8081 single-shot at install time; any random TCP probe consumes the listener).
+- `mcp__rokudev-device__sideload` and `mcp__rokudev-device__dev_loop` MCP tools now accept `debug?: boolean` (rokudev-device@0.2.2).
+- The v0.2.1 `debug_attach` is-tv hint added by Run 2 (`packages/rokudev-device/src/tools/debug-lifecycle.ts`) is **now incorrect** and should be reworked. The hint should instead point users at `sideload(zip, {debug: true})` for any BDP_ATTACH_FAILED with `cause_code: "ECONNREFUSED"`, regardless of is-tv.
+- A separate (newly-observed in this run) bug: after a successful `debug_attach`, the next 1-2 requests sometimes return `connection_lost`. Root cause diagnosis: `BdpSession` decodes the `io_port_opened` async update event correctly but never connects to the announced dynamic IO port. Per spec §1.1 and Open Question #5 (below), the device uses that port for stdout capture; the prevailing hypothesis is that the device tears down the control socket if no client connects to the IO port within a short window. Tracked separately.
+
+**Open follow-ups**
+
+- Run a controlled `remotedebug=1` vs. `remotedebug_connect_early=1` isolation test (one at a time) to confirm which flag actually opens the listener. Run 3 set both together, matching upstream `roku-deploy`. Could be either or both.
+- Test Roku Express or Streaming Stick to fill out the product-line coverage.
+- Verify (or refute) the IO port teardown hypothesis once `BdpSession` learns to connect to it (see new task Fix-BDP-connection_lost).
 
 ---
 

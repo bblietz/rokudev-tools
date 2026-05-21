@@ -184,11 +184,29 @@ describe('sideload happy path', () => {
       zip_path: '/tmp/app.zip',
     })) as Record<string, unknown>;
 
-    expect(sideloadFn).toHaveBeenCalledWith('/tmp/app.zip');
+    expect(sideloadFn).toHaveBeenCalledWith('/tmp/app.zip', { debug: false });
     expect(result['ok']).toBe(true);
     expect(result['host']).toBe('192.168.1.100');
     expect(result['message']).toBe('Success');
     expect(result['http_code']).toBe(200);
+  });
+
+  it('forwards debug=true to DevPortal.sideload', async () => {
+    // BDP listener gate: when debug=true, the tool MUST pass the option
+    // through so the underlying sideload attaches remotedebug +
+    // remotedebug_connect_early formdata. See docs/refs/bdp-wire-format.md
+    // §6 Run 3 for the upstream contract.
+    const sideloadFn = vi.fn().mockResolvedValue({ message: 'Success', duration_ms: 50 });
+    mockDevPortal({ sideload: sideloadFn });
+
+    await call('sideload', {
+      host: '192.168.1.100',
+      dev_password: 'devpw',
+      zip_path: '/tmp/app.zip',
+      debug: true,
+    });
+
+    expect(sideloadFn).toHaveBeenCalledWith('/tmp/app.zip', { debug: true });
   });
 });
 

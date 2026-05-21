@@ -25,6 +25,8 @@ registerToolsModule((tools) => {
           force: { type: 'boolean' },
           // Plan 4 enforces freeform_lint_override; Plan 1 accepts but ignores it for forward compatibility.
           freeform_lint_override: { type: 'boolean' },
+          // Forwarded to DevPortal.sideload; see sideload tool for context.
+          debug: { type: 'boolean' },
         },
         required: ['zip_path'],
         additionalProperties: false,
@@ -34,7 +36,9 @@ registerToolsModule((tools) => {
         await checkReachable(t.device, a['force'] === true);
         if (!t.dev_password) throw fail('DEVICE_NO_PASSWORD', 'no dev_password resolved');
         const dp = new DevPortal(t.host, t.dev_password);
-        const sideloadRaw = await dp.sideload(a['zip_path'] as string);
+        const sideloadRaw = await dp.sideload(a['zip_path'] as string, {
+          debug: a['debug'] === true,
+        });
         // Strip `ok` so it doesn't collide with our outer `ok: true` (TS2783 pattern, see devportal.ts).
         const { ok: _ok, ...sideload } = sideloadRaw as Record<string, unknown>;
         const tail = (a['tail_seconds'] as number | undefined) ?? 10;

@@ -15,6 +15,7 @@ export {
   isAllowedLaunchParamKey,
 } from './ecp/index.js';
 export { DevPortal, DevPortalInspect, diffInstalled } from './devportal/index.js';
+export type { SideloadResult, SideloadOptions } from './devportal/index.js';
 export { TelnetClient, LogStream, type TelnetPort } from './telnet/index.js';
 export { discover, type Discovered } from './discovery/index.js';
 export {
